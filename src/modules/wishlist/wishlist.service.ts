@@ -1,11 +1,7 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { RowDataPacket } from 'mysql2/promise';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { PropertyType } from '../../common/enums/property-type.enum';
-import { DatabaseService } from '../../database/database.service';
 import {
   PROPERTY_TABLE_CONFIG,
   getPropertyConfig,
@@ -14,35 +10,45 @@ import {
 import { WishlistGuestQueryDto } from './dto/wishlist-guest-query.dto';
 import { ToggleWishlistDto } from './dto/toggle-wishlist.dto';
 
-type SqlValue = string | number | boolean | Date | null;
-
-type WishlistRow = RowDataPacket & {
+type WishlistRow = {
   id: number;
   property_id: number;
   property_type: string;
+};
+
+type WishlistListItem = {
+  id: number;
+  propertyId: number;
+  propertyType: PropertyType;
+  legacyPropertyType: string;
+  property: Record<string, unknown> | null;
 };
 
 @Injectable()
 export class WishlistService {
   private wishlistColumnsCache: Set<string> | null = null;
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async list(query: WishlistGuestQueryDto) {
     const columns = await this.getWishlistColumns();
-    const statusCondition = columns.has('status') ? ' AND status = 1' : '';
 
-    const wishlistRows = await this.databaseService.query<WishlistRow[]>(
-      `
-        SELECT id, property_id, property_type
-        FROM wishlist
-        WHERE user_id = ?${statusCondition}
-        ORDER BY id DESC
-      `,
-      [query.guestId],
-    );
+    const wishlistQuery = this.dataSource
+      .createQueryBuilder()
+      .select('wishlist.id', 'id')
+      .addSelect('wishlist.property_id', 'property_id')
+      .addSelect('wishlist.property_type', 'property_type')
+      .from('wishlist', 'wishlist')
+      .where('wishlist.user_id = :guestId', { guestId: query.guestId })
+      .orderBy('wishlist.id', 'DESC');
 
-    const items: Record<string, unknown>[] = [];
+    if (columns.has('status')) {
+      wishlistQuery.andWhere('wishlist.status = :status', { status: 1 });
+    }
+
+    const wishlistRows = await wishlistQuery.getRawMany<WishlistRow>();
+
+    const groupedRows = new Map<string, Array<WishlistRow>>();
 
     for (const row of wishlistRows) {
       const resolved = this.resolveLegacyType(row.property_type);
@@ -51,19 +57,56 @@ export class WishlistService {
         continue;
       }
 
-      const property = await this.databaseService.query<RowDataPacket[]>(
-        `SELECT * FROM ${resolved.config.table} WHERE id = ? LIMIT 1`,
-        [row.property_id],
-      );
-
-      items.push({
-        id: row.id,
-        propertyId: row.property_id,
-        propertyType: resolved.propertyType,
-        legacyPropertyType: row.property_type,
-        property: property[0] ?? null,
+      const entries = groupedRows.get(resolved.config.table) ?? [];
+      entries.push({
+        ...row,
       });
+      groupedRows.set(resolved.config.table, entries);
     }
+
+    const propertiesByTable = new Map<
+      string,
+      Map<number, Record<string, unknown>>
+    >();
+
+    await Promise.all(
+      Array.from(groupedRows.entries()).map(async ([table, entries]) => {
+        const ids = entries.map((entry) => entry.property_id);
+        const properties = await this.dataSource
+          .createQueryBuilder()
+          .select('p.*')
+          .from(table, 'p')
+          .where('p.id IN (:...ids)', { ids })
+          .getRawMany<Record<string, unknown>>();
+
+        propertiesByTable.set(
+          table,
+          new Map(properties.map((property) => [Number(property.id), property])),
+        );
+      }),
+    );
+
+    const items: WishlistListItem[] = wishlistRows
+      .map((row) => {
+        const resolved = this.resolveLegacyType(row.property_type);
+
+        if (!resolved) {
+          return null;
+        }
+
+        const property =
+          propertiesByTable.get(resolved.config.table)?.get(row.property_id) ??
+          null;
+
+        return {
+          id: row.id,
+          propertyId: row.property_id,
+          propertyType: resolved.propertyType,
+          legacyPropertyType: row.property_type,
+          property,
+        };
+      })
+      .filter((item): item is WishlistListItem => item !== null);
 
     return {
       items,
@@ -73,15 +116,20 @@ export class WishlistService {
 
   async count(query: WishlistGuestQueryDto) {
     const columns = await this.getWishlistColumns();
-    const statusCondition = columns.has('status') ? ' AND status = 1' : '';
 
-    const rows = await this.databaseService.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS total FROM wishlist WHERE user_id = ?${statusCondition}`,
-      [query.guestId],
-    );
+    const countQuery = this.dataSource
+      .createQueryBuilder()
+      .from('wishlist', 'wishlist')
+      .where('wishlist.user_id = :guestId', { guestId: query.guestId });
+
+    if (columns.has('status')) {
+      countQuery.andWhere('wishlist.status = :status', { status: 1 });
+    }
+
+    const total = await countQuery.getCount();
 
     return {
-      total: Number((rows[0]?.total as number | undefined) ?? 0),
+      total,
     };
   }
 
@@ -92,26 +140,33 @@ export class WishlistService {
     await this.ensurePropertyExists(config.table, payload.propertyId);
 
     const columns = await this.getWishlistColumns();
-    const statusCondition = columns.has('status') ? ' AND status = 1' : '';
 
-    const existingRows = await this.databaseService.query<WishlistRow[]>(
-      `
-        SELECT id
-        FROM wishlist
-        WHERE user_id = ?
-          AND property_id = ?
-          AND property_type = ?${statusCondition}
-        LIMIT 1
-      `,
-      [payload.guestId, payload.propertyId, config.legacyWishlistType],
-    );
+    const existingQuery = this.dataSource
+      .createQueryBuilder()
+      .select('wishlist.id', 'id')
+      .from('wishlist', 'wishlist')
+      .where('wishlist.user_id = :guestId', { guestId: payload.guestId })
+      .andWhere('wishlist.property_id = :propertyId', {
+        propertyId: payload.propertyId,
+      })
+      .andWhere('wishlist.property_type = :propertyType', {
+        propertyType: config.legacyWishlistType,
+      })
+      .limit(1);
 
-    const existing = existingRows[0];
+    if (columns.has('status')) {
+      existingQuery.andWhere('wishlist.status = :status', { status: 1 });
+    }
+
+    const existing = await existingQuery.getRawOne<{ id: number }>();
 
     if (existing) {
-      await this.databaseService.execute('DELETE FROM wishlist WHERE id = ?', [
-        existing.id,
-      ]);
+      await this.dataSource
+        .createQueryBuilder()
+        .delete()
+        .from('wishlist')
+        .where('id = :id', { id: existing.id })
+        .execute();
 
       const count = await this.count({ guestId: payload.guestId });
 
@@ -121,12 +176,7 @@ export class WishlistService {
       };
     }
 
-    await this.insertWishlistRow(
-      columns,
-      payload.guestId,
-      payload.propertyId,
-      config.legacyWishlistType,
-    );
+    await this.insertWishlistRow(columns, payload.guestId, payload.propertyId, config.legacyWishlistType);
 
     const count = await this.count({ guestId: payload.guestId });
 
@@ -146,16 +196,17 @@ export class WishlistService {
     return propertyType;
   }
 
-  private async ensurePropertyExists(
-    table: string,
-    propertyId: number,
-  ): Promise<void> {
-    const rows = await this.databaseService.query<RowDataPacket[]>(
-      `SELECT id FROM ${table} WHERE id = ? AND status = 1 LIMIT 1`,
-      [propertyId],
-    );
+  private async ensurePropertyExists(table: string, propertyId: number): Promise<void> {
+    const row = await this.dataSource
+      .createQueryBuilder()
+      .select('p.id', 'id')
+      .from(table, 'p')
+      .where('p.id = :propertyId', { propertyId })
+      .andWhere('p.status = :status', { status: 1 })
+      .limit(1)
+      .getRawOne<{ id: number }>();
 
-    if (!rows[0]) {
+    if (!row) {
       throw new NotFoundException('Property not found');
     }
   }
@@ -165,12 +216,20 @@ export class WishlistService {
       return this.wishlistColumnsCache;
     }
 
-    const columns = await this.databaseService.query<RowDataPacket[]>(
-      'SHOW COLUMNS FROM wishlist',
-    );
-    this.wishlistColumnsCache = new Set(
-      columns.map((column) => String(column.Field).toLowerCase()),
-    );
+    const queryRunner = this.dataSource.createQueryRunner();
+
+    try {
+      const table = await queryRunner.getTable('wishlist');
+      this.wishlistColumnsCache = new Set(
+        (table?.columns ?? []).map((column) => column.name.toLowerCase()),
+      );
+    } finally {
+      await queryRunner.release();
+    }
+
+    if (!this.wishlistColumnsCache) {
+      this.wishlistColumnsCache = new Set<string>();
+    }
 
     return this.wishlistColumnsCache;
   }
@@ -181,44 +240,22 @@ export class WishlistService {
     propertyId: number,
     legacyPropertyType: string,
   ): Promise<void> {
-    const fieldNames: string[] = [];
-    const valueExpressions: string[] = [];
-    const params: SqlValue[] = [];
-
-    fieldNames.push('user_id');
-    valueExpressions.push('?');
-    params.push(guestId);
-
-    fieldNames.push('property_id');
-    valueExpressions.push('?');
-    params.push(propertyId);
-
-    fieldNames.push('property_type');
-    valueExpressions.push('?');
-    params.push(legacyPropertyType);
+    const values: Record<string, unknown> = {
+      user_id: guestId,
+      property_id: propertyId,
+      property_type: legacyPropertyType,
+    };
 
     if (columns.has('status')) {
-      fieldNames.push('status');
-      valueExpressions.push('?');
-      params.push(1);
+      values.status = 1;
     }
 
-    if (columns.has('created_at')) {
-      fieldNames.push('created_at');
-      valueExpressions.push('CURRENT_TIMESTAMP');
-    }
-
-    if (columns.has('updated_at')) {
-      fieldNames.push('updated_at');
-      valueExpressions.push('CURRENT_TIMESTAMP');
-    }
-
-    const sql = `
-      INSERT INTO wishlist (${fieldNames.join(', ')})
-      VALUES (${valueExpressions.join(', ')})
-    `;
-
-    await this.databaseService.execute(sql, params);
+    await this.dataSource
+      .createQueryBuilder()
+      .insert()
+      .into('wishlist')
+      .values(values)
+      .execute();
   }
 
   private resolveLegacyType(legacyType: string): {

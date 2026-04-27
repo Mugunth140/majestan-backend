@@ -37,7 +37,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     }
 
-    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    if (status >= 500) {
       this.logger.error(
         `Unhandled exception for ${request.method} ${request.url}`,
         exception instanceof Error

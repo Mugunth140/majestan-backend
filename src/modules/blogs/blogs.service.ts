@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { RowDataPacket } from 'mysql2/promise';
-import { DatabaseService } from '../../database/database.service';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { BlogListQueryDto } from './dto/blog-list-query.dto';
 import { BlogLikeAction, ToggleBlogLikeDto } from './dto/toggle-blog-like.dto';
 
-type BlogRow = RowDataPacket & {
+type BlogRow = {
   id: number;
   status: number;
+  [key: string]: unknown;
 };
 
 type BlogMetricColumns = {
@@ -18,20 +19,25 @@ type BlogMetricColumns = {
 export class BlogsService {
   private metricColumnsCache: BlogMetricColumns | null = null;
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async list(query: BlogListQueryDto) {
     const offset = (query.page - 1) * query.limit;
 
-    const countRows = await this.databaseService.query<RowDataPacket[]>(
-      'SELECT COUNT(*) AS total FROM blogs WHERE status = 1',
-    );
-    const total = Number((countRows[0]?.total as number | undefined) ?? 0);
+    const baseQuery = this.dataSource
+      .createQueryBuilder()
+      .from('blogs', 'blogs')
+      .where('blogs.status = :status', { status: 1 });
 
-    const blogs = await this.databaseService.query<BlogRow[]>(
-      'SELECT * FROM blogs WHERE status = 1 ORDER BY id DESC LIMIT ? OFFSET ?',
-      [query.limit, offset],
-    );
+    const total = await baseQuery.clone().getCount();
+
+    const blogs = await baseQuery
+      .clone()
+      .select('blogs.*')
+      .orderBy('blogs.id', 'DESC')
+      .limit(query.limit)
+      .offset(offset)
+      .getRawMany<BlogRow>();
 
     return {
       items: blogs,
@@ -47,10 +53,14 @@ export class BlogsService {
     const { viewColumn } = await this.resolveMetricColumns();
 
     if (viewColumn) {
-      await this.databaseService.execute(
-        `UPDATE blogs SET ${viewColumn} = COALESCE(${viewColumn}, 0) + 1 WHERE id = ?`,
-        [id],
-      );
+      await this.dataSource
+        .createQueryBuilder()
+        .update('blogs')
+        .set({
+          [viewColumn]: () => `COALESCE(${viewColumn}, 0) + 1`,
+        })
+        .where('id = :id', { id })
+        .execute();
 
       const refreshed = await this.getBlogById(id);
       return refreshed;
@@ -73,39 +83,48 @@ export class BlogsService {
     }
 
     if (payload.action === BlogLikeAction.Unlike) {
-      await this.databaseService.execute(
-        `
-          UPDATE blogs
-          SET ${likeColumn} = GREATEST(COALESCE(${likeColumn}, 0) - 1, 0)
-          WHERE id = ?
-        `,
-        [id],
-      );
+      await this.dataSource
+        .createQueryBuilder()
+        .update('blogs')
+        .set({
+          [likeColumn]: () => `GREATEST(COALESCE(${likeColumn}, 0) - 1, 0)`,
+        })
+        .where('id = :id', { id })
+        .execute();
     } else {
-      await this.databaseService.execute(
-        `UPDATE blogs SET ${likeColumn} = COALESCE(${likeColumn}, 0) + 1 WHERE id = ?`,
-        [id],
-      );
+      await this.dataSource
+        .createQueryBuilder()
+        .update('blogs')
+        .set({
+          [likeColumn]: () => `COALESCE(${likeColumn}, 0) + 1`,
+        })
+        .where('id = :id', { id })
+        .execute();
     }
 
-    const likesRows = await this.databaseService.query<RowDataPacket[]>(
-      `SELECT COALESCE(${likeColumn}, 0) AS likes FROM blogs WHERE id = ? LIMIT 1`,
-      [id],
-    );
+    const likesRow = await this.dataSource
+      .createQueryBuilder()
+      .select(`COALESCE(blogs.${likeColumn}, 0)`, 'likes')
+      .from('blogs', 'blogs')
+      .where('blogs.id = :id', { id })
+      .limit(1)
+      .getRawOne<{ likes: number | string }>();
 
     return {
       liked: payload.action !== BlogLikeAction.Unlike,
-      likes: Number((likesRows[0]?.likes as number | undefined) ?? 0),
+      likes: Number(likesRow?.likes ?? 0),
     };
   }
 
   private async getBlogById(id: number): Promise<BlogRow> {
-    const rows = await this.databaseService.query<BlogRow[]>(
-      'SELECT * FROM blogs WHERE id = ? AND status = 1 LIMIT 1',
-      [id],
-    );
-
-    const blog = rows[0];
+    const blog = await this.dataSource
+      .createQueryBuilder()
+      .select('blogs.*')
+      .from('blogs', 'blogs')
+      .where('blogs.id = :id', { id })
+      .andWhere('blogs.status = :status', { status: 1 })
+      .limit(1)
+      .getRawOne<BlogRow>();
 
     if (!blog) {
       throw new NotFoundException('Blog not found');
@@ -119,12 +138,17 @@ export class BlogsService {
       return this.metricColumnsCache;
     }
 
-    const columns = await this.databaseService.query<RowDataPacket[]>(
-      'SHOW COLUMNS FROM blogs',
-    );
-    const fieldSet = new Set(
-      columns.map((column) => String(column.Field).toLowerCase()),
-    );
+    const queryRunner = this.dataSource.createQueryRunner();
+    let fieldSet = new Set<string>();
+
+    try {
+      const table = await queryRunner.getTable('blogs');
+      fieldSet = new Set(
+        (table?.columns ?? []).map((column) => column.name.toLowerCase()),
+      );
+    } finally {
+      await queryRunner.release();
+    }
 
     const viewCandidates = ['views', 'view_count', 'total_views'];
     const likeCandidates = ['likes', 'like_count', 'total_likes'];

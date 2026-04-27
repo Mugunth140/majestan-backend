@@ -7,6 +7,7 @@ import {
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import appConfig from './config/app.config';
 import authConfig from './config/auth.config';
 import databaseConfig from './config/database.config';
@@ -22,6 +23,10 @@ import { BlogsModule } from './modules/blogs/blogs.module';
 import { HealthModule } from './modules/health/health.module';
 import { PropertiesModule } from './modules/properties/properties.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { MetadataModule } from './modules/metadata/metadata.module';
+import { HomeModule } from './modules/home/home.module';
 
 @Module({
   imports: [
@@ -42,12 +47,40 @@ import { WishlistModule } from './modules/wishlist/wishlist.module';
         ],
       }),
     }),
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const sslEnabled = configService.get<boolean>('database.ssl', false);
+
+        return {
+          type: 'mysql' as const,
+          host: configService.getOrThrow<string>('database.host'),
+          port: configService.getOrThrow<number>('database.port'),
+          username: configService.getOrThrow<string>('database.username'),
+          password: configService.getOrThrow<string>('database.password'),
+          database: configService.getOrThrow<string>('database.database'),
+          autoLoadEntities: true,
+          synchronize: false,
+          logging: false,
+          extra: {
+            connectionLimit: configService.getOrThrow<number>(
+              'database.connectionLimit',
+            ),
+          },
+          ssl: sslEnabled ? { rejectUnauthorized: true } : undefined,
+        };
+      },
+    }),
     DatabaseModule,
     AuthModule,
     HealthModule,
     PropertiesModule,
     BlogsModule,
     WishlistModule,
+    LeadsModule,
+    MetadataModule,
+    HomeModule,
+    AdminModule,
   ],
   providers: [
     {

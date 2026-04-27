@@ -35,9 +35,20 @@ async function bootstrap() {
   });
 
   if (configService.get<boolean>('app.trustProxy', false)) {
-    const expressApp = app.getHttpAdapter().getInstance();
-    if (typeof expressApp.set === 'function') {
-      expressApp.set('trust proxy', 1);
+    const adapterInstance: unknown = app.getHttpAdapter().getInstance();
+
+    if (
+      typeof adapterInstance === 'object' &&
+      adapterInstance !== null &&
+      'set' in adapterInstance
+    ) {
+      const expressLike = adapterInstance as {
+        set?: (name: string, value: number) => unknown;
+      };
+
+      if (typeof expressLike.set === 'function') {
+        expressLike.set('trust proxy', 1);
+      }
     }
   }
 
@@ -84,4 +95,4 @@ async function bootstrap() {
   await app.listen(port);
 }
 
-bootstrap();
+void bootstrap();

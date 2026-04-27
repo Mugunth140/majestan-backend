@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { RowDataPacket } from 'mysql2/promise';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, SelectQueryBuilder } from 'typeorm';
 import { ListingType } from '../../common/enums/listing-type.enum';
 import { PropertyType } from '../../common/enums/property-type.enum';
 import { parseIndianNumber } from '../../common/utils/parse-indian-number.util';
-import { DatabaseService } from '../../database/database.service';
 import {
   PropertyTableConfig,
   getPropertyConfig,
@@ -11,7 +11,7 @@ import {
 } from './constants/property-table.config';
 import { PropertySearchQueryDto, PropertySortOption } from './dto/property-search.dto';
 
-type SqlValue = string | number | boolean | Date | null;
+type SortDirection = 'ASC' | 'DESC';
 
 type SearchResult = {
   items: Record<string, unknown>[];
@@ -20,14 +20,15 @@ type SearchResult = {
   limit: number;
 };
 
-type RawProperty = RowDataPacket & {
+type RawProperty = {
   id: number;
   posttype?: ListingType;
+  [key: string]: unknown;
 };
 
 @Injectable()
 export class PropertiesService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async search(query: PropertySearchQueryDto): Promise<SearchResult> {
     if (query.propertyType) {
@@ -62,12 +63,14 @@ export class PropertiesService {
     const propertyType = this.ensurePropertyType(propertyTypeRaw);
     const config = getPropertyConfig(propertyType);
 
-    const rows = await this.databaseService.query<RawProperty[]>(
-      `SELECT p.* FROM ${config.table} p WHERE p.id = ? AND p.status = 1 LIMIT 1`,
-      [id],
-    );
-
-    const property = rows[0];
+    const property = await this.dataSource
+      .createQueryBuilder()
+      .select('p.*')
+      .from(config.table, 'p')
+      .where('p.id = :id', { id })
+      .andWhere('p.status = :status', { status: 1 })
+      .limit(1)
+      .getRawOne<RawProperty>();
 
     if (!property) {
       throw new NotFoundException('Property not found');
@@ -91,25 +94,22 @@ export class PropertiesService {
     query: PropertySearchQueryDto,
   ): Promise<SearchResult> {
     const config = getPropertyConfig(propertyType);
-    const { whereSql, params } = this.buildWhereSql(config, query);
-    const countSql = `SELECT COUNT(*) AS total FROM ${config.table} p ${whereSql}`;
+    const baseQuery = this.buildBaseQuery(config, query);
+    const total = await baseQuery.clone().getCount();
 
-    const countRows = await this.databaseService.query<RowDataPacket[]>(countSql, params);
-    const total = Number((countRows[0]?.total as number | undefined) ?? 0);
+    const dataQuery = baseQuery.clone().select('p.*');
+    const sortOrder = this.buildSortOrder(config, query.sort, query.listingType);
 
-    const dataSql = `
-      SELECT p.*
-      FROM ${config.table} p
-      ${whereSql}
-      ORDER BY ${this.buildSortClause(config, query.sort, query.listingType)}
-      LIMIT ? OFFSET ?
-    `;
+    if (sortOrder) {
+      dataQuery.orderBy(sortOrder.expression, sortOrder.direction);
+    } else {
+      dataQuery.orderBy('p.id', 'DESC');
+    }
 
-    const dataRows = await this.databaseService.query<RawProperty[]>(dataSql, [
-      ...params,
-      query.limit,
-      (query.page - 1) * query.limit,
-    ]);
+    const dataRows = await dataQuery
+      .limit(query.limit)
+      .offset((query.page - 1) * query.limit)
+      .getRawMany<RawProperty>();
 
     return {
       items: dataRows.map((row) => this.cleanInternalFields(this.mapProperty(propertyType, config, row))),
@@ -125,22 +125,20 @@ export class PropertiesService {
     paginated: boolean,
   ): Promise<Record<string, unknown>[]> {
     const config = getPropertyConfig(propertyType);
-    const { whereSql, params } = this.buildWhereSql(config, query);
-    const dataSql = `
-      SELECT p.*
-      FROM ${config.table} p
-      ${whereSql}
-      ORDER BY ${this.buildSortClause(config, query.sort, query.listingType)}
-      ${paginated ? 'LIMIT ? OFFSET ?' : ''}
-    `;
+    const dataQuery = this.buildBaseQuery(config, query).select('p.*');
+    const sortOrder = this.buildSortOrder(config, query.sort, query.listingType);
 
-    const dataParams: SqlValue[] = [...params];
-
-    if (paginated) {
-      dataParams.push(query.limit, (query.page - 1) * query.limit);
+    if (sortOrder) {
+      dataQuery.orderBy(sortOrder.expression, sortOrder.direction);
+    } else {
+      dataQuery.orderBy('p.id', 'DESC');
     }
 
-    const rows = await this.databaseService.query<RawProperty[]>(dataSql, dataParams);
+    if (paginated) {
+      dataQuery.limit(query.limit).offset((query.page - 1) * query.limit);
+    }
+
+    const rows = await dataQuery.getRawMany<RawProperty>();
     return rows.map((row) => this.mapProperty(propertyType, config, row));
   }
 
@@ -175,75 +173,95 @@ export class PropertiesService {
     return clone;
   }
 
-  private buildWhereSql(config: PropertyTableConfig, query: PropertySearchQueryDto) {
-    const where: string[] = ['p.status = 1'];
-    const params: SqlValue[] = [];
+  private buildBaseQuery(
+    config: PropertyTableConfig,
+    query: PropertySearchQueryDto,
+  ): SelectQueryBuilder<Record<string, unknown>> {
+    const queryBuilder = this.dataSource
+      .createQueryBuilder()
+      .from(config.table, 'p')
+      .where('p.status = :status', { status: 1 });
 
     if (query.listingType) {
-      where.push('p.posttype = ?');
-      params.push(query.listingType);
+      queryBuilder.andWhere('p.posttype = :listingType', {
+        listingType: query.listingType,
+      });
     }
 
     if (query.location) {
-      where.push(`p.${config.locationColumn} = ?`);
-      params.push(query.location);
+      queryBuilder.andWhere(`p.${config.locationColumn} = :location`, {
+        location: query.location,
+      });
     }
 
     if (query.propertyName) {
-      where.push(`(p.${config.nameColumn} LIKE ? OR p.${config.locationColumn} LIKE ?)`);
-      const search = `%${query.propertyName}%`;
-      params.push(search, search);
+      queryBuilder.andWhere(
+        `(p.${config.nameColumn} LIKE :propertySearch OR p.${config.locationColumn} LIKE :propertySearch)`,
+        {
+          propertySearch: `%${query.propertyName}%`,
+        },
+      );
     }
 
     this.applyRangeFilter(
-      where,
-      params,
+      queryBuilder,
       query.priceRanges,
       query.listingType === ListingType.Rent && config.rentPriceColumn
         ? config.rentPriceColumn
         : config.sellPriceColumn,
+      'priceRange',
     );
 
-    this.applyRangeFilter(where, params, query.sqftRanges, config.areaColumn);
-    this.applyInFilter(where, params, query.unitType, config.unitColumn);
-    this.applyInFilter(where, params, query.furnishing, config.furnishingColumn);
-    this.applyInFilter(where, params, query.floor, config.floorColumn);
-    this.applyInFilter(where, params, query.facing, config.facingColumn);
-    this.applyInFilter(where, params, query.age, config.ageColumn);
-    this.applyInFilter(where, params, query.propertyUse, config.propertyUseColumn);
+    this.applyRangeFilter(queryBuilder, query.sqftRanges, config.areaColumn, 'sqftRange');
+    this.applyInFilter(queryBuilder, query.unitType, config.unitColumn, 'unitTypeValues');
+    this.applyInFilter(
+      queryBuilder,
+      query.furnishing,
+      config.furnishingColumn,
+      'furnishingValues',
+    );
+    this.applyInFilter(queryBuilder, query.floor, config.floorColumn, 'floorValues');
+    this.applyInFilter(queryBuilder, query.facing, config.facingColumn, 'facingValues');
+    this.applyInFilter(queryBuilder, query.age, config.ageColumn, 'ageValues');
+    this.applyInFilter(
+      queryBuilder,
+      query.propertyUse,
+      config.propertyUseColumn,
+      'propertyUseValues',
+    );
 
-    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
-    return { whereSql, params };
+    return queryBuilder;
   }
 
   private applyInFilter(
-    where: string[],
-    params: SqlValue[],
+    queryBuilder: SelectQueryBuilder<Record<string, unknown>>,
     values: string[] | undefined,
     column?: string,
+    paramKey = 'values',
   ): void {
     if (!values || values.length === 0 || !column) {
       return;
     }
 
-    const placeholders = values.map(() => '?').join(', ');
-    where.push(`p.${column} IN (${placeholders})`);
-    params.push(...values);
+    queryBuilder.andWhere(`p.${column} IN (:...${paramKey})`, {
+      [paramKey]: values,
+    });
   }
 
   private applyRangeFilter(
-    where: string[],
-    params: SqlValue[],
+    queryBuilder: SelectQueryBuilder<Record<string, unknown>>,
     ranges: string[] | undefined,
     column: string,
+    paramKeyPrefix: string,
   ): void {
     if (!ranges || ranges.length === 0) {
       return;
     }
 
     const rangeClauses: string[] = [];
+    const parameters: Record<string, number> = {};
 
-    for (const range of ranges) {
+    for (const [index, range] of ranges.entries()) {
       const [rawMin, rawMax] = range.split('-').map((part) => part.trim());
       const minValue = parseIndianNumber(rawMin);
       const maxValue = rawMax ? parseIndianNumber(rawMax) : null;
@@ -253,58 +271,77 @@ export class PropertiesService {
       }
 
       if (maxValue !== null && Number.isFinite(maxValue)) {
-        rangeClauses.push(`CAST(p.${column} AS DECIMAL(18, 2)) BETWEEN ? AND ?`);
-        params.push(minValue, maxValue);
+        const minKey = `${paramKeyPrefix}Min${index}`;
+        const maxKey = `${paramKeyPrefix}Max${index}`;
+        rangeClauses.push(
+          `CAST(p.${column} AS DECIMAL(18, 2)) BETWEEN :${minKey} AND :${maxKey}`,
+        );
+        parameters[minKey] = minValue;
+        parameters[maxKey] = maxValue;
       } else {
-        rangeClauses.push(`CAST(p.${column} AS DECIMAL(18, 2)) >= ?`);
-        params.push(minValue);
+        const minKey = `${paramKeyPrefix}Min${index}`;
+        rangeClauses.push(`CAST(p.${column} AS DECIMAL(18, 2)) >= :${minKey}`);
+        parameters[minKey] = minValue;
       }
     }
 
     if (rangeClauses.length > 0) {
-      where.push(`(${rangeClauses.join(' OR ')})`);
+      queryBuilder.andWhere(`(${rangeClauses.join(' OR ')})`, parameters);
     }
   }
 
-  private buildSortClause(
+  private buildSortOrder(
     config: PropertyTableConfig,
     sort: PropertySortOption | undefined,
     listingType: ListingType | undefined,
-  ): string {
+  ): { expression: string; direction: SortDirection } | null {
     if (!sort) {
-      return 'p.id DESC';
+      return null;
     }
 
     if (sort === PropertySortOption.AreaLowToHigh) {
-      return `CAST(p.${config.areaColumn} AS UNSIGNED) ASC`;
+      return {
+        expression: `CAST(p.${config.areaColumn} AS UNSIGNED)`,
+        direction: 'ASC',
+      };
     }
 
     if (sort === PropertySortOption.AreaHighToLow) {
-      return `CAST(p.${config.areaColumn} AS UNSIGNED) DESC`;
+      return {
+        expression: `CAST(p.${config.areaColumn} AS UNSIGNED)`,
+        direction: 'DESC',
+      };
     }
 
-    const direction = sort === PropertySortOption.PriceLowToHigh ? 'ASC' : 'DESC';
+    const direction: SortDirection =
+      sort === PropertySortOption.PriceLowToHigh ? 'ASC' : 'DESC';
 
     if (listingType === ListingType.Sell) {
-      return `CAST(p.${config.sellPriceColumn} AS UNSIGNED) ${direction}`;
+      return {
+        expression: `CAST(p.${config.sellPriceColumn} AS UNSIGNED)`,
+        direction,
+      };
     }
 
     if (listingType === ListingType.Rent) {
       const rentColumn = config.rentPriceColumn ?? config.sellPriceColumn;
-      return `CAST(p.${rentColumn} AS UNSIGNED) ${direction}`;
+      return {
+        expression: `CAST(p.${rentColumn} AS UNSIGNED)`,
+        direction,
+      };
     }
 
     if (config.rentPriceColumn) {
-      return `
-        CASE
-          WHEN p.posttype = 'Sell' THEN CAST(p.${config.sellPriceColumn} AS UNSIGNED)
-          WHEN p.posttype = 'Rent' THEN CAST(p.${config.rentPriceColumn} AS UNSIGNED)
-          ELSE 0
-        END ${direction}
-      `;
+      return {
+        expression: `CASE WHEN p.posttype = 'Sell' THEN CAST(p.${config.sellPriceColumn} AS UNSIGNED) WHEN p.posttype = 'Rent' THEN CAST(p.${config.rentPriceColumn} AS UNSIGNED) ELSE 0 END`,
+        direction,
+      };
     }
 
-    return `CAST(p.${config.sellPriceColumn} AS UNSIGNED) ${direction}`;
+    return {
+      expression: `CAST(p.${config.sellPriceColumn} AS UNSIGNED)`,
+      direction,
+    };
   }
 
   private sortInMemory(
@@ -346,7 +383,15 @@ export class PropertiesService {
       return value;
     }
 
-    const cleaned = String(value).replace(/,/g, '').trim();
+    if (typeof value === 'boolean') {
+      return value ? 1 : 0;
+    }
+
+    if (typeof value !== 'string') {
+      return 0;
+    }
+
+    const cleaned = value.replace(/,/g, '').trim();
     const numeric = Number.parseFloat(cleaned);
 
     return Number.isFinite(numeric) ? numeric : 0;
@@ -357,7 +402,15 @@ export class PropertiesService {
       return value;
     }
 
-    const parsed = Number.parseFloat(String(value ?? 0));
+    if (typeof value === 'boolean') {
+      return value ? 1 : 0;
+    }
+
+    if (typeof value !== 'string') {
+      return 0;
+    }
+
+    const parsed = Number.parseFloat(value);
     return Number.isFinite(parsed) ? parsed : 0;
   }
 }

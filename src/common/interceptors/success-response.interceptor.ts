@@ -6,14 +6,22 @@ import {
 } from '@nestjs/common';
 import { Observable, map } from 'rxjs';
 
+type SuccessEnvelope = {
+  success: boolean;
+  [key: string]: unknown;
+};
+
 @Injectable()
 export class SuccessResponseInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  intercept(
+    context: ExecutionContext,
+    next: CallHandler<unknown>,
+  ): Observable<SuccessEnvelope> {
     const request = context.switchToHttp().getRequest<{ requestId?: string }>();
 
     return next.handle().pipe(
-      map((data) => {
-        if (typeof data === 'object' && data !== null && 'success' in data) {
+      map((data: unknown): SuccessEnvelope => {
+        if (this.isSuccessEnvelope(data)) {
           return data;
         }
 
@@ -25,5 +33,9 @@ export class SuccessResponseInterceptor implements NestInterceptor {
         };
       }),
     );
+  }
+
+  private isSuccessEnvelope(data: unknown): data is SuccessEnvelope {
+    return typeof data === 'object' && data !== null && 'success' in data;
   }
 }

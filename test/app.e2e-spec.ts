@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import request from 'supertest';
+import request, { Response } from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 
@@ -21,9 +21,14 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/api/v1/health')
       .expect(200)
-      .expect((response) => {
-        expect(response.body.success).toBe(true);
-        expect(response.body.data).toBeDefined();
+      .expect((response: Response) => {
+        const body = response.body as {
+          success?: boolean;
+          data?: unknown;
+        };
+
+        expect(body.success).toBe(true);
+        expect(body.data).toBeDefined();
       });
   });
 
