@@ -12,7 +12,25 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  app.use(helmet());
+  const apiPrefix = configService.getOrThrow<string>('app.apiPrefix');
+  const enableDocs = configService.get<boolean>('app.enableDocs', false);
+  const docsPath = enableDocs
+    ? configService.getOrThrow<string>('app.docsPath')
+    : '';
+  const docsRoutePrefix = enableDocs
+    ? `/${apiPrefix}/${docsPath}`
+    : '';
+  const helmetDefault = helmet();
+  const helmetNoCsp = helmet({ contentSecurityPolicy: false });
+
+  app.use((req, res, next) => {
+    // Swagger UI assets can be blocked by strict CSP headers in production.
+    if (enableDocs && docsRoutePrefix && req.path.startsWith(docsRoutePrefix)) {
+      return helmetNoCsp(req, res, next);
+    }
+
+    return helmetDefault(req, res, next);
+  });
   app.use(compression());
   app.use(cookieParser());
 
@@ -52,14 +70,11 @@ async function bootstrap() {
     }
   }
 
-  const apiPrefix = configService.getOrThrow<string>('app.apiPrefix');
   app.setGlobalPrefix(apiPrefix, {
     exclude: [{ path: '/', method: RequestMethod.GET }],
   });
 
-  const enableDocs = configService.get<boolean>('app.enableDocs', false);
   if (enableDocs) {
-    const docsPath = configService.getOrThrow<string>('app.docsPath');
     const docsTitle = configService.getOrThrow<string>('app.docsTitle');
     const docsDescription = configService.getOrThrow<string>(
       'app.docsDescription',
