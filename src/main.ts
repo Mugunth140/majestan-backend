@@ -12,10 +12,15 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  const apiPrefix = configService.getOrThrow<string>('app.apiPrefix');
+  const normalizeSegment = (value: string): string =>
+    value.replace(/^\/+|\/+$/g, '');
+
+  const apiPrefix = normalizeSegment(
+    configService.getOrThrow<string>('app.apiPrefix'),
+  );
   const enableDocs = configService.get<boolean>('app.enableDocs', false);
   const docsPath = enableDocs
-    ? configService.getOrThrow<string>('app.docsPath')
+    ? normalizeSegment(configService.getOrThrow<string>('app.docsPath'))
     : '';
   const docsRoutePrefix = enableDocs
     ? `/${apiPrefix}/${docsPath}`
@@ -25,7 +30,11 @@ async function bootstrap() {
 
   app.use((req, res, next) => {
     // Swagger UI assets can be blocked by strict CSP headers in production.
-    if (enableDocs && docsRoutePrefix && req.path.startsWith(docsRoutePrefix)) {
+    if (
+      enableDocs &&
+      docsRoutePrefix &&
+      req.originalUrl.startsWith(docsRoutePrefix)
+    ) {
       return helmetNoCsp(req, res, next);
     }
 
