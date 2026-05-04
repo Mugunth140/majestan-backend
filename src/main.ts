@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
@@ -53,7 +53,9 @@ async function bootstrap() {
   }
 
   const apiPrefix = configService.getOrThrow<string>('app.apiPrefix');
-  app.setGlobalPrefix(apiPrefix);
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: [{ path: '/', method: RequestMethod.GET }],
+  });
 
   const enableDocs = configService.get<boolean>('app.enableDocs', false);
   if (enableDocs) {

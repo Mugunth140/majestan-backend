@@ -27,6 +27,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { MetadataModule } from './modules/metadata/metadata.module';
 import { HomeModule } from './modules/home/home.module';
+import { RootController } from './root.controller';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { HomeModule } from './modules/home/home.module';
     HomeModule,
     AdminModule,
   ],
+  controllers: [RootController],
   providers: [
     {
       provide: APP_GUARD,
