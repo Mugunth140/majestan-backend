@@ -57,6 +57,61 @@ CREATE TABLE IF NOT EXISTS unittypes (
   UNIQUE KEY uq_unittypes_name (unittype)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS ageproperties (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  date VARCHAR(255) NULL,
+  ageproperty VARCHAR(255) NOT NULL,
+  status TINYINT NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_ageproperties_status (status),
+  UNIQUE KEY uq_ageproperties_name (ageproperty)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS facing_directions (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  date VARCHAR(255) NULL,
+  facing VARCHAR(255) NOT NULL,
+  status TINYINT NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_facing_directions_status (status),
+  UNIQUE KEY uq_facing_directions_name (facing)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS floors (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  date VARCHAR(255) NULL,
+  floor VARCHAR(255) NOT NULL,
+  status TINYINT NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_floors_status (status),
+  UNIQUE KEY uq_floors_name (floor)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS furnishings (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  date VARCHAR(255) NULL,
+  furnishing VARCHAR(255) NOT NULL,
+  status TINYINT NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_furnishings_status (status),
+  UNIQUE KEY uq_furnishings_name (furnishing)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS propertyuses (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  date VARCHAR(255) NULL,
+  propertyuse VARCHAR(255) NOT NULL,
+  status TINYINT NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_propertyuses_status (status),
+  UNIQUE KEY uq_propertyuses_name (propertyuse)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS business_setup (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   company_name VARCHAR(255) NULL,
@@ -151,7 +206,15 @@ CREATE TABLE IF NOT EXISTS apartment (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_apartment_code (apartment_code),
   INDEX idx_apartment_status (status),
-  INDEX idx_apartment_posttype (posttype)
+  INDEX idx_apartment_posttype (posttype),
+  INDEX idx_apartment_sublocation (sublocation),
+  INDEX idx_apartment_floor (floor),
+  INDEX idx_apartment_unittype (unittype),
+  INDEX idx_apartment_expectedsaleprice (expectedsaleprice),
+  INDEX idx_apartment_monthly_rent (monthly_rent),
+  INDEX idx_apartment_facing (facing),
+  INDEX idx_apartment_property_age (property_age),
+  INDEX idx_apartment_booking_status (booking_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS villas (
@@ -178,7 +241,15 @@ CREATE TABLE IF NOT EXISTS villas (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_villa_code (villa_code),
   INDEX idx_villas_status (status),
-  INDEX idx_villas_posttype (posttype)
+  INDEX idx_villas_posttype (posttype),
+  INDEX idx_villas_sublocation (sublocation),
+  INDEX idx_villas_floor (floor),
+  INDEX idx_villas_configuration (configuration),
+  INDEX idx_villas_expectedsaleprice (expectedsaleprice),
+  INDEX idx_villas_monthly_rent (monthly_rent),
+  INDEX idx_villas_facing_direction (facing_direction),
+  INDEX idx_villas_property_age (property_age),
+  INDEX idx_villas_booking_status (booking_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS individual_portions (
@@ -204,7 +275,15 @@ CREATE TABLE IF NOT EXISTS individual_portions (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_individual_code (individual_space_code),
   INDEX idx_individual_status (status),
-  INDEX idx_individual_posttype (posttype)
+  INDEX idx_individual_posttype (posttype),
+  INDEX idx_individual_sublocation (sublocation),
+  INDEX idx_individual_floor (floor),
+  INDEX idx_individual_configuration (configuration),
+  INDEX idx_individual_expectedsaleprice (expectedsaleprice),
+  INDEX idx_individual_monthly_rent (monthly_rent),
+  INDEX idx_individual_facing (facing),
+  INDEX idx_individual_property_age (property_age),
+  INDEX idx_individual_booking_status (booking_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS plots (
@@ -227,7 +306,14 @@ CREATE TABLE IF NOT EXISTS plots (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_plots_code (plot_code),
   INDEX idx_plots_status (status),
-  INDEX idx_plots_posttype (posttype)
+  INDEX idx_plots_posttype (posttype),
+  INDEX idx_plots_sublocation (sublocation),
+  INDEX idx_plots_facing_direction (facing_direction),
+  INDEX idx_plots_project_area (project_area),
+  INDEX idx_plots_total_area (total_area),
+  INDEX idx_plots_expectedsaleprice (expectedsaleprice),
+  INDEX idx_plots_monthly_rent (monthly_rent),
+  INDEX idx_plots_booking_status (booking_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS farmlands (
@@ -249,7 +335,13 @@ CREATE TABLE IF NOT EXISTS farmlands (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_farmland_code (farm_land_code),
   INDEX idx_farmlands_status (status),
-  INDEX idx_farmlands_posttype (posttype)
+  INDEX idx_farmlands_posttype (posttype),
+  INDEX idx_farmlands_sublocation (sublocation),
+  INDEX idx_farmlands_facing (facing),
+  INDEX idx_farmlands_totalarea (totalarea),
+  INDEX idx_farmlands_expectedsaleprice (expectedsaleprice),
+  INDEX idx_farmlands_monthly_rent (monthly_rent),
+  INDEX idx_farmlands_booking_status (booking_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS commercial_space (
@@ -275,7 +367,16 @@ CREATE TABLE IF NOT EXISTS commercial_space (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_commercial_code (common_space_code),
   INDEX idx_commercial_status (status),
-  INDEX idx_commercial_posttype (posttype)
+  INDEX idx_commercial_posttype (posttype),
+  INDEX idx_commercial_sublocation (sublocation),
+  INDEX idx_commercial_floor (floor),
+  INDEX idx_commercial_propertyuse (propertyuse),
+  INDEX idx_commercial_unitsize (unitsize),
+  INDEX idx_commercial_ageofproperty (ageofproperty),
+  INDEX idx_commercial_expectedsaleprice (expectedsaleprice),
+  INDEX idx_commercial_monthly_rent (monthly_rent),
+  INDEX idx_commercial_furnishing_status (furnishing_status),
+  INDEX idx_commercial_booking_status (booking_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS industrial_spaces (
@@ -299,7 +400,15 @@ CREATE TABLE IF NOT EXISTS industrial_spaces (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_industrial_code (industrial_space_code),
   INDEX idx_industrial_status (status),
-  INDEX idx_industrial_posttype (posttype)
+  INDEX idx_industrial_posttype (posttype),
+  INDEX idx_industrial_sublocation (sublocation),
+  INDEX idx_industrial_propertyuse (propertyuse),
+  INDEX idx_industrial_buildup_area (buildup_area),
+  INDEX idx_industrial_age_of_property (age_of_property),
+  INDEX idx_industrial_expectedsaleprice (expectedsaleprice),
+  INDEX idx_industrial_monthly_rent (monthly_rent),
+  INDEX idx_industrial_facing (facing),
+  INDEX idx_industrial_booking_status (booking_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS coworkers (
@@ -325,7 +434,15 @@ CREATE TABLE IF NOT EXISTS coworkers (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_coworkers_code (coworkers_code),
   INDEX idx_coworkers_status (status),
-  INDEX idx_coworkers_posttype (posttype)
+  INDEX idx_coworkers_posttype (posttype),
+  INDEX idx_coworkers_sublocation (sublocation),
+  INDEX idx_coworkers_floor (floor),
+  INDEX idx_coworkers_unittype (unittype),
+  INDEX idx_coworkers_expected_rent_perseat (expected_rent_perseat),
+  INDEX idx_coworkers_monthly_rent (monthly_rent),
+  INDEX idx_coworkers_facing (facing),
+  INDEX idx_coworkers_property_age (property_age),
+  INDEX idx_coworkers_booking_status (booking_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO login (username, password, role, status)
