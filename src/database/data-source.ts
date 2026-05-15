@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { CreateMajestanLegacySchema1778544000000 } from './migrations/1778544000000-CreateMajestanLegacySchema';
 import { SeedMajestanReferenceData1778544001000 } from './migrations/1778544001000-SeedMajestanReferenceData';
+import { RefactorLegacyToUnifiedSchema1779100000000 } from './migrations/1779100000000-RefactorLegacyToUnifiedSchema';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -11,10 +12,7 @@ const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
 };
 
-const parseInteger = (
-  value: string | undefined,
-  fallback: number,
-): number => {
+const parseInteger = (value: string | undefined, fallback: number): number => {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
@@ -34,6 +32,7 @@ export default new DataSource({
   migrations: [
     CreateMajestanLegacySchema1778544000000,
     SeedMajestanReferenceData1778544001000,
+    RefactorLegacyToUnifiedSchema1779100000000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),

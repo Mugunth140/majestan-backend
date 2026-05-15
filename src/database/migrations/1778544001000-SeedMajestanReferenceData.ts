@@ -1,5 +1,89 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
+const prerequisiteTableStatements = [
+  `CREATE TABLE IF NOT EXISTS \`login\` (
+    \`id\` int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    \`username\` varchar(100) NULL,
+    \`password\` varchar(255) NOT NULL,
+    \`status\` tinyint(4) NOT NULL DEFAULT 1,
+    \`created_at\` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+    \`role\` varchar(32) NOT NULL DEFAULT 'admin',
+    \`updated_at\` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY \`uq_login_username\` (\`username\`),
+    KEY \`idx_login_status\` (\`status\`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS \`ageproperties\` (
+    \`id\` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    \`date\` varchar(255) NULL,
+    \`ageproperty\` varchar(255) NULL,
+    \`status\` int(11) NOT NULL DEFAULT 1,
+    \`created_at\` timestamp NULL DEFAULT NULL,
+    \`updated_at\` timestamp NULL DEFAULT NULL,
+    KEY \`idx_ageproperties_status\` (\`status\`),
+    KEY \`idx_ageproperties_name\` (\`ageproperty\`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS \`facing_directions\` (
+    \`id\` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    \`date\` varchar(255) NULL,
+    \`facing\` varchar(255) NULL,
+    \`status\` int(11) NOT NULL DEFAULT 1,
+    \`created_at\` timestamp NULL DEFAULT NULL,
+    \`updated_at\` timestamp NULL DEFAULT NULL,
+    KEY \`idx_facing_directions_status\` (\`status\`),
+    KEY \`idx_facing_directions_name\` (\`facing\`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS \`floors\` (
+    \`id\` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    \`date\` varchar(255) NULL,
+    \`floor\` varchar(255) NULL,
+    \`status\` int(11) NOT NULL DEFAULT 1,
+    \`created_at\` timestamp NULL DEFAULT NULL,
+    \`updated_at\` timestamp NULL DEFAULT NULL,
+    KEY \`idx_floors_status\` (\`status\`),
+    KEY \`idx_floors_name\` (\`floor\`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS \`furnishings\` (
+    \`id\` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    \`date\` varchar(255) NULL,
+    \`furnishing\` varchar(255) NULL,
+    \`status\` int(11) NOT NULL DEFAULT 1,
+    \`created_at\` timestamp NULL DEFAULT NULL,
+    \`updated_at\` timestamp NULL DEFAULT NULL,
+    KEY \`idx_furnishings_status\` (\`status\`),
+    KEY \`idx_furnishings_name\` (\`furnishing\`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS \`propertyuses\` (
+    \`id\` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    \`date\` varchar(255) NULL,
+    \`propertyuse\` varchar(255) NULL,
+    \`status\` int(11) NOT NULL DEFAULT 1,
+    \`created_at\` timestamp NULL DEFAULT NULL,
+    \`updated_at\` timestamp NULL DEFAULT NULL,
+    KEY \`idx_propertyuses_status\` (\`status\`),
+    KEY \`idx_propertyuses_name\` (\`propertyuse\`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS \`sublocations\` (
+    \`id\` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    \`date\` varchar(255) NULL,
+    \`sublocation\` varchar(255) NULL,
+    \`status\` int(11) NOT NULL DEFAULT 1,
+    \`created_at\` timestamp NULL DEFAULT NULL,
+    \`updated_at\` timestamp NULL DEFAULT NULL,
+    KEY \`idx_sublocations_status\` (\`status\`),
+    KEY \`idx_sublocations_name\` (\`sublocation\`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS \`unittypes\` (
+    \`id\` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    \`date\` varchar(255) NULL,
+    \`unittype\` varchar(255) NULL,
+    \`status\` int(11) NOT NULL DEFAULT 1,
+    \`created_at\` timestamp NULL DEFAULT NULL,
+    \`updated_at\` timestamp NULL DEFAULT NULL,
+    KEY \`idx_unittypes_status\` (\`status\`),
+    KEY \`idx_unittypes_name\` (\`unittype\`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+];
+
 const loginSeedStatement = "\nINSERT INTO `login` (`username`, `password`, `role`, `status`)\nVALUES\n  ('Majestan', '$2b$12$KZ1jHaL/6.eRBwBmEWzbw.icwZvUOLiBDAobDdssSMWoz4eckZo6u', 'admin', 1),\n  ('admin', '$2b$12$InrGdBi/oAiRVXMrFepWZ.1wCZDW76SLNKZ8RlilV3ncUGFnCiOKu', 'admin', 1)\nON DUPLICATE KEY UPDATE\n  `status` = VALUES(`status`),\n  `role` = VALUES(`role`)\n";
 
 const seedStatements = [
@@ -29,6 +113,10 @@ export class SeedMajestanReferenceData1778544001000
   name = 'SeedMajestanReferenceData1778544001000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
+    for (const statement of prerequisiteTableStatements) {
+      await queryRunner.query(statement);
+    }
+
     await queryRunner.query(loginSeedStatement);
 
     for (const statement of seedStatements) {
@@ -38,6 +126,11 @@ export class SeedMajestanReferenceData1778544001000
 
   async down(queryRunner: QueryRunner): Promise<void> {
     for (const statement of downStatements) {
+      const match = statement.match(/`([^`]+)`/);
+      const tableName = match?.[1];
+      if (tableName && !(await queryRunner.hasTable(tableName))) {
+        continue;
+      }
       await queryRunner.query(statement);
     }
   }

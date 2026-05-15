@@ -1995,14 +1995,17 @@ export class CreateMajestanLegacySchema1778544000000
   name = 'CreateMajestanLegacySchema1778544000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
-    // schema.sql is authoritative for structure; keep this migration a no-op.
-    void queryRunner;
-    return;
+    for (const table of legacyTables) {
+      await this.createOrUpgradeTable(queryRunner, table);
+    }
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
-    void queryRunner;
-    return;
+    for (const table of [...legacyTables].reverse()) {
+      await queryRunner.query(
+        `DROP TABLE IF EXISTS ${quoteIdentifier(table.name)}`,
+      );
+    }
   }
 
   private async createOrUpgradeTable(
