@@ -13,6 +13,11 @@ export class PropertiesController {
     return this.propertiesService.search(query);
   }
 
+  @Get('by-slug/:slug')
+  async detailsBySlug(@Param('slug') slug: string) {
+    return this.propertiesService.detailsBySlug(slug);
+  }
+
   @Get(':propertyType/:id')
   async details(
     @Param('propertyType') propertyType: string,

@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, SelectQueryBuilder } from 'typeorm';
 import { ListingType } from '../../common/enums/listing-type.enum';
@@ -9,7 +13,14 @@ import {
   getPropertyConfig,
   resolvePropertyType,
 } from './constants/property-table.config';
-import { PropertySearchQueryDto, PropertySortOption } from './dto/property-search.dto';
+import {
+  PropertySearchQueryDto,
+  PropertySortOption,
+} from './dto/property-search.dto';
+import {
+  extractPropertyCodeFromSeoSlug,
+  normalizeSeoSlug,
+} from './utils/property-slug.util';
 
 type SortDirection = 'ASC' | 'DESC';
 
@@ -24,6 +35,39 @@ type RawProperty = {
   id: number;
   posttype?: ListingType;
   [key: string]: unknown;
+};
+
+type UnifiedPropertyRow = {
+  id: number;
+  propertyCode: string | null;
+  slug: string | null;
+  title: string;
+  description: string;
+  price: string;
+  propertyType: string;
+  status: string;
+  ownerId: number;
+  city: string;
+  state: string;
+  country: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type UnifiedPropertyDetailsRow = {
+  bedrooms: number;
+  bathrooms: number;
+  areaSqft: string;
+  parking: number;
+  furnished: boolean;
+};
+
+type UnifiedPropertyImageRow = {
+  id: number;
+  imageUrl: string;
+  imageKey: string;
+  isPrimary: boolean;
+  createdAt: Date;
 };
 
 @Injectable()
@@ -46,16 +90,19 @@ export class PropertiesService {
     const startIndex = (query.page - 1) * query.limit;
 
     return {
-      items: sortedRows.slice(startIndex, startIndex + query.limit).map((row) =>
-        this.cleanInternalFields(row),
-      ),
+      items: sortedRows
+        .slice(startIndex, startIndex + query.limit)
+        .map((row) => this.cleanInternalFields(row)),
       total: sortedRows.length,
       page: query.page,
       limit: query.limit,
     };
   }
 
-  async details(propertyTypeRaw: string, id: number): Promise<Record<string, unknown>> {
+  async details(
+    propertyTypeRaw: string,
+    id: number,
+  ): Promise<Record<string, unknown>> {
     if (!Number.isInteger(id) || id <= 0) {
       throw new BadRequestException('Invalid property id');
     }
@@ -76,7 +123,47 @@ export class PropertiesService {
       throw new NotFoundException('Property not found');
     }
 
-    return this.cleanInternalFields(this.mapProperty(propertyType, config, property));
+    return this.cleanInternalFields(
+      this.mapProperty(propertyType, config, property),
+    );
+  }
+
+  async detailsBySlug(slug: string): Promise<Record<string, unknown>> {
+    const normalizedSlug = normalizeSeoSlug(slug);
+    if (!normalizedSlug) {
+      throw new BadRequestException('Invalid slug');
+    }
+
+    let property = await this.findUnifiedPropertyBySlug(normalizedSlug);
+
+    if (!property) {
+      const propertyCode = extractPropertyCodeFromSeoSlug(normalizedSlug);
+      if (propertyCode) {
+        property = await this.findUnifiedPropertyByCode(propertyCode);
+      }
+    }
+
+    if (!property) {
+      throw new NotFoundException('Property not found');
+    }
+
+    const canonicalSlug = normalizeSeoSlug(property.slug ?? '');
+    const fallbackCanonicalSlug = property.propertyCode
+      ? normalizeSeoSlug(property.propertyCode)
+      : normalizedSlug;
+    const resolvedCanonicalSlug = canonicalSlug || fallbackCanonicalSlug;
+
+    const details = await this.findUnifiedPropertyDetails(property.id);
+    const images = await this.findUnifiedPropertyImages(property.id);
+
+    return {
+      ...property,
+      details,
+      images,
+      requestedSlug: normalizedSlug,
+      canonicalSlug: resolvedCanonicalSlug,
+      shouldRedirect: resolvedCanonicalSlug !== normalizedSlug,
+    };
   }
 
   private ensurePropertyType(value: string): PropertyType {
@@ -89,6 +176,95 @@ export class PropertiesService {
     return resolvedType;
   }
 
+  private async findUnifiedPropertyBySlug(
+    slug: string,
+  ): Promise<UnifiedPropertyRow | null> {
+    const property = await this.dataSource
+      .createQueryBuilder()
+      .select('p.id', 'id')
+      .addSelect('p.property_code', 'propertyCode')
+      .addSelect('p.slug', 'slug')
+      .addSelect('p.title', 'title')
+      .addSelect('p.description', 'description')
+      .addSelect('p.price', 'price')
+      .addSelect('p.property_type', 'propertyType')
+      .addSelect('p.status', 'status')
+      .addSelect('p.owner_id', 'ownerId')
+      .addSelect('p.city', 'city')
+      .addSelect('p.state', 'state')
+      .addSelect('p.country', 'country')
+      .addSelect('p.created_at', 'createdAt')
+      .addSelect('p.updated_at', 'updatedAt')
+      .from('properties', 'p')
+      .where('p.slug = :slug', { slug })
+      .limit(1)
+      .getRawOne<UnifiedPropertyRow>();
+
+    return property ?? null;
+  }
+
+  private async findUnifiedPropertyByCode(
+    propertyCode: string,
+  ): Promise<UnifiedPropertyRow | null> {
+    const property = await this.dataSource
+      .createQueryBuilder()
+      .select('p.id', 'id')
+      .addSelect('p.property_code', 'propertyCode')
+      .addSelect('p.slug', 'slug')
+      .addSelect('p.title', 'title')
+      .addSelect('p.description', 'description')
+      .addSelect('p.price', 'price')
+      .addSelect('p.property_type', 'propertyType')
+      .addSelect('p.status', 'status')
+      .addSelect('p.owner_id', 'ownerId')
+      .addSelect('p.city', 'city')
+      .addSelect('p.state', 'state')
+      .addSelect('p.country', 'country')
+      .addSelect('p.created_at', 'createdAt')
+      .addSelect('p.updated_at', 'updatedAt')
+      .from('properties', 'p')
+      .where('p.property_code = :propertyCode', { propertyCode })
+      .limit(1)
+      .getRawOne<UnifiedPropertyRow>();
+
+    return property ?? null;
+  }
+
+  private async findUnifiedPropertyDetails(
+    propertyId: number,
+  ): Promise<UnifiedPropertyDetailsRow | null> {
+    const details = await this.dataSource
+      .createQueryBuilder()
+      .select('pd.bedrooms', 'bedrooms')
+      .addSelect('pd.bathrooms', 'bathrooms')
+      .addSelect('pd.area_sqft', 'areaSqft')
+      .addSelect('pd.parking', 'parking')
+      .addSelect('pd.furnished', 'furnished')
+      .from('property_details', 'pd')
+      .where('pd.property_id = :propertyId', { propertyId })
+      .limit(1)
+      .getRawOne<UnifiedPropertyDetailsRow>();
+
+    return details ?? null;
+  }
+
+  private async findUnifiedPropertyImages(
+    propertyId: number,
+  ): Promise<UnifiedPropertyImageRow[]> {
+    return this.dataSource
+      .createQueryBuilder()
+      .select('pi.id', 'id')
+      .addSelect('pi.image_url', 'imageUrl')
+      .addSelect('pi.image_key', 'imageKey')
+      .addSelect('pi.is_primary', 'isPrimary')
+      .addSelect('pi.created_at', 'createdAt')
+      .from('property_images', 'pi')
+      .where('pi.property_id = :propertyId', { propertyId })
+      .orderBy('pi.is_primary', 'DESC')
+      .addOrderBy('pi.id', 'ASC')
+      .getRawMany<UnifiedPropertyImageRow>();
+  }
+
   private async searchSingleType(
     propertyType: PropertyType,
     query: PropertySearchQueryDto,
@@ -98,7 +274,11 @@ export class PropertiesService {
     const total = await baseQuery.clone().getCount();
 
     const dataQuery = baseQuery.clone().select('p.*');
-    const sortOrder = this.buildSortOrder(config, query.sort, query.listingType);
+    const sortOrder = this.buildSortOrder(
+      config,
+      query.sort,
+      query.listingType,
+    );
 
     if (sortOrder) {
       dataQuery.orderBy(sortOrder.expression, sortOrder.direction);
@@ -112,7 +292,9 @@ export class PropertiesService {
       .getRawMany<RawProperty>();
 
     return {
-      items: dataRows.map((row) => this.cleanInternalFields(this.mapProperty(propertyType, config, row))),
+      items: dataRows.map((row) =>
+        this.cleanInternalFields(this.mapProperty(propertyType, config, row)),
+      ),
       total,
       page: query.page,
       limit: query.limit,
@@ -126,7 +308,11 @@ export class PropertiesService {
   ): Promise<Record<string, unknown>[]> {
     const config = getPropertyConfig(propertyType);
     const dataQuery = this.buildBaseQuery(config, query).select('p.*');
-    const sortOrder = this.buildSortOrder(config, query.sort, query.listingType);
+    const sortOrder = this.buildSortOrder(
+      config,
+      query.sort,
+      query.listingType,
+    );
 
     if (sortOrder) {
       dataQuery.orderBy(sortOrder.expression, sortOrder.direction);
@@ -163,7 +349,9 @@ export class PropertiesService {
     };
   }
 
-  private cleanInternalFields(row: Record<string, unknown>): Record<string, unknown> {
+  private cleanInternalFields(
+    row: Record<string, unknown>,
+  ): Record<string, unknown> {
     const clone = { ...row };
 
     delete clone.__sortPriceSell;
@@ -212,16 +400,36 @@ export class PropertiesService {
       'priceRange',
     );
 
-    this.applyRangeFilter(queryBuilder, query.sqftRanges, config.areaColumn, 'sqftRange');
-    this.applyInFilter(queryBuilder, query.unitType, config.unitColumn, 'unitTypeValues');
+    this.applyRangeFilter(
+      queryBuilder,
+      query.sqftRanges,
+      config.areaColumn,
+      'sqftRange',
+    );
+    this.applyInFilter(
+      queryBuilder,
+      query.unitType,
+      config.unitColumn,
+      'unitTypeValues',
+    );
     this.applyInFilter(
       queryBuilder,
       query.furnishing,
       config.furnishingColumn,
       'furnishingValues',
     );
-    this.applyInFilter(queryBuilder, query.floor, config.floorColumn, 'floorValues');
-    this.applyInFilter(queryBuilder, query.facing, config.facingColumn, 'facingValues');
+    this.applyInFilter(
+      queryBuilder,
+      query.floor,
+      config.floorColumn,
+      'floorValues',
+    );
+    this.applyInFilter(
+      queryBuilder,
+      query.facing,
+      config.facingColumn,
+      'facingValues',
+    );
     this.applyInFilter(queryBuilder, query.age, config.ageColumn, 'ageValues');
     this.applyInFilter(
       queryBuilder,
@@ -355,14 +563,19 @@ export class PropertiesService {
     }
 
     const direction =
-      sort === PropertySortOption.AreaHighToLow || sort === PropertySortOption.PriceHighToLow
+      sort === PropertySortOption.AreaHighToLow ||
+      sort === PropertySortOption.PriceHighToLow
         ? -1
         : 1;
 
-    if (sort === PropertySortOption.AreaLowToHigh || sort === PropertySortOption.AreaHighToLow) {
+    if (
+      sort === PropertySortOption.AreaLowToHigh ||
+      sort === PropertySortOption.AreaHighToLow
+    ) {
       return cloned.sort(
         (a, b) =>
-          (this.toNumber(a.__sortArea) - this.toNumber(b.__sortArea)) * direction,
+          (this.toNumber(a.__sortArea) - this.toNumber(b.__sortArea)) *
+          direction,
       );
     }
 

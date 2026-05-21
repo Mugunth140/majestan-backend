@@ -33,9 +33,22 @@ export enum PropertyStatus {
 @Index('idx_properties_price', ['price'])
 @Index('idx_properties_status', ['status'])
 @Index('idx_properties_owner_id', ['ownerId'])
+@Index('idx_properties_property_code', ['propertyCode'], { unique: true })
+@Index('idx_properties_slug', ['slug'], { unique: true })
 export class Property {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
+
+  @Column({
+    name: 'property_code',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
+  propertyCode!: string | null;
+
+  @Column({ name: 'slug', type: 'varchar', length: 512, nullable: true })
+  slug!: string | null;
 
   @Column({ name: 'title', type: 'varchar', length: 255, nullable: false })
   title!: string;
@@ -43,13 +56,29 @@ export class Property {
   @Column({ name: 'description', type: 'text', nullable: false })
   description!: string;
 
-  @Column({ name: 'price', type: 'decimal', precision: 12, scale: 2, nullable: false })
+  @Column({
+    name: 'price',
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: false,
+  })
   price!: string;
 
-  @Column({ name: 'property_type', type: 'enum', enum: PropertyType, nullable: false })
+  @Column({
+    name: 'property_type',
+    type: 'enum',
+    enum: PropertyType,
+    nullable: false,
+  })
   propertyType!: PropertyType;
 
-  @Column({ name: 'status', type: 'enum', enum: PropertyStatus, nullable: false })
+  @Column({
+    name: 'status',
+    type: 'enum',
+    enum: PropertyStatus,
+    nullable: false,
+  })
   status!: PropertyStatus;
 
   @Column({ name: 'owner_id', type: 'int', unsigned: true, nullable: false })
@@ -89,10 +118,16 @@ export class Property {
   @JoinColumn({ name: 'owner_id', referencedColumnName: 'id' })
   owner!: Promise<User>;
 
-  @OneToOne(() => PropertyDetails, (propertyDetails) => propertyDetails.property, { lazy: true })
+  @OneToOne(
+    () => PropertyDetails,
+    (propertyDetails) => propertyDetails.property,
+    { lazy: true },
+  )
   propertyDetails!: Promise<PropertyDetails>;
 
-  @OneToMany(() => PropertyImage, (propertyImage) => propertyImage.property, { lazy: true })
+  @OneToMany(() => PropertyImage, (propertyImage) => propertyImage.property, {
+    lazy: true,
+  })
   propertyImages!: Promise<PropertyImage[]>;
 
   @OneToMany(() => Lead, (lead) => lead.property, { lazy: true })
