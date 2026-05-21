@@ -25,10 +25,22 @@ export class PropertyLocation {
   @Column({ name: 'landmark', type: 'varchar', length: 255, nullable: true })
   landmark!: string | null;
 
-  @Column({ name: 'latitude', type: 'decimal', precision: 10, scale: 7, nullable: true })
+  @Column({
+    name: 'latitude',
+    type: 'decimal',
+    precision: 10,
+    scale: 7,
+    nullable: true,
+  })
   latitude!: string | null;
 
-  @Column({ name: 'longitude', type: 'decimal', precision: 10, scale: 7, nullable: true })
+  @Column({
+    name: 'longitude',
+    type: 'decimal',
+    precision: 10,
+    scale: 7,
+    nullable: true,
+  })
   longitude!: string | null;
 
   @CreateDateColumn({

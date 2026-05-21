@@ -40,14 +40,19 @@ export class HomeService {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async getHomePage() {
-    const [sublocations, unitTypes, banners, featuredApartments, featuredVillas] =
-      await Promise.all([
-        this.listSublocations(),
-        this.listUnitTypes(),
-        this.listBanners(),
-        this.listFeaturedProperties('apartment'),
-        this.listFeaturedProperties('villa'),
-      ]);
+    const [
+      sublocations,
+      unitTypes,
+      banners,
+      featuredApartments,
+      featuredVillas,
+    ] = await Promise.all([
+      this.listSublocations(),
+      this.listUnitTypes(),
+      this.listBanners(),
+      this.listFeaturedProperties('apartment'),
+      this.listFeaturedProperties('villa'),
+    ]);
 
     return {
       filters: {
@@ -138,16 +143,26 @@ export class HomeService {
     propertyType: 'apartment' | 'villa',
   ): Promise<FeaturedProperty[]> {
     const table = propertyType === 'apartment' ? 'apartment' : 'villas';
-    const codeColumn = propertyType === 'apartment' ? 'apartment_code' : 'villa_code';
+    const codeColumn =
+      propertyType === 'apartment' ? 'apartment_code' : 'villa_code';
     const suffix = propertyType === 'apartment' ? 'ap' : 'v';
 
     if (!(await this.tableExists(table))) {
       return [];
     }
 
-    const slugColumn = await this.firstExistingColumn(table, ['slug_url', 'slug']);
-    const photoColumn = await this.firstExistingColumn(table, ['photo1', 'image']);
-    const priceColumn = await this.firstExistingColumn(table, ['price', 'price_per_sqft']);
+    const slugColumn = await this.firstExistingColumn(table, [
+      'slug_url',
+      'slug',
+    ]);
+    const photoColumn = await this.firstExistingColumn(table, [
+      'photo1',
+      'image',
+    ]);
+    const priceColumn = await this.firstExistingColumn(table, [
+      'price',
+      'price_per_sqft',
+    ]);
 
     const query = this.dataSource
       .createQueryBuilder()
@@ -167,7 +182,9 @@ export class HomeService {
       query.andWhere('p.featured_property = :featured', { featured: 1 });
     }
 
-    const orderColumn = (await this.columnExists(table, codeColumn)) ? codeColumn : 'id';
+    const orderColumn = (await this.columnExists(table, codeColumn))
+      ? codeColumn
+      : 'id';
     const rows = await query
       .orderBy(`p.${orderColumn}`, 'DESC')
       .limit(10)
@@ -185,7 +202,7 @@ export class HomeService {
   }
 
   private async tableExists(tableName: string): Promise<boolean> {
-    const rows = (await this.dataSource.query(
+    const rows = await this.dataSource.query(
       `
       SELECT COUNT(*) AS count
       FROM information_schema.tables
@@ -193,7 +210,7 @@ export class HomeService {
         AND table_name = ?
       `,
       [tableName],
-    )) as { count: number | string }[];
+    );
 
     return Number(rows[0]?.count ?? 0) > 0;
   }
@@ -202,7 +219,7 @@ export class HomeService {
     tableName: string,
     columnName: string,
   ): Promise<boolean> {
-    const rows = (await this.dataSource.query(
+    const rows = await this.dataSource.query(
       `
       SELECT COUNT(*) AS count
       FROM information_schema.columns
@@ -211,7 +228,7 @@ export class HomeService {
         AND column_name = ?
       `,
       [tableName, columnName],
-    )) as { count: number | string }[];
+    );
 
     return Number(rows[0]?.count ?? 0) > 0;
   }

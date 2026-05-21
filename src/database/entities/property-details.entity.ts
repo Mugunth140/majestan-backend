@@ -1,4 +1,11 @@
-import { Column, Entity, Index, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  OneToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { Property } from './property.entity';
 
 @Entity('property_details')
@@ -7,7 +14,13 @@ export class PropertyDetails {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
 
-  @Column({ name: 'property_id', type: 'int', unsigned: true, nullable: false, unique: true })
+  @Column({
+    name: 'property_id',
+    type: 'int',
+    unsigned: true,
+    nullable: false,
+    unique: true,
+  })
   propertyId!: number;
 
   @Column({ name: 'bedrooms', type: 'int', nullable: false })
@@ -16,7 +29,13 @@ export class PropertyDetails {
   @Column({ name: 'bathrooms', type: 'int', nullable: false })
   bathrooms!: number;
 
-  @Column({ name: 'area_sqft', type: 'decimal', precision: 12, scale: 2, nullable: false })
+  @Column({
+    name: 'area_sqft',
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: false,
+  })
   areaSqft!: string;
 
   @Column({ name: 'parking', type: 'int', nullable: false })

@@ -24,7 +24,12 @@ export class PropertyImage {
   @Column({ name: 'image_key', type: 'varchar', length: 1024, nullable: false })
   imageKey!: string;
 
-  @Column({ name: 'is_primary', type: 'boolean', nullable: false, default: false })
+  @Column({
+    name: 'is_primary',
+    type: 'boolean',
+    nullable: false,
+    default: false,
+  })
   isPrimary!: boolean;
 
   @CreateDateColumn({

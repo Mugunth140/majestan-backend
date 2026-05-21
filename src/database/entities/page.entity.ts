@@ -106,6 +106,8 @@ export class Page {
   @JoinColumn({ name: 'updated_by', referencedColumnName: 'id' })
   updatedByUser!: Promise<User | null>;
 
-  @OneToMany(() => PageSection, (pageSection) => pageSection.page, { lazy: true })
+  @OneToMany(() => PageSection, (pageSection) => pageSection.page, {
+    lazy: true,
+  })
   pageSections!: Promise<PageSection[]>;
 }

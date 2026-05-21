@@ -50,10 +50,21 @@ export class PropertyFile {
   @Column({ name: 'title', type: 'varchar', length: 255, nullable: true })
   title!: string | null;
 
-  @Column({ name: 'is_public', type: 'boolean', nullable: false, default: false })
+  @Column({
+    name: 'is_public',
+    type: 'boolean',
+    nullable: false,
+    default: false,
+  })
   isPublic!: boolean;
 
-  @Column({ name: 'sort_order', type: 'int', unsigned: true, nullable: false, default: 0 })
+  @Column({
+    name: 'sort_order',
+    type: 'int',
+    unsigned: true,
+    nullable: false,
+    default: 0,
+  })
   sortOrder!: number;
 
   @CreateDateColumn({

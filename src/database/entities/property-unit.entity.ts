@@ -64,7 +64,11 @@ export enum PropertyUnitStatus {
 @Index('idx_property_units_price', ['price'])
 @Index('idx_property_units_monthly_rent', ['monthlyRent'])
 @Index('idx_property_units_bed_bath', ['bedrooms', 'bathrooms'])
-@Index('idx_property_units_property_status_mode', ['propertyId', 'status', 'listingMode'])
+@Index('idx_property_units_property_status_mode', [
+  'propertyId',
+  'status',
+  'listingMode',
+])
 export class PropertyUnit {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
@@ -90,22 +94,54 @@ export class PropertyUnit {
   @Column({ name: 'bedrooms', type: 'tinyint', unsigned: true, nullable: true })
   bedrooms!: number | null;
 
-  @Column({ name: 'bathrooms', type: 'tinyint', unsigned: true, nullable: true })
+  @Column({
+    name: 'bathrooms',
+    type: 'tinyint',
+    unsigned: true,
+    nullable: true,
+  })
   bathrooms!: number | null;
 
-  @Column({ name: 'balconies', type: 'tinyint', unsigned: true, nullable: true })
+  @Column({
+    name: 'balconies',
+    type: 'tinyint',
+    unsigned: true,
+    nullable: true,
+  })
   balconies!: number | null;
 
-  @Column({ name: 'floor_no', type: 'smallint', unsigned: true, nullable: true })
+  @Column({
+    name: 'floor_no',
+    type: 'smallint',
+    unsigned: true,
+    nullable: true,
+  })
   floorNo!: number | null;
 
-  @Column({ name: 'total_floors', type: 'smallint', unsigned: true, nullable: true })
+  @Column({
+    name: 'total_floors',
+    type: 'smallint',
+    unsigned: true,
+    nullable: true,
+  })
   totalFloors!: number | null;
 
-  @Column({ name: 'carpet_area_sqft', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  @Column({
+    name: 'carpet_area_sqft',
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
   carpetAreaSqft!: string | null;
 
-  @Column({ name: 'builtup_area_sqft', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  @Column({
+    name: 'builtup_area_sqft',
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
   builtupAreaSqft!: string | null;
 
   @Column({
@@ -125,16 +161,38 @@ export class PropertyUnit {
   })
   furnishedStatus!: FurnishedStatus | null;
 
-  @Column({ name: 'facing', type: 'enum', enum: FacingDirection, nullable: true })
+  @Column({
+    name: 'facing',
+    type: 'enum',
+    enum: FacingDirection,
+    nullable: true,
+  })
   facing!: FacingDirection | null;
 
-  @Column({ name: 'listing_mode', type: 'enum', enum: ListingMode, nullable: false })
+  @Column({
+    name: 'listing_mode',
+    type: 'enum',
+    enum: ListingMode,
+    nullable: false,
+  })
   listingMode!: ListingMode;
 
-  @Column({ name: 'price', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  @Column({
+    name: 'price',
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
   price!: string | null;
 
-  @Column({ name: 'monthly_rent', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  @Column({
+    name: 'monthly_rent',
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
   monthlyRent!: string | null;
 
   @Column({
@@ -146,7 +204,13 @@ export class PropertyUnit {
   })
   securityDeposit!: string | null;
 
-  @Column({ name: 'maintenance_fee', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  @Column({
+    name: 'maintenance_fee',
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
   maintenanceFee!: string | null;
 
   @Column({ name: 'available_from', type: 'date', nullable: true })
@@ -161,7 +225,12 @@ export class PropertyUnit {
   })
   status!: PropertyUnitStatus;
 
-  @Column({ name: 'is_primary', type: 'boolean', nullable: false, default: false })
+  @Column({
+    name: 'is_primary',
+    type: 'boolean',
+    nullable: false,
+    default: false,
+  })
   isPrimary!: boolean;
 
   @CreateDateColumn({

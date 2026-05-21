@@ -18,7 +18,11 @@ import { PropertyLocation } from './property-location.entity';
   'localityName',
   'postalCode',
 ])
-@Index('idx_locations_country_state_city', ['countryCode', 'stateName', 'cityName'])
+@Index('idx_locations_country_state_city', [
+  'countryCode',
+  'stateName',
+  'cityName',
+])
 @Index('idx_locations_locality', ['localityName'])
 @Index('idx_locations_postal_code', ['postalCode'])
 @Index('idx_locations_is_active', ['isActive'])
@@ -29,7 +33,12 @@ export class Location {
   @Column({ name: 'country_code', type: 'char', length: 2, nullable: false })
   countryCode!: string;
 
-  @Column({ name: 'country_name', type: 'varchar', length: 100, nullable: false })
+  @Column({
+    name: 'country_name',
+    type: 'varchar',
+    length: 100,
+    nullable: false,
+  })
   countryName!: string;
 
   @Column({ name: 'state_name', type: 'varchar', length: 100, nullable: false })
@@ -38,22 +47,44 @@ export class Location {
   @Column({ name: 'city_name', type: 'varchar', length: 120, nullable: false })
   cityName!: string;
 
-  @Column({ name: 'locality_name', type: 'varchar', length: 120, nullable: true })
+  @Column({
+    name: 'locality_name',
+    type: 'varchar',
+    length: 120,
+    nullable: true,
+  })
   localityName!: string | null;
 
   @Column({ name: 'postal_code', type: 'varchar', length: 20, nullable: true })
   postalCode!: string | null;
 
-  @Column({ name: 'latitude', type: 'decimal', precision: 10, scale: 7, nullable: true })
+  @Column({
+    name: 'latitude',
+    type: 'decimal',
+    precision: 10,
+    scale: 7,
+    nullable: true,
+  })
   latitude!: string | null;
 
-  @Column({ name: 'longitude', type: 'decimal', precision: 10, scale: 7, nullable: true })
+  @Column({
+    name: 'longitude',
+    type: 'decimal',
+    precision: 10,
+    scale: 7,
+    nullable: true,
+  })
   longitude!: string | null;
 
   @Column({ name: 'timezone', type: 'varchar', length: 64, nullable: true })
   timezone!: string | null;
 
-  @Column({ name: 'is_active', type: 'boolean', nullable: false, default: true })
+  @Column({
+    name: 'is_active',
+    type: 'boolean',
+    nullable: false,
+    default: true,
+  })
   isActive!: boolean;
 
   @CreateDateColumn({
@@ -73,8 +104,12 @@ export class Location {
   })
   updatedAt!: Date;
 
-  @OneToMany(() => PropertyLocation, (propertyLocation) => propertyLocation.location, {
-    lazy: true,
-  })
+  @OneToMany(
+    () => PropertyLocation,
+    (propertyLocation) => propertyLocation.location,
+    {
+      lazy: true,
+    },
+  )
   propertyLocations!: Promise<PropertyLocation[]>;
 }

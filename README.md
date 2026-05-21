@@ -37,7 +37,7 @@ bun run start:prod
 
 Swagger is enabled when ENABLE_DOCS=true.
 
-- URL: [http://localhost:4000/api/v1/docs](http://localhost:4000/api/v1/docs)
+- URL: [http://localhost:5000/api/v1/docs](http://localhost:5000/api/v1/docs)
 - Env controls:
   - DOCS_PATH
   - DOCS_TITLE

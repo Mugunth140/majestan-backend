@@ -22,9 +22,7 @@ async function bootstrap() {
   const docsPath = enableDocs
     ? normalizeSegment(configService.getOrThrow<string>('app.docsPath'))
     : '';
-  const docsRoutePrefix = enableDocs
-    ? `/${apiPrefix}/${docsPath}`
-    : '';
+  const docsRoutePrefix = enableDocs ? `/${apiPrefix}/${docsPath}` : '';
   const helmetDefault = helmet();
   const helmetNoCsp = helmet({ contentSecurityPolicy: false });
 

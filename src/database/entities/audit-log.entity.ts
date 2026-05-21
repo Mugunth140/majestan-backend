@@ -32,7 +32,12 @@ export class AuditLog {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
 
-  @Column({ name: 'actor_user_id', type: 'int', unsigned: true, nullable: true })
+  @Column({
+    name: 'actor_user_id',
+    type: 'int',
+    unsigned: true,
+    nullable: true,
+  })
   actorUserId!: number | null;
 
   @Column({ name: 'action', type: 'enum', enum: AuditAction, nullable: false })

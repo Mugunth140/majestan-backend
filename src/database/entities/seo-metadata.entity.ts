@@ -23,7 +23,12 @@ export class SeoMetadata {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
 
-  @Column({ name: 'entity_type', type: 'enum', enum: SeoEntityType, nullable: false })
+  @Column({
+    name: 'entity_type',
+    type: 'enum',
+    enum: SeoEntityType,
+    nullable: false,
+  })
   entityType!: SeoEntityType;
 
   @Column({ name: 'entity_id', type: 'int', unsigned: true, nullable: false })
@@ -35,31 +40,71 @@ export class SeoMetadata {
   @Column({ name: 'meta_title', type: 'varchar', length: 255, nullable: true })
   metaTitle!: string | null;
 
-  @Column({ name: 'meta_description', type: 'varchar', length: 320, nullable: true })
+  @Column({
+    name: 'meta_description',
+    type: 'varchar',
+    length: 320,
+    nullable: true,
+  })
   metaDescription!: string | null;
 
-  @Column({ name: 'meta_keywords', type: 'varchar', length: 500, nullable: true })
+  @Column({
+    name: 'meta_keywords',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
   metaKeywords!: string | null;
 
-  @Column({ name: 'canonical_url', type: 'varchar', length: 1024, nullable: true })
+  @Column({
+    name: 'canonical_url',
+    type: 'varchar',
+    length: 1024,
+    nullable: true,
+  })
   canonicalUrl!: string | null;
 
   @Column({ name: 'og_title', type: 'varchar', length: 255, nullable: true })
   ogTitle!: string | null;
 
-  @Column({ name: 'og_description', type: 'varchar', length: 320, nullable: true })
+  @Column({
+    name: 'og_description',
+    type: 'varchar',
+    length: 320,
+    nullable: true,
+  })
   ogDescription!: string | null;
 
-  @Column({ name: 'og_image_url', type: 'varchar', length: 1024, nullable: true })
+  @Column({
+    name: 'og_image_url',
+    type: 'varchar',
+    length: 1024,
+    nullable: true,
+  })
   ogImageUrl!: string | null;
 
-  @Column({ name: 'og_image_key', type: 'varchar', length: 1024, nullable: true })
+  @Column({
+    name: 'og_image_key',
+    type: 'varchar',
+    length: 1024,
+    nullable: true,
+  })
   ogImageKey!: string | null;
 
-  @Column({ name: 'robots_index', type: 'boolean', nullable: false, default: true })
+  @Column({
+    name: 'robots_index',
+    type: 'boolean',
+    nullable: false,
+    default: true,
+  })
   robotsIndex!: boolean;
 
-  @Column({ name: 'robots_follow', type: 'boolean', nullable: false, default: true })
+  @Column({
+    name: 'robots_follow',
+    type: 'boolean',
+    nullable: false,
+    default: true,
+  })
   robotsFollow!: boolean;
 
   @Column({ name: 'schema_json', type: 'json', nullable: true })

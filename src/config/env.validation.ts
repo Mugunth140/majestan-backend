@@ -5,7 +5,7 @@ export const envValidationSchema = Joi.object({
     .valid('development', 'test', 'production')
     .default('development'),
   APP_NAME: Joi.string().default('Majestan API'),
-  PORT: Joi.number().integer().min(1).max(65535).default(4000),
+  PORT: Joi.number().integer().min(1).max(65535).default(5000),
   API_PREFIX: Joi.string().default('api/v1'),
   DOCS_PATH: Joi.string().default('docs'),
   DOCS_TITLE: Joi.string().default('Majestan API'),

@@ -8,17 +8,22 @@ export class AdminDashboardService {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async summary() {
-    const [propertyCounts, enquiryCounts, saleEnquiryCounts, blogCounts, wishlistCounts] =
-      await Promise.all([
-        this.fetchPropertyCounts(),
-        this.fetchSimpleCount('enquiry'),
-        this.fetchSimpleCount(
-          'enquiry',
-          `(purchase_type = 'Sell' OR listing_type = 'Sell')`,
-        ),
-        this.fetchSimpleCount('blogs', 'status = 1'),
-        this.fetchSimpleCount('wishlist', 'status = 1'),
-      ]);
+    const [
+      propertyCounts,
+      enquiryCounts,
+      saleEnquiryCounts,
+      blogCounts,
+      wishlistCounts,
+    ] = await Promise.all([
+      this.fetchPropertyCounts(),
+      this.fetchSimpleCount('enquiry'),
+      this.fetchSimpleCount(
+        'enquiry',
+        `(purchase_type = 'Sell' OR listing_type = 'Sell')`,
+      ),
+      this.fetchSimpleCount('blogs', 'status = 1'),
+      this.fetchSimpleCount('wishlist', 'status = 1'),
+    ]);
 
     return {
       properties: propertyCounts,
@@ -34,10 +39,9 @@ export class AdminDashboardService {
 
     const counts = await Promise.all(
       entries.map(([propertyType, config]) =>
-        this.fetchSimpleCount(config.table, 'status = 1').then((count) => [
-          propertyType,
-          count,
-        ] as const),
+        this.fetchSimpleCount(config.table, 'status = 1').then(
+          (count) => [propertyType, count] as const,
+        ),
       ),
     );
 

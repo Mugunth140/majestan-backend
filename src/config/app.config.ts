@@ -11,7 +11,7 @@ const parseBoolean = (value: string | undefined, fallback = false): boolean => {
 export default registerAs('app', () => ({
   name: process.env.APP_NAME ?? 'Majestan API',
   env: process.env.NODE_ENV ?? 'development',
-  port: Number.parseInt(process.env.PORT ?? '4000', 10),
+  port: Number.parseInt(process.env.PORT ?? '5000', 10),
   apiPrefix: process.env.API_PREFIX ?? 'api/v1',
   docsPath: process.env.DOCS_PATH ?? 'docs',
   docsTitle: process.env.DOCS_TITLE ?? 'Majestan API',

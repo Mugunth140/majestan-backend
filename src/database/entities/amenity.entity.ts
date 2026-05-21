@@ -50,7 +50,12 @@ export class Amenity {
   @Column({ name: 'icon_key', type: 'varchar', length: 1024, nullable: true })
   iconKey!: string | null;
 
-  @Column({ name: 'is_active', type: 'boolean', nullable: false, default: true })
+  @Column({
+    name: 'is_active',
+    type: 'boolean',
+    nullable: false,
+    default: true,
+  })
   isActive!: boolean;
 
   @CreateDateColumn({
@@ -70,8 +75,12 @@ export class Amenity {
   })
   updatedAt!: Date;
 
-  @OneToMany(() => PropertyAmenity, (propertyAmenity) => propertyAmenity.amenity, {
-    lazy: true,
-  })
+  @OneToMany(
+    () => PropertyAmenity,
+    (propertyAmenity) => propertyAmenity.amenity,
+    {
+      lazy: true,
+    },
+  )
   propertyAmenities!: Promise<PropertyAmenity[]>;
 }

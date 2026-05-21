@@ -33,13 +33,23 @@ export class User {
   @Column({ name: 'phone', type: 'varchar', length: 50, nullable: false })
   phone!: string;
 
-  @Column({ name: 'password_hash', type: 'varchar', length: 255, nullable: false })
+  @Column({
+    name: 'password_hash',
+    type: 'varchar',
+    length: 255,
+    nullable: false,
+  })
   passwordHash!: string;
 
   @Column({ name: 'role', type: 'enum', enum: UserRole, nullable: false })
   role!: UserRole;
 
-  @Column({ name: 'is_verified', type: 'boolean', nullable: false, default: false })
+  @Column({
+    name: 'is_verified',
+    type: 'boolean',
+    nullable: false,
+    default: false,
+  })
   isVerified!: boolean;
 
   @CreateDateColumn({

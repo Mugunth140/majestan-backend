@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { PropertyType } from '../../common/enums/property-type.enum';
@@ -81,7 +85,9 @@ export class WishlistService {
 
         propertiesByTable.set(
           table,
-          new Map(properties.map((property) => [Number(property.id), property])),
+          new Map(
+            properties.map((property) => [Number(property.id), property]),
+          ),
         );
       }),
     );
@@ -176,7 +182,12 @@ export class WishlistService {
       };
     }
 
-    await this.insertWishlistRow(columns, payload.guestId, payload.propertyId, config.legacyWishlistType);
+    await this.insertWishlistRow(
+      columns,
+      payload.guestId,
+      payload.propertyId,
+      config.legacyWishlistType,
+    );
 
     const count = await this.count({ guestId: payload.guestId });
 
@@ -196,7 +207,10 @@ export class WishlistService {
     return propertyType;
   }
 
-  private async ensurePropertyExists(table: string, propertyId: number): Promise<void> {
+  private async ensurePropertyExists(
+    table: string,
+    propertyId: number,
+  ): Promise<void> {
     const row = await this.dataSource
       .createQueryBuilder()
       .select('p.id', 'id')

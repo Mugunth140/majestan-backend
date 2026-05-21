@@ -31,13 +31,23 @@ export class FileEntity {
   @Column({ name: 'file_name', type: 'varchar', length: 255, nullable: false })
   fileName!: string;
 
-  @Column({ name: 'file_extension', type: 'varchar', length: 20, nullable: true })
+  @Column({
+    name: 'file_extension',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
   fileExtension!: string | null;
 
   @Column({ name: 'mime_type', type: 'varchar', length: 120, nullable: false })
   mimeType!: string;
 
-  @Column({ name: 'file_size_bytes', type: 'bigint', unsigned: true, nullable: false })
+  @Column({
+    name: 'file_size_bytes',
+    type: 'bigint',
+    unsigned: true,
+    nullable: false,
+  })
   fileSizeBytes!: string;
 
   @Column({ name: 'file_url', type: 'varchar', length: 1024, nullable: false })
@@ -74,6 +84,8 @@ export class FileEntity {
   @JoinColumn({ name: 'uploaded_by', referencedColumnName: 'id' })
   uploadedByUser!: Promise<User | null>;
 
-  @OneToMany(() => PropertyFile, (propertyFile) => propertyFile.file, { lazy: true })
+  @OneToMany(() => PropertyFile, (propertyFile) => propertyFile.file, {
+    lazy: true,
+  })
   propertyFiles!: Promise<PropertyFile[]>;
 }

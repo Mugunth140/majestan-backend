@@ -35,10 +35,20 @@ export class PageSection {
   @Column({ name: 'page_id', type: 'int', unsigned: true, nullable: false })
   pageId!: number;
 
-  @Column({ name: 'section_key', type: 'varchar', length: 120, nullable: false })
+  @Column({
+    name: 'section_key',
+    type: 'varchar',
+    length: 120,
+    nullable: false,
+  })
   sectionKey!: string;
 
-  @Column({ name: 'section_type', type: 'enum', enum: PageSectionType, nullable: false })
+  @Column({
+    name: 'section_type',
+    type: 'enum',
+    enum: PageSectionType,
+    nullable: false,
+  })
   sectionType!: PageSectionType;
 
   @Column({ name: 'title', type: 'varchar', length: 255, nullable: true })
@@ -56,10 +66,21 @@ export class PageSection {
   @Column({ name: 'file_key', type: 'varchar', length: 1024, nullable: true })
   fileKey!: string | null;
 
-  @Column({ name: 'sort_order', type: 'int', unsigned: true, nullable: false, default: 0 })
+  @Column({
+    name: 'sort_order',
+    type: 'int',
+    unsigned: true,
+    nullable: false,
+    default: 0,
+  })
   sortOrder!: number;
 
-  @Column({ name: 'is_enabled', type: 'boolean', nullable: false, default: true })
+  @Column({
+    name: 'is_enabled',
+    type: 'boolean',
+    nullable: false,
+    default: true,
+  })
   isEnabled!: boolean;
 
   @CreateDateColumn({
