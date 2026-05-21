@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -16,12 +17,24 @@ import { JwtPayload } from '../../common/types/jwt-payload.type';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { UserLoginDto } from './dto/user-login.dto';
 
 type LegacyUserRow = {
   id: number;
   username: string;
   password: string;
   status?: number | string;
+};
+
+type AppUserRow = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  password_hash: string;
+  role: AppRole;
+  is_verified: boolean | number;
 };
 
 @Injectable()
@@ -69,6 +82,58 @@ export class AuthService {
       tokenType: 'Bearer',
       expiresIn: this.configService.getOrThrow<string>('auth.accessTokenTtl'),
     };
+  }
+
+  async loginUser(credentials: UserLoginDto) {
+    const user = await this.getAppUserByEmail(credentials.email);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const passwordValid = await compare(
+      credentials.password,
+      user.password_hash,
+    );
+
+    if (!passwordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return this.buildUserAuthResponse(user);
+  }
+
+  async registerUser(payload: RegisterUserDto) {
+    const email = payload.email.trim().toLowerCase();
+    const existing = await this.getAppUserByEmail(email);
+
+    if (existing) {
+      throw new ConflictException('An account already exists for this email');
+    }
+
+    const rounds = this.configService.getOrThrow<number>('auth.saltRounds');
+    const passwordHash = await hash(payload.password, rounds);
+
+    const result = await this.dataSource
+      .createQueryBuilder()
+      .insert()
+      .into('users')
+      .values({
+        name: payload.name.trim(),
+        email,
+        phone: payload.phone.trim(),
+        password_hash: passwordHash,
+        role: AppRole.User,
+        is_verified: false,
+      })
+      .execute();
+
+    const createdUserId =
+      Number(result.identifiers[0]?.id) ||
+      Number((result.raw as { insertId?: number }).insertId);
+    const user = await this.getAppUserById(createdUserId);
+
+    return this.buildUserAuthResponse(user);
   }
 
   me(user: JwtPayload) {
@@ -133,6 +198,60 @@ export class AuthService {
 
     return {
       changed: true,
+    };
+  }
+
+  private async getAppUserByEmail(email: string): Promise<AppUserRow | null> {
+    const row = await this.dataSource
+      .createQueryBuilder()
+      .select('users.*')
+      .from('users', 'users')
+      .where('LOWER(users.email) = :email', {
+        email: email.trim().toLowerCase(),
+      })
+      .limit(1)
+      .getRawOne<AppUserRow>();
+
+    return row ?? null;
+  }
+
+  private async getAppUserById(id: number): Promise<AppUserRow> {
+    const user = await this.dataSource
+      .createQueryBuilder()
+      .select('users.*')
+      .from('users', 'users')
+      .where('users.id = :id', { id })
+      .limit(1)
+      .getRawOne<AppUserRow>();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
+  }
+
+  private async buildUserAuthResponse(user: AppUserRow) {
+    const role = user.role ?? AppRole.User;
+    const payload: JwtPayload = {
+      sub: Number(user.id),
+      username: user.email,
+      role,
+    };
+    const accessToken = await this.jwtService.signAsync(payload);
+
+    return {
+      user: {
+        id: Number(user.id),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role,
+        isVerified: Number(user.is_verified) === 1,
+      },
+      accessToken,
+      tokenType: 'Bearer',
+      expiresIn: this.configService.getOrThrow<string>('auth.accessTokenTtl'),
     };
   }
 

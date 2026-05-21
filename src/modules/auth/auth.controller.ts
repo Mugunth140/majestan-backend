@@ -9,6 +9,8 @@ import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { UserLoginDto } from './dto/user-login.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -19,6 +21,20 @@ export class AuthController {
   @Post('login')
   async login(@Body() credentials: LoginDto) {
     return this.authService.login(credentials);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('users/login')
+  async loginUser(@Body() credentials: UserLoginDto) {
+    return this.authService.loginUser(credentials);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @Post('users/register')
+  async registerUser(@Body() payload: RegisterUserDto) {
+    return this.authService.registerUser(payload);
   }
 
   @Get('me')
@@ -32,6 +48,7 @@ export class AuthController {
     return this.authService.createAdmin(payload);
   }
 
+  @Roles(AppRole.Admin)
   @Post('change-password')
   async changePassword(
     @CurrentUser() user: JwtPayload,
