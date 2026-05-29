@@ -271,7 +271,7 @@ export class PropertiesService {
   ): Promise<SearchResult> {
     const config = getPropertyConfig(propertyType);
     const baseQuery = this.buildBaseQuery(config, query);
-    const total = await baseQuery.clone().getCount();
+    const total = await this.countRows(baseQuery);
 
     const dataQuery = baseQuery.clone().select('p.*');
     const sortOrder = this.buildSortOrder(
@@ -299,6 +299,17 @@ export class PropertiesService {
       page: query.page,
       limit: query.limit,
     };
+  }
+
+  private async countRows(
+    queryBuilder: SelectQueryBuilder<Record<string, unknown>>,
+  ): Promise<number> {
+    const result = await queryBuilder
+      .clone()
+      .select('COUNT(*)', 'total')
+      .getRawOne<{ total: string | number }>();
+
+    return this.toNumber(result?.total);
   }
 
   private async fetchRowsForType(
