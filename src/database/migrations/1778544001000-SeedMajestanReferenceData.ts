@@ -116,6 +116,11 @@ export class SeedMajestanReferenceData1778544001000 implements MigrationInterfac
       await queryRunner.query(statement);
     }
 
+    try {
+      await queryRunner.query("ALTER TABLE `login` ADD COLUMN `role` varchar(32) NOT NULL DEFAULT 'admin'");
+    } catch (e) {
+      // Column might already exist
+    }
     await queryRunner.query(loginSeedStatement);
 
     for (const statement of seedStatements) {

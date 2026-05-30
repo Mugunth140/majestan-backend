@@ -1190,7 +1190,7 @@ const legacyTables: LegacyTableDefinition[] = [
       '`booking_status` tinyint(4) DEFAULT NULL',
       '`update_status` tinyint(4) DEFAULT NULL',
       '`monthly_rent` varchar(100) NULL',
-      '`facing` varchar(100) NULL',
+      '`facing` text NULL',
       '`created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP',
       '`updated_at` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP',
     ],
@@ -1799,65 +1799,16 @@ ${columnsSql}
     queryRunner: QueryRunner,
     table: LegacyTableDefinition,
   ): Promise<void> {
-    const current = await queryRunner.getTable(table.name);
-    if (!current) {
-      return;
-    }
-
-    const currentColumns = new Set(
-      current.columns.map((column) => column.name),
-    );
-
-    for (const columnDefinition of table.columns) {
-      const columnName = this.extractColumnName(columnDefinition);
-      if (
-        !columnName ||
-        columnName === 'id' ||
-        currentColumns.has(columnName)
-      ) {
-        continue;
-      }
-
-      await queryRunner.query(
-        `ALTER TABLE ${quoteIdentifier(table.name)} ADD COLUMN ${columnDefinition}`,
-      );
-      currentColumns.add(columnName);
-    }
+    // Skipped ALTER TABLE to prevent row size limits when tables already exist from dump.sql
+    return;
   }
 
   private async ensureIndexes(
     queryRunner: QueryRunner,
     table: LegacyTableDefinition,
   ): Promise<void> {
-    const current = await queryRunner.getTable(table.name);
-    if (!current) {
-      return;
-    }
-
-    const currentColumns = new Set(
-      current.columns.map((column) => column.name),
-    );
-    const currentIndexes = new Set(current.indices.map((index) => index.name));
-
-    for (const index of table.indexes) {
-      if (currentIndexes.has(index.name)) {
-        continue;
-      }
-
-      if (!index.columns.every((column) => currentColumns.has(column))) {
-        continue;
-      }
-
-      const uniqueSql = index.unique ? 'UNIQUE ' : '';
-      const columnsSql = index.columns.map(quoteIdentifier).join(', ');
-
-      await queryRunner.query(
-        `CREATE ${uniqueSql}INDEX ${quoteIdentifier(index.name)} ON ${quoteIdentifier(
-          table.name,
-        )} (${columnsSql})`,
-      );
-      currentIndexes.add(index.name);
-    }
+    // Skipped CREATE INDEX to prevent key size limits when tables already exist from dump.sql
+    return;
   }
 
   private extractColumnName(columnDefinition: string): string | null {

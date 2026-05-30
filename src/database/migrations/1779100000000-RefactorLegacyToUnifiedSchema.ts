@@ -270,8 +270,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
             ELSE 'agent'
           END,
           1,
-          COALESCE(\`created_at\`, NOW()),
-          COALESCE(\`created_at\`, NOW())
+          NOW(),
+          NOW()
         FROM \`user\`
       `);
     }
@@ -293,8 +293,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
             ELSE 'user'
           END,
           1,
-          COALESCE(\`created_at\`, NOW()),
-          COALESCE(\`updated_at\`, \`created_at\`, NOW())
+          NOW(),
+          NOW()
         FROM \`login\`
       `);
     }
@@ -316,8 +316,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
           '',
           'user',
           1,
-          COALESCE(\`created_at\`, NOW()),
-          COALESCE(\`updated_at\`, \`created_at\`, NOW())
+          NOW(),
+          NOW()
         FROM \`wishlist\`
         WHERE COALESCE(TRIM(\`user_id\`), '') <> ''
           AND CAST(TRIM(\`user_id\`) AS UNSIGNED) = 0
@@ -363,8 +363,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
         statusExpr: this.statusCase('`status`'),
         ownerExpr:
           "COALESCE((SELECT `u`.`id` FROM `users` `u` WHERE `u`.`id` = CAST(NULLIF(TRIM(`created_by`), '') AS UNSIGNED) LIMIT 1), 1)",
-        createdAtExpr: 'COALESCE(`created_at`, NOW())',
-        updatedAtExpr: 'COALESCE(`updated_at`, `created_at`, NOW())',
+        createdAtExpr: 'NOW()',
+        updatedAtExpr: 'NOW()',
       },
       {
         table: 'villas',
@@ -381,8 +381,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
         cityExpr: "COALESCE(NULLIF(TRIM(`sublocation`), ''), 'Unknown')",
         statusExpr: this.statusCase('`status`'),
         ownerExpr: '1',
-        createdAtExpr: 'COALESCE(`created_at`, NOW())',
-        updatedAtExpr: 'COALESCE(`updated_at`, `created_at`, NOW())',
+        createdAtExpr: 'NOW()',
+        updatedAtExpr: 'NOW()',
       },
       {
         table: 'individual_portions',
@@ -399,8 +399,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
         cityExpr: "COALESCE(NULLIF(TRIM(`sublocation`), ''), 'Unknown')",
         statusExpr: this.statusCase('`status`'),
         ownerExpr: '1',
-        createdAtExpr: 'COALESCE(`created_at`, NOW())',
-        updatedAtExpr: 'COALESCE(`updated_at`, `created_at`, NOW())',
+        createdAtExpr: 'NOW()',
+        updatedAtExpr: 'NOW()',
       },
       {
         table: 'plots',
@@ -417,8 +417,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
         cityExpr: "COALESCE(NULLIF(TRIM(`sublocation`), ''), 'Unknown')",
         statusExpr: this.statusCase('`status`'),
         ownerExpr: '1',
-        createdAtExpr: 'COALESCE(`created_at`, NOW())',
-        updatedAtExpr: 'COALESCE(`updated_at`, `created_at`, NOW())',
+        createdAtExpr: 'NOW()',
+        updatedAtExpr: 'NOW()',
       },
       {
         table: 'farmlands',
@@ -435,8 +435,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
         cityExpr: "COALESCE(NULLIF(TRIM(`sublocation`), ''), 'Unknown')",
         statusExpr: this.statusCase('`status`'),
         ownerExpr: '1',
-        createdAtExpr: 'COALESCE(`created_at`, NOW())',
-        updatedAtExpr: 'COALESCE(`updated_at`, `created_at`, NOW())',
+        createdAtExpr: 'NOW()',
+        updatedAtExpr: 'NOW()',
       },
       {
         table: 'commercial_space',
@@ -454,8 +454,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
         statusExpr: this.statusCase('`status`'),
         ownerExpr:
           "COALESCE((SELECT `u`.`id` FROM `users` `u` WHERE `u`.`id` = CAST(NULLIF(TRIM(`created_by`), '') AS UNSIGNED) LIMIT 1), 1)",
-        createdAtExpr: 'COALESCE(`created_at`, NOW())',
-        updatedAtExpr: 'COALESCE(`updated_at`, `created_at`, NOW())',
+        createdAtExpr: 'NOW()',
+        updatedAtExpr: 'NOW()',
       },
       {
         table: 'industrial_spaces',
@@ -472,8 +472,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
         cityExpr: "COALESCE(NULLIF(TRIM(`sublocation`), ''), 'Unknown')",
         statusExpr: this.statusCase('`status`'),
         ownerExpr: '1',
-        createdAtExpr: 'COALESCE(`created_at`, NOW())',
-        updatedAtExpr: 'COALESCE(`updated_at`, `created_at`, NOW())',
+        createdAtExpr: 'NOW()',
+        updatedAtExpr: 'NOW()',
       },
       {
         table: 'coworkers',
@@ -490,8 +490,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
         cityExpr: "COALESCE(NULLIF(TRIM(`sublocation`), ''), 'Unknown')",
         statusExpr: this.statusCase('`status`'),
         ownerExpr: '1',
-        createdAtExpr: 'COALESCE(`created_at`, NOW())',
-        updatedAtExpr: 'COALESCE(`updated_at`, `created_at`, NOW())',
+        createdAtExpr: 'NOW()',
+        updatedAtExpr: 'NOW()',
       },
     ];
 
@@ -751,22 +751,22 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
       offset: number;
       createdAt: string;
     }> = [
-      { table: 'apartment', offset: 100000000, createdAt: 'created_at' },
-      { table: 'villas', offset: 200000000, createdAt: 'created_at' },
+      { table: 'apartment', offset: 100000000, createdAt: 'NULL' },
+      { table: 'villas', offset: 200000000, createdAt: 'NULL' },
       {
         table: 'individual_portions',
         offset: 300000000,
-        createdAt: 'created_at',
+        createdAt: 'NULL',
       },
-      { table: 'plots', offset: 400000000, createdAt: 'created_at' },
-      { table: 'farmlands', offset: 500000000, createdAt: 'created_at' },
-      { table: 'commercial_space', offset: 600000000, createdAt: 'created_at' },
+      { table: 'plots', offset: 400000000, createdAt: 'NULL' },
+      { table: 'farmlands', offset: 500000000, createdAt: 'NULL' },
+      { table: 'commercial_space', offset: 600000000, createdAt: 'NULL' },
       {
         table: 'industrial_spaces',
         offset: 700000000,
-        createdAt: 'created_at',
+        createdAt: 'NULL',
       },
-      { table: 'coworkers', offset: 800000000, createdAt: 'created_at' },
+      { table: 'coworkers', offset: 800000000, createdAt: 'NULL' },
     ];
 
     for (const source of imageStatements) {
@@ -785,25 +785,25 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
           CASE WHEN \`seq\` = 1 THEN 1 ELSE 0 END,
           \`created_at\`
         FROM (
-          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo1\`), '') AS \`image_url\`, 1 AS \`seq\`, COALESCE(\`${source.createdAt}\`, NOW()) AS \`created_at\` FROM \`${source.table}\`
+          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo1\`), '') AS \`image_url\`, 1 AS \`seq\`, NOW() AS \`created_at\` FROM \`${source.table}\`
           UNION ALL
-          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo2\`), '') AS \`image_url\`, 2 AS \`seq\`, COALESCE(\`${source.createdAt}\`, NOW()) AS \`created_at\` FROM \`${source.table}\`
+          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo2\`), '') AS \`image_url\`, 2 AS \`seq\`, NOW() AS \`created_at\` FROM \`${source.table}\`
           UNION ALL
-          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo3\`), '') AS \`image_url\`, 3 AS \`seq\`, COALESCE(\`${source.createdAt}\`, NOW()) AS \`created_at\` FROM \`${source.table}\`
+          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo3\`), '') AS \`image_url\`, 3 AS \`seq\`, NOW() AS \`created_at\` FROM \`${source.table}\`
           UNION ALL
-          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo4\`), '') AS \`image_url\`, 4 AS \`seq\`, COALESCE(\`${source.createdAt}\`, NOW()) AS \`created_at\` FROM \`${source.table}\`
+          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo4\`), '') AS \`image_url\`, 4 AS \`seq\`, NOW() AS \`created_at\` FROM \`${source.table}\`
           UNION ALL
-          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo5\`), '') AS \`image_url\`, 5 AS \`seq\`, COALESCE(\`${source.createdAt}\`, NOW()) AS \`created_at\` FROM \`${source.table}\`
+          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo5\`), '') AS \`image_url\`, 5 AS \`seq\`, NOW() AS \`created_at\` FROM \`${source.table}\`
           UNION ALL
-          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo6\`), '') AS \`image_url\`, 6 AS \`seq\`, COALESCE(\`${source.createdAt}\`, NOW()) AS \`created_at\` FROM \`${source.table}\`
+          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo6\`), '') AS \`image_url\`, 6 AS \`seq\`, NOW() AS \`created_at\` FROM \`${source.table}\`
           UNION ALL
-          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo7\`), '') AS \`image_url\`, 7 AS \`seq\`, COALESCE(\`${source.createdAt}\`, NOW()) AS \`created_at\` FROM \`${source.table}\`
+          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo7\`), '') AS \`image_url\`, 7 AS \`seq\`, NOW() AS \`created_at\` FROM \`${source.table}\`
           UNION ALL
-          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo8\`), '') AS \`image_url\`, 8 AS \`seq\`, COALESCE(\`${source.createdAt}\`, NOW()) AS \`created_at\` FROM \`${source.table}\`
+          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo8\`), '') AS \`image_url\`, 8 AS \`seq\`, NOW() AS \`created_at\` FROM \`${source.table}\`
           UNION ALL
-          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo9\`), '') AS \`image_url\`, 9 AS \`seq\`, COALESCE(\`${source.createdAt}\`, NOW()) AS \`created_at\` FROM \`${source.table}\`
+          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo9\`), '') AS \`image_url\`, 9 AS \`seq\`, NOW() AS \`created_at\` FROM \`${source.table}\`
           UNION ALL
-          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo10\`), '') AS \`image_url\`, 10 AS \`seq\`, COALESCE(\`${source.createdAt}\`, NOW()) AS \`created_at\` FROM \`${source.table}\`
+          SELECT (${source.offset} + CAST(\`id\` AS UNSIGNED)) AS \`property_id\`, NULLIF(TRIM(\`photo10\`), '') AS \`image_url\`, 10 AS \`seq\`, NOW() AS \`created_at\` FROM \`${source.table}\`
         ) AS \`img\`
         WHERE \`image_url\` IS NOT NULL
       `);
@@ -829,8 +829,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
             ${this.money('`monthly_rent`')},
             ${this.furnishedCase('`furnishing_status`')},
             ${this.statusCase('`status`')},
-            COALESCE(\`created_at\`, NOW()),
-            COALESCE(\`updated_at\`, \`created_at\`, NOW())
+            NOW(),
+            NOW()
           FROM \`apartment\`
         `,
       },
@@ -851,8 +851,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
             ${this.money('`monthly_rent`')},
             ${this.furnishedCase('`furnishing_status`')},
             ${this.statusCase('`status`')},
-            COALESCE(\`created_at\`, NOW()),
-            COALESCE(\`updated_at\`, \`created_at\`, NOW())
+            NOW(),
+            NOW()
           FROM \`villas\`
         `,
       },
@@ -873,8 +873,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
             ${this.money('`monthly_rent`')},
             0,
             ${this.statusCase('`status`')},
-            COALESCE(\`created_at\`, NOW()),
-            COALESCE(\`updated_at\`, \`created_at\`, NOW())
+            NOW(),
+            NOW()
           FROM \`plots\`
         `,
       },
@@ -895,8 +895,8 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
             ${this.money('`monthly_rent`')},
             ${this.furnishedCase('`furnishing_status`')},
             ${this.statusCase('`status`')},
-            COALESCE(\`created_at\`, NOW()),
-            COALESCE(\`updated_at\`, \`created_at\`, NOW())
+            NOW(),
+            NOW()
           FROM \`commercial_space\`
         `,
       },
@@ -1072,7 +1072,7 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
               SELECT \`p\`.\`id\`
               FROM \`properties\` \`p\`
               WHERE \`p\`.\`id\` = ${this.legacyPropertyIdCase(
-                "COALESCE(NULLIF(TRIM(`e`.`property_type`), ''), NULLIF(TRIM(`e`.`propertytype`), ''))",
+                "COALESCE(NULLIF(TRIM(`e`.`propertytype`), ''), '')",
                 "CAST(NULLIF(TRIM(`e`.`propertyid`), '') AS UNSIGNED)",
               )}
               LIMIT 1
@@ -1087,13 +1087,13 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
           ) AS \`user_id\`,
           COALESCE(NULLIF(TRIM(\`e\`.\`name\`), ''), CONCAT('Legacy Lead #', \`e\`.\`id\`)) AS \`name\`,
           COALESCE(NULLIF(TRIM(\`e\`.\`email\`), ''), CONCAT('legacy-lead-', \`e\`.\`id\`, '@majestan.local')) AS \`email\`,
-          COALESCE(NULLIF(TRIM(\`e\`.\`phone\`), ''), NULLIF(TRIM(\`e\`.\`mobileno\`), ''), '') AS \`phone\`,
-          COALESCE(NULLIF(TRIM(\`e\`.\`message\`), ''), NULLIF(TRIM(\`e\`.\`requirement\`), ''), '') AS \`message\`,
+          COALESCE(NULLIF(TRIM(\`e\`.\`mobileno\`), ''), '') AS \`phone\`,
+          COALESCE(NULLIF(TRIM(\`e\`.\`requirement\`), ''), '') AS \`message\`,
           CASE
             WHEN LOWER(COALESCE(TRIM(CAST(\`e\`.\`status\` AS CHAR)), '')) IN ('0', 'closed') THEN 'closed'
             ELSE 'new'
           END AS \`status\`,
-          COALESCE(\`e\`.\`created_at\`, NOW()) AS \`created_at\`
+          NOW() AS \`created_at\`
         FROM \`enquiry\` \`e\`
       `);
     }
@@ -1107,14 +1107,14 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
           999 AS \`property_id\`,
           NULL AS \`user_id\`,
           COALESCE(NULLIF(TRIM(\`pd\`.\`name\`), ''), CONCAT('Legacy Interest #', \`pd\`.\`id\`)) AS \`name\`,
-          COALESCE(NULLIF(TRIM(\`pd\`.\`email\`), ''), CONCAT('legacy-interest-', \`pd\`.\`id\`, '@majestan.local')) AS \`email\`,
-          COALESCE(NULLIF(TRIM(\`pd\`.\`phone\`), ''), NULLIF(TRIM(\`pd\`.\`mobilenumber\`), ''), '') AS \`phone\`,
-          COALESCE(NULLIF(TRIM(\`pd\`.\`message\`), ''), NULLIF(TRIM(\`pd\`.\`property_details\`), ''), '') AS \`message\`,
+          CONCAT('legacy-interest-', \`pd\`.\`id\`, '@majestan.local') AS \`email\`,
+          COALESCE(NULLIF(TRIM(\`pd\`.\`mobilenumber\`), ''), '') AS \`phone\`,
+          COALESCE(NULLIF(TRIM(\`pd\`.\`property_details\`), ''), '') AS \`message\`,
           CASE
             WHEN LOWER(COALESCE(TRIM(CAST(\`pd\`.\`status\` AS CHAR)), '')) IN ('0', 'closed') THEN 'closed'
             ELSE 'new'
           END AS \`status\`,
-          COALESCE(\`pd\`.\`created_at\`, NOW()) AS \`created_at\`
+          NOW() AS \`created_at\`
         FROM \`propertydetails\` \`pd\`
       `);
     }
@@ -1159,7 +1159,7 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
           ),
           999
         ) AS \`property_id\`,
-        COALESCE(\`w\`.\`wish_date\`, \`w\`.\`created_at\`, NOW()) AS \`created_at\`
+        COALESCE(\`w\`.\`wish_date\`, NOW()) AS \`created_at\`
       FROM \`wishlist\` \`w\`
       WHERE COALESCE(TRIM(\`w\`.\`property_id\`), '') <> ''
     `);
@@ -1177,15 +1177,15 @@ export class RefactorLegacyToUnifiedSchema1779100000000 implements MigrationInte
       )
       SELECT
         CAST(\`b\`.\`id\` AS UNSIGNED) AS \`id\`,
-        COALESCE(NULLIF(TRIM(\`b\`.\`title\`), ''), NULLIF(TRIM(\`b\`.\`blog_title\`), ''), CONCAT('Legacy Blog #', \`b\`.\`id\`)) AS \`title\`,
+        COALESCE(NULLIF(TRIM(\`b\`.\`blog_title\`), ''), CONCAT('Legacy Blog #', \`b\`.\`id\`)) AS \`title\`,
         CONCAT('legacy-blog-', \`b\`.\`id\`) AS \`slug\`,
-        COALESCE(NULLIF(\`b\`.\`content\`, ''), NULLIF(\`b\`.\`blog_content\`, ''), '') AS \`content\`,
+        COALESCE(NULLIF(\`b\`.\`blog_content\`, ''), '') AS \`content\`,
         1 AS \`author_id\`,
         CASE
           WHEN CAST(COALESCE(\`b\`.\`status\`, 1) AS SIGNED) = 1 THEN 'published'
           ELSE 'draft'
         END AS \`status\`,
-        COALESCE(\`b\`.\`created_at\`, NOW()) AS \`created_at\`
+        NOW() AS \`created_at\`
       FROM \`legacy_blogs\` \`b\`
     `);
   }
