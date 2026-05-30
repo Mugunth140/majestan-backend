@@ -35,6 +35,11 @@ export class PropertySearchQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
+  city?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(120)
   propertyName?: string;
 
