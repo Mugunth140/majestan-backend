@@ -16,4 +16,9 @@ export class MetadataController {
   async listUnitTypes() {
     return this.metadataService.listUnitTypes();
   }
+
+  @Get('cities')
+  async listCities() {
+    return this.metadataService.listCities();
+  }
 }

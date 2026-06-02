@@ -27,4 +27,15 @@ export class MetadataService {
       .orderBy('unittypes.unittype', 'ASC')
       .getRawMany<{ id: number; unittype: string }>();
   }
+
+  async listCities() {
+    return this.dataSource
+      .createQueryBuilder()
+      .select('properties.city', 'city')
+      .from('properties', 'properties')
+      .where('properties.status = :status', { status: 'published' })
+      .groupBy('properties.city')
+      .orderBy('properties.city', 'ASC')
+      .getRawMany<{ city: string }>();
+  }
 }
