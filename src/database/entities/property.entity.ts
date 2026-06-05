@@ -15,11 +15,20 @@ import { PropertyDetails } from './property-details.entity';
 import { PropertyImage } from './property-image.entity';
 import { User } from './user.entity';
 import { Wishlist } from './wishlist.entity';
+import { PropertyLocation } from './property-location.entity';
+import { PropertyAmenity } from './property-amenity.entity';
+import { PropertyUnit } from './property-unit.entity';
+import { PropertyFile } from './property-file.entity';
+import { PropertyFaq } from './property-faq.entity';
 
 export enum PropertyType {
   APARTMENT = 'apartment',
   VILLA = 'villa',
   PLOT = 'plot',
+  COMMERCIAL = 'commercial',
+  COWORKING = 'coworking',
+  FARMLAND = 'farmland',
+  INDUSTRIAL = 'industrial',
 }
 
 export enum PropertyStatus {
@@ -135,4 +144,19 @@ export class Property {
 
   @OneToMany(() => Wishlist, (wishlist) => wishlist.property, { lazy: true })
   wishlists!: Promise<Wishlist[]>;
+
+  @OneToMany(() => PropertyLocation, (propertyLocation) => propertyLocation.property, { lazy: true })
+  propertyLocations!: Promise<PropertyLocation[]>;
+
+  @OneToMany(() => PropertyAmenity, (propertyAmenity) => propertyAmenity.property, { lazy: true })
+  propertyAmenities!: Promise<PropertyAmenity[]>;
+
+  @OneToMany(() => PropertyUnit, (propertyUnit) => propertyUnit.property, { lazy: true })
+  propertyUnits!: Promise<PropertyUnit[]>;
+
+  @OneToMany(() => PropertyFile, (propertyFile) => propertyFile.property, { lazy: true })
+  propertyFiles!: Promise<PropertyFile[]>;
+
+  @OneToMany(() => PropertyFaq, (propertyFaq) => propertyFaq.property, { lazy: true })
+  faqs!: Promise<PropertyFaq[]>;
 }
