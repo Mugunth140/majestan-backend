@@ -18,6 +18,9 @@ export enum AmenityCategory {
   CONNECTIVITY = 'connectivity',
   INTERIOR = 'interior',
   OTHER = 'other',
+  FEATURE = 'feature',
+  UTILITY = 'utility',
+  EMPTY = '',
 }
 
 @Entity('amenities')
@@ -62,7 +65,7 @@ export class Amenity {
     name: 'created_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 
@@ -70,8 +73,8 @@ export class Amenity {
     name: 'updated_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updatedAt!: Date;
 

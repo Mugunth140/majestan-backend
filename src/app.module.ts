@@ -60,9 +60,9 @@ import { RootController } from './root.controller';
           username: configService.getOrThrow<string>('database.username'),
           password: configService.getOrThrow<string>('database.password'),
           database: configService.getOrThrow<string>('database.database'),
-          autoLoadEntities: true,
-          synchronize: false,
-          logging: false,
+          entities: [__dirname + '/**/*.entity{.ts,.js}'],
+          synchronize: true,
+          logging: true,
           extra: {
             connectionLimit: configService.getOrThrow<number>(
               'database.connectionLimit',

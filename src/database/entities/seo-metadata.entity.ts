@@ -114,7 +114,7 @@ export class SeoMetadata {
     name: 'created_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 
@@ -122,8 +122,8 @@ export class SeoMetadata {
     name: 'updated_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updatedAt!: Date;
 }

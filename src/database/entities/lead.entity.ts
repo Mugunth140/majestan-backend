@@ -48,7 +48,7 @@ export class Lead {
     name: 'created_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 

@@ -41,16 +41,16 @@ export class Location {
   })
   countryName!: string;
 
-  @Column({ name: 'state_name', type: 'varchar', length: 100, nullable: false })
+  @Column({ name: 'state_name', type: 'varchar', length: 50, nullable: false })
   stateName!: string;
 
-  @Column({ name: 'city_name', type: 'varchar', length: 120, nullable: false })
+  @Column({ name: 'city_name', type: 'varchar', length: 50, nullable: false })
   cityName!: string;
 
   @Column({
     name: 'locality_name',
     type: 'varchar',
-    length: 120,
+    length: 100,
     nullable: true,
   })
   localityName!: string | null;
@@ -91,7 +91,7 @@ export class Location {
     name: 'created_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 
@@ -99,8 +99,8 @@ export class Location {
     name: 'updated_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updatedAt!: Date;
 

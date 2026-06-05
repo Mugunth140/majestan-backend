@@ -53,7 +53,7 @@ export class FileEntity {
   @Column({ name: 'file_url', type: 'varchar', length: 1024, nullable: false })
   fileUrl!: string;
 
-  @Column({ name: 'file_key', type: 'varchar', length: 1024, nullable: false })
+  @Column({ name: 'file_key', type: 'varchar', length: 255, nullable: false })
   fileKey!: string;
 
   @Column({
@@ -72,7 +72,7 @@ export class FileEntity {
     name: 'created_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 

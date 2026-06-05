@@ -56,7 +56,7 @@ export class User {
     name: 'created_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 
@@ -64,20 +64,20 @@ export class User {
     name: 'updated_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updatedAt!: Date;
 
-  @OneToMany(() => Property, (property) => property.owner, { lazy: true })
+  @OneToMany('Property', (property: any) => property.owner, { lazy: true })
   properties!: Promise<Property[]>;
 
-  @OneToMany(() => Lead, (lead) => lead.user, { lazy: true })
+  @OneToMany('Lead', (lead: any) => lead.user, { lazy: true })
   leads!: Promise<Lead[]>;
 
-  @OneToMany(() => Wishlist, (wishlist) => wishlist.user, { lazy: true })
+  @OneToMany('Wishlist', (wishlist: any) => wishlist.user, { lazy: true })
   wishlists!: Promise<Wishlist[]>;
 
-  @OneToMany(() => Blog, (blog) => blog.author, { lazy: true })
+  @OneToMany('Blog', (blog: any) => blog.author, { lazy: true })
   blogs!: Promise<Blog[]>;
 }

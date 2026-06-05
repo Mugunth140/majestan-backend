@@ -24,6 +24,10 @@ export enum PropertyUnitType {
   SHOP_UNIT = 'shop_unit',
   WAREHOUSE_UNIT = 'warehouse_unit',
   OTHER = 'other',
+  APARTMENT = 'apartment',
+  VILLA = 'villa',
+  COMMERCIAL = 'commercial',
+  PLOT = 'plot',
 }
 
 export enum FurnishedStatus {
@@ -237,7 +241,7 @@ export class PropertyUnit {
     name: 'created_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 
@@ -245,8 +249,8 @@ export class PropertyUnit {
     name: 'updated_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updatedAt!: Date;
 

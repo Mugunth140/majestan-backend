@@ -29,6 +29,8 @@ export enum PropertyType {
   COWORKING = 'coworking',
   FARMLAND = 'farmland',
   INDUSTRIAL = 'industrial',
+  OTHER = 'other',
+  INDIVIDUAL_PORTION = 'individual_portion',
 }
 
 export enum PropertyStatus {
@@ -70,9 +72,9 @@ export class Property {
     type: 'decimal',
     precision: 12,
     scale: 2,
-    nullable: false,
+    nullable: true,
   })
-  price!: string;
+  price!: string | null;
 
   @Column({
     name: 'property_type',
@@ -90,8 +92,8 @@ export class Property {
   })
   status!: PropertyStatus;
 
-  @Column({ name: 'owner_id', type: 'int', unsigned: true, nullable: false })
-  ownerId!: number;
+  @Column({ name: 'owner_id', type: 'int', unsigned: true, nullable: true })
+  ownerId!: number | null;
 
   @Column({ name: 'city', type: 'varchar', length: 255, nullable: false })
   city!: string;
@@ -106,7 +108,7 @@ export class Property {
     name: 'created_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 
@@ -114,49 +116,49 @@ export class Property {
     name: 'updated_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updatedAt!: Date;
 
-  @ManyToOne(() => User, (user) => user.properties, {
+  @ManyToOne('User', 'properties', {
     lazy: true,
-    nullable: false,
+    nullable: true,
     onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'owner_id', referencedColumnName: 'id' })
-  owner!: Promise<User>;
+  owner!: Promise<User | null>;
 
   @OneToOne(
-    () => PropertyDetails,
-    (propertyDetails) => propertyDetails.property,
+    'PropertyDetails',
+    (propertyDetails: any) => propertyDetails.property,
     { lazy: true },
   )
   propertyDetails!: Promise<PropertyDetails>;
 
-  @OneToMany(() => PropertyImage, (propertyImage) => propertyImage.property, {
+  @OneToMany('PropertyImage', (propertyImage: any) => propertyImage.property, {
     lazy: true,
   })
   propertyImages!: Promise<PropertyImage[]>;
 
-  @OneToMany(() => Lead, (lead) => lead.property, { lazy: true })
+  @OneToMany('Lead', (lead: any) => lead.property, { lazy: true })
   leads!: Promise<Lead[]>;
 
-  @OneToMany(() => Wishlist, (wishlist) => wishlist.property, { lazy: true })
+  @OneToMany('Wishlist', (wishlist: any) => wishlist.property, { lazy: true })
   wishlists!: Promise<Wishlist[]>;
 
-  @OneToMany(() => PropertyLocation, (propertyLocation) => propertyLocation.property, { lazy: true })
+  @OneToMany('PropertyLocation', (propertyLocation: any) => propertyLocation.property, { lazy: true })
   propertyLocations!: Promise<PropertyLocation[]>;
 
-  @OneToMany(() => PropertyAmenity, (propertyAmenity) => propertyAmenity.property, { lazy: true })
+  @OneToMany('PropertyAmenity', (propertyAmenity: any) => propertyAmenity.property, { lazy: true })
   propertyAmenities!: Promise<PropertyAmenity[]>;
 
-  @OneToMany(() => PropertyUnit, (propertyUnit) => propertyUnit.property, { lazy: true })
+  @OneToMany('PropertyUnit', (propertyUnit: any) => propertyUnit.property, { lazy: true })
   propertyUnits!: Promise<PropertyUnit[]>;
 
-  @OneToMany(() => PropertyFile, (propertyFile) => propertyFile.property, { lazy: true })
+  @OneToMany('PropertyFile', (propertyFile: any) => propertyFile.property, { lazy: true })
   propertyFiles!: Promise<PropertyFile[]>;
 
-  @OneToMany(() => PropertyFaq, (propertyFaq) => propertyFaq.property, { lazy: true })
+  @OneToMany('PropertyFaq', (propertyFaq: any) => propertyFaq.property, { lazy: true })
   faqs!: Promise<PropertyFaq[]>;
 }

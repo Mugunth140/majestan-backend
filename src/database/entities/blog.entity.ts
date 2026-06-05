@@ -36,8 +36,8 @@ export class Blog {
   @Column({ name: 'content', type: 'text', nullable: false })
   content!: string;
 
-  @Column({ name: 'author_id', type: 'int', unsigned: true, nullable: false })
-  authorId!: number;
+  @Column({ name: 'author_id', type: 'int', unsigned: true, nullable: true })
+  authorId!: number | null;
 
   @Column({ name: 'status', type: 'enum', enum: BlogStatus, nullable: false })
   status!: BlogStatus;
@@ -46,17 +46,17 @@ export class Blog {
     name: 'created_at',
     type: 'timestamp',
     nullable: false,
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 
   @ManyToOne(() => User, (user) => user.blogs, {
     lazy: true,
-    nullable: false,
+    nullable: true,
     onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'author_id', referencedColumnName: 'id' })
-  author!: Promise<User>;
+  author!: Promise<User | null>;
 
   @ManyToMany(() => Tag, (tag) => tag.blogs, { lazy: true })
   @JoinTable({
