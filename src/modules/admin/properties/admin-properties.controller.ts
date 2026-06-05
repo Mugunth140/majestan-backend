@@ -11,11 +11,10 @@ import {
 } from '@nestjs/common';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { AppRole } from '../../../common/enums/app-role.enum';
-import { UpdateStatusDto } from '../common/dto/update-status.dto';
-import { UpsertRecordDto } from '../common/dto/upsert-record.dto';
+import { UpdatePropertyStatusDto } from './dto/update-property-status.dto';
 import { AdminPropertiesService } from './admin-properties.service';
 import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
-import { ToggleBookingStatusDto } from './dto/toggle-booking-status.dto';
+import { CreatePropertyDto } from './dto/create-property.dto';
 
 @Roles(AppRole.Admin)
 @Controller('admin/properties')
@@ -43,7 +42,7 @@ export class AdminPropertiesController {
   @Post(':propertyType')
   async create(
     @Param('propertyType') propertyType: string,
-    @Body() payload: UpsertRecordDto,
+    @Body() payload: CreatePropertyDto,
   ) {
     return this.adminPropertiesService.create(propertyType, payload);
   }
@@ -52,7 +51,7 @@ export class AdminPropertiesController {
   async update(
     @Param('propertyType') propertyType: string,
     @Param('id', ParseIntPipe) id: number,
-    @Body() payload: UpsertRecordDto,
+    @Body() payload: Partial<CreatePropertyDto>,
   ) {
     return this.adminPropertiesService.update(propertyType, id, payload);
   }
@@ -61,25 +60,12 @@ export class AdminPropertiesController {
   async updateStatus(
     @Param('propertyType') propertyType: string,
     @Param('id', ParseIntPipe) id: number,
-    @Body() payload: UpdateStatusDto,
+    @Body() payload: UpdatePropertyStatusDto,
   ) {
     return this.adminPropertiesService.updateStatus(
       propertyType,
       id,
       payload.status,
-    );
-  }
-
-  @Patch(':propertyType/:id/booking-status')
-  async updateBookingStatus(
-    @Param('propertyType') propertyType: string,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() payload: ToggleBookingStatusDto,
-  ) {
-    return this.adminPropertiesService.updateBookingStatus(
-      propertyType,
-      id,
-      payload,
     );
   }
 
