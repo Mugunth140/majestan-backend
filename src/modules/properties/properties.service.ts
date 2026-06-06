@@ -29,6 +29,10 @@ export class PropertiesService {
       qb.andWhere('p.propertyType = :propertyType', { propertyType: query.propertyType });
     }
 
+    if (query.listingType) {
+      qb.andWhere('p.listingType = :listingType', { listingType: query.listingType });
+    }
+
     if (query.propertyName) {
       qb.andWhere('(p.title LIKE :search OR p.propertyCode LIKE :search OR p.city LIKE :search)', { search: `%${query.propertyName}%` });
     }

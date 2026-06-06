@@ -85,6 +85,15 @@ export class Property {
   propertyType!: PropertyType;
 
   @Column({
+    name: 'listing_type',
+    type: 'enum',
+    enum: ['Sell', 'Rent'],
+    nullable: false,
+    default: 'Sell',
+  })
+  listingType!: 'Sell' | 'Rent';
+
+  @Column({
     name: 'status',
     type: 'enum',
     enum: PropertyStatus,

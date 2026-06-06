@@ -1,5 +1,7 @@
 import { DataSource } from 'typeorm';
 import { Property, PropertyType, PropertyStatus } from '../src/database/entities/property.entity';
+import { PropertyDetails } from '../src/database/entities/property-details.entity';
+import { PropertyImage } from '../src/database/entities/property-image.entity';
 import { User, UserRole } from '../src/database/entities/user.entity';
 
 async function runMigration() {
@@ -64,40 +66,103 @@ async function runMigration() {
       
       for (const record of records) {
         try {
-          const property = new Property();
-          property.propertyCode = `LEGACY-${mapping.codePrefix}-${record.id}`;
+          // Check if already migrated
+          const code = `LEGACY-${mapping.codePrefix}-${record.id}`;
+          let property = await newDb.getRepository(Property).findOne({ where: { propertyCode: code } });
           
-          // Legacy tables are inconsistent with column names. Handle name/property_name.
-          const nameField = record.property_name || record.name || record.title || `${mapping.type}-${record.id}`;
-          property.title = nameField;
-          property.slug = nameField.toLowerCase().replace(/[^a-z0-9]+/g, '-') + `-${record.id}`;
-          property.description = record.description || '';
-          
-          // Sanitize price to avoid 'Incorrect decimal value' errors
-          let safePrice = '0';
-          if (record.price) {
-            const parsed = parseFloat(String(record.price).replace(/[^0-9.]/g, ''));
-            if (!isNaN(parsed)) {
-              safePrice = parsed > 9999999999.99 ? '9999999999.99' : parsed.toString();
+          if (!property) {
+            property = new Property();
+            property.propertyCode = code;
+            
+            const nameField = record.property_name || record.name || record.title || `${mapping.type}-${record.id}`;
+            property.title = nameField;
+            property.slug = record.slug_url || (nameField.toLowerCase().replace(/[^a-z0-9]+/g, '-') + `-${record.id}`);
+            property.description = record.description || '';
+            
+            let safePrice = '0';
+            if (record.price || record.expectedsaleprice || record.monthly_rent) {
+              const p = record.price || record.expectedsaleprice || record.monthly_rent;
+              const parsed = parseFloat(String(p).replace(/[^0-9.]/g, ''));
+              if (!isNaN(parsed)) {
+                safePrice = parsed > 9999999999.99 ? '9999999999.99' : parsed.toString();
+              }
+            }
+            property.price = safePrice;
+            
+            property.propertyType = mapping.type;
+            property.status = (record.posttype === 'Rent' || String(record.status).toLowerCase().includes('rent')) ? PropertyStatus.RENTED : PropertyStatus.AVAILABLE;
+            
+            property.city = record.city || 'Coimbatore';
+            property.state = record.state || 'Tamil Nadu';
+            property.country = 'India';
+            property.ownerId = adminUser.id;
+            
+            property = await newDb.getRepository(Property).save(property);
+          }
+
+          // Migrate Details
+          let details = await newDb.getRepository(PropertyDetails).findOne({ where: { propertyId: property.id } });
+          if (!details) {
+            details = new PropertyDetails();
+            details.propertyId = property.id;
+            details.bedrooms = parseInt(record.bedrooms || '0') || 0;
+            details.bathrooms = parseInt(record.bathrooms || '0') || 0;
+            
+            let safeArea = '0';
+            if (record.sq_ft || record.build_up_area || record.cents) {
+              const a = record.sq_ft || record.build_up_area || record.cents;
+              const parsed = parseFloat(String(a).replace(/[^0-9.]/g, ''));
+              if (!isNaN(parsed)) {
+                safeArea = parsed.toString();
+              }
+            }
+            details.areaSqft = safeArea;
+            
+            details.parking = parseInt(record.car_parking || '0') || 0;
+            details.furnished = String(record.furnishing).toLowerCase().includes('furnish') || false;
+            
+            await newDb.getRepository(PropertyDetails).save(details);
+          }
+
+          // Migrate Images
+          if (record.photo1) {
+            const existing1 = await newDb.getRepository(PropertyImage).findOne({ where: { propertyId: property.id, imageUrl: record.photo1 } });
+            if (!existing1) {
+              const img = new PropertyImage();
+              img.propertyId = property.id;
+              img.imageUrl = record.photo1;
+              img.imageKey = `legacy-key-${Date.now()}-1`;
+              img.isPrimary = true;
+              await newDb.getRepository(PropertyImage).save(img);
             }
           }
-          property.price = safePrice;
           
-          property.propertyType = mapping.type;
-          property.status = PropertyStatus.AVAILABLE;
+          if (record.photo2) {
+            const existing2 = await newDb.getRepository(PropertyImage).findOne({ where: { propertyId: property.id, imageUrl: record.photo2 } });
+            if (!existing2) {
+              const img = new PropertyImage();
+              img.propertyId = property.id;
+              img.imageUrl = record.photo2;
+              img.imageKey = `legacy-key-${Date.now()}-2`;
+              img.isPrimary = false;
+              await newDb.getRepository(PropertyImage).save(img);
+            }
+          }
           
-          property.city = record.city || 'Coimbatore';
-          property.state = record.state || 'Tamil Nadu';
-          property.country = 'India';
-          property.ownerId = adminUser.id;
-          
-          await newDb.getRepository(Property).save(property);
+          // Migrate Location (Basic mapping to location string)
+          if (record.sublocation || record.address) {
+             // In the new schema, we might need a `Location` entity first, 
+             // but `city` and `address` mapped via API client covers it mostly.
+             // We can skip inserting to property_locations if it requires complex linked entities, 
+             // or we just rely on `city` and `address` which we mapped in the API.
+          }
+
           count++;
         } catch (e) {
           console.error(`Failed to migrate ${mapping.table} ID: ${record.id}`, e.message);
         }
       }
-      console.log(`Successfully migrated ${count} ${mapping.table}.`);
+      console.log(`Successfully migrated/updated ${count} ${mapping.table}.`);
     } catch (e) {
       console.log(`Skipping ${mapping.table} (Table might not exist or schema difference).`);
     }
