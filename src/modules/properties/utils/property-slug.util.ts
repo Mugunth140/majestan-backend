@@ -26,3 +26,32 @@ export const extractPropertyCodeFromSeoSlug = (slug: string): string | null => {
 
   return null;
 };
+
+export const getPropertyTypeCode = (propertyType: string): string => {
+  switch (propertyType.toLowerCase()) {
+    case 'apartment':
+      return 'ap';
+    case 'villa':
+      return 'vl';
+    case 'plot':
+      return 'pl';
+    case 'commercial':
+      return 'cm';
+    case 'coworking':
+      return 'cw';
+    case 'farmland':
+      return 'fm';
+    case 'industrial':
+      return 'in';
+    case 'individual_portion':
+      return 'ip';
+    default:
+      return 'ot';
+  }
+};
+
+export const generateSeoSlug = (title: string, propertyType: string, id: number): string => {
+  const normalizedTitle = normalizeSeoSlug(title);
+  const code = getPropertyTypeCode(propertyType);
+  return `${normalizedTitle}-${code}${id}`;
+};

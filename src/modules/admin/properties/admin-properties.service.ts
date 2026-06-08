@@ -10,6 +10,8 @@ import { PropertyFaq } from '../../../database/entities/property-faq.entity';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
 
+import { generateSeoSlug } from '../../properties/utils/property-slug.util';
+
 @Injectable()
 export class AdminPropertiesService {
   constructor(private readonly dataSource: DataSource) {}
@@ -54,7 +56,7 @@ export class AdminPropertiesService {
       const property = new Property();
       Object.assign(property, {
         propertyCode: payload.propertyCode || `PROP-${Date.now()}`,
-        slug: payload.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + `-${Date.now()}`,
+        slug: `temp-slug-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
         title: payload.title,
         description: payload.description,
         price: payload.price,
@@ -65,7 +67,11 @@ export class AdminPropertiesService {
         country: payload.country,
         ownerId: payload.ownerId,
       });
-      const savedProperty = await queryRunner.manager.save(property);
+      let savedProperty = await queryRunner.manager.save(property);
+      
+      // Update with correct slug now that we have ID
+      savedProperty.slug = generateSeoSlug(savedProperty.title, savedProperty.propertyType, savedProperty.id);
+      savedProperty = await queryRunner.manager.save(savedProperty);
 
       // 2. Create Details
       if (payload.details) {
