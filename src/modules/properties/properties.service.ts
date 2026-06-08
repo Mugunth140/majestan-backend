@@ -4,6 +4,22 @@ import { Repository } from 'typeorm';
 import { Property, PropertyType, PropertyStatus } from '../../database/entities/property.entity';
 import { PropertySearchQueryDto, PropertySortOption } from './dto/property-search.dto';
 
+function getPropertyIdSuffix(type: PropertyType, id: number): string {
+  const map: Record<PropertyType, string> = {
+    [PropertyType.APARTMENT]: 'ap',
+    [PropertyType.VILLA]: 'vl',
+    [PropertyType.PLOT]: 'pl',
+    [PropertyType.COMMERCIAL]: 'cm',
+    [PropertyType.COWORKING]: 'co',
+    [PropertyType.FARMLAND]: 'ag',
+    [PropertyType.INDUSTRIAL]: 'in',
+    [PropertyType.OTHER]: 'ot',
+    [PropertyType.INDIVIDUAL_PORTION]: 'ip',
+  };
+  const prefix = map[type] || 'pr';
+  return `-${prefix}${id}`;
+}
+
 type SearchResult = {
   items: Property[];
   total: number;
@@ -67,7 +83,12 @@ export class PropertiesService {
 
     const [items, total] = await qb.getManyAndCount();
 
-    return { items, total, page, limit };
+    const mappedItems = items.map(p => ({
+      ...p,
+      canonicalSlug: p.slug ? `${p.slug}${getPropertyIdSuffix(p.propertyType, p.id)}` : null
+    }));
+
+    return { items: mappedItems as any, total, page, limit };
   }
 
   async details(propertyType: string, id: number): Promise<Property> {
@@ -92,7 +113,7 @@ export class PropertiesService {
   }
 
   async detailsBySlug(slug: string): Promise<Record<string, unknown>> {
-    const property = await this.propertyRepository.findOne({
+    let property = await this.propertyRepository.findOne({
       where: [
         { slug, status: PropertyStatus.AVAILABLE },
         { propertyCode: slug, status: PropertyStatus.AVAILABLE }
@@ -109,14 +130,36 @@ export class PropertiesService {
     });
 
     if (!property) {
+      // Try to parse ID suffix like -ap8471
+      const match = slug.match(/-([a-z]{2})(\d+)$/);
+      if (match) {
+        const id = parseInt(match[2], 10);
+        property = await this.propertyRepository.findOne({
+          where: { id, status: PropertyStatus.AVAILABLE },
+          relations: [
+            'propertyDetails',
+            'propertyLocations',
+            'propertyAmenities',
+            'propertyUnits',
+            'propertyFiles',
+            'propertyImages',
+            'faqs'
+          ],
+        });
+      }
+    }
+
+    if (!property) {
       throw new NotFoundException('Property not found');
     }
+
+    const expectedCanonicalSlug = property.slug ? `${property.slug}${getPropertyIdSuffix(property.propertyType, property.id)}` : slug;
 
     return {
       ...property,
       requestedSlug: slug,
-      canonicalSlug: property.slug,
-      shouldRedirect: property.slug !== slug
+      canonicalSlug: expectedCanonicalSlug,
+      shouldRedirect: expectedCanonicalSlug !== slug
     };
   }
 }

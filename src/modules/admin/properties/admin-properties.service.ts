@@ -18,7 +18,10 @@ export class AdminPropertiesService {
 
   async list(propertyType: string, query: AdminPropertyQueryDto) {
     const qb = this.dataSource.getRepository(Property).createQueryBuilder('p');
-    qb.where('p.propertyType = :propertyType', { propertyType });
+    
+    if (propertyType && propertyType !== 'all') {
+      qb.where('p.propertyType = :propertyType', { propertyType });
+    }
     
     // Pagination (defaults to 0, 10)
     const page = query.page || 1;

@@ -5,6 +5,8 @@ import { AdminBusinessModule } from './business/admin-business.module';
 import { AdminDashboardModule } from './dashboard/admin-dashboard.module';
 import { AdminEnquiriesModule } from './enquiries/admin-enquiries.module';
 import { AdminPropertiesModule } from './properties/admin-properties.module';
+import { AdminLocalitiesModule } from './localities/admin-localities.module';
+import { AdminAmenitiesModule } from './amenities/admin-amenities.module';
 
 @Module({
   imports: [
@@ -14,6 +16,8 @@ import { AdminPropertiesModule } from './properties/admin-properties.module';
     AdminBannersModule,
     AdminEnquiriesModule,
     AdminDashboardModule,
+    AdminLocalitiesModule,
+    AdminAmenitiesModule,
   ],
 })
 export class AdminModule {}
