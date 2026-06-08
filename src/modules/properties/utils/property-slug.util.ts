@@ -32,17 +32,19 @@ export const getPropertyTypeCode = (propertyType: string): string => {
     case 'apartment':
       return 'ap';
     case 'villa':
-      return 'vl';
+      return 'v';
     case 'plot':
-      return 'pl';
+      return 'p';
     case 'commercial':
-      return 'cm';
+    case 'commercial-space':
+      return 'cs';
     case 'coworking':
       return 'cw';
     case 'farmland':
-      return 'fm';
+      return 'fl';
     case 'industrial':
-      return 'in';
+      return 'is';
+    case 'independent-house':
     case 'individual_portion':
       return 'ip';
     default:

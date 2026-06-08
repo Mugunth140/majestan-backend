@@ -10,7 +10,9 @@ import { PropertyFaq } from '../../../database/entities/property-faq.entity';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
 
-import { generateSeoSlug } from '../../properties/utils/property-slug.util';
+import { generateSeoSlug, normalizeSeoSlug, getPropertyTypeCode } from '../../properties/utils/property-slug.util';
+import { Location } from '../../../database/entities/location.entity';
+import { SeoMetadata, SeoEntityType } from '../../../database/entities/seo-metadata.entity';
 
 @Injectable()
 export class AdminPropertiesService {
@@ -69,11 +71,22 @@ export class AdminPropertiesService {
         state: payload.state,
         country: payload.country,
         ownerId: payload.ownerId,
+        builderName: payload.builderName,
       });
       let savedProperty = await queryRunner.manager.save(property);
       
-      // Update with correct slug now that we have ID
-      savedProperty.slug = generateSeoSlug(savedProperty.title, savedProperty.propertyType, savedProperty.id);
+      // Update with correct slug and propertyCode now that we have ID
+      if (payload.slug) {
+         savedProperty.slug = `${normalizeSeoSlug(payload.slug)}-${getPropertyTypeCode(savedProperty.propertyType)}${savedProperty.id}`;
+      } else {
+         savedProperty.slug = generateSeoSlug(savedProperty.title, savedProperty.propertyType, savedProperty.id);
+      }
+
+      if (!payload.propertyCode) {
+         const prefix = getPropertyTypeCode(savedProperty.propertyType).toUpperCase();
+         savedProperty.propertyCode = `${prefix}${String(savedProperty.id).padStart(3, '0')}`;
+      }
+
       savedProperty = await queryRunner.manager.save(savedProperty);
 
       // 2. Create Details
@@ -86,10 +99,31 @@ export class AdminPropertiesService {
 
       // 3. Create Location
       if (payload.location) {
-        const location = new PropertyLocation();
-        Object.assign(location, payload.location);
-        location.propertyId = savedProperty.id;
-        await queryRunner.manager.save(location);
+        let locationId: number | undefined;
+        if (payload.location.subLocation) {
+          const locRepo = queryRunner.manager.getRepository(Location);
+          let loc = await locRepo.findOne({ where: { localityName: payload.location.subLocation, cityName: payload.city } });
+          if (!loc) {
+            loc = locRepo.create({
+              countryCode: 'IN',
+              countryName: payload.country || 'India',
+              stateName: payload.state || 'Tamil Nadu',
+              cityName: payload.city,
+              localityName: payload.location.subLocation,
+              isActive: true,
+            });
+            loc = await locRepo.save(loc);
+          }
+          locationId = loc.id;
+        }
+
+        if (locationId) {
+          const location = new PropertyLocation();
+          Object.assign(location, payload.location);
+          location.propertyId = savedProperty.id;
+          location.locationId = locationId;
+          await queryRunner.manager.save(location);
+        }
       }
 
       // 4. Create Amenities
@@ -134,6 +168,18 @@ export class AdminPropertiesService {
           return pfaq;
         });
         await queryRunner.manager.save(faqs);
+      }
+
+      // 8. Create SEO Metadata
+      if (payload.seo) {
+        const seoRepo = queryRunner.manager.getRepository(SeoMetadata);
+        const seoMeta = seoRepo.create({
+          ...payload.seo,
+          entityType: SeoEntityType.PROPERTY,
+          entityId: savedProperty.id,
+          slug: savedProperty.slug!, // using the final slug generated earlier in the transaction
+        });
+        await seoRepo.save(seoMeta);
       }
 
       await queryRunner.commitTransaction();

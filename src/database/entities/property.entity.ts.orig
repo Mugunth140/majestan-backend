@@ -37,7 +37,6 @@ export enum PropertyStatus {
   AVAILABLE = 'available',
   SOLD = 'sold',
   RENTED = 'rented',
-  UNAVAILABLE = 'unavailable',
 }
 
 @Entity('properties')
@@ -104,9 +103,6 @@ export class Property {
 
   @Column({ name: 'owner_id', type: 'int', unsigned: true, nullable: true })
   ownerId!: number | null;
-
-  @Column({ name: 'builder_name', type: 'varchar', length: 255, nullable: true })
-  builderName!: string | null;
 
   @Column({ name: 'city', type: 'varchar', length: 255, nullable: false })
   city!: string;

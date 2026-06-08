@@ -3,21 +3,30 @@ import { Type } from 'class-transformer';
 import { PropertyType, PropertyStatus } from '../../../../database/entities/property.entity';
 
 class PropertyDetailsDto {
-  @IsOptional() @IsNumber() bedroomCount?: number;
-  @IsOptional() @IsNumber() bathroomCount?: number;
-  @IsOptional() @IsNumber() balconyCount?: number;
-  @IsOptional() @IsNumber() totalFloors?: number;
+  @IsOptional() @IsNumber() bedrooms?: number;
+  @IsOptional() @IsNumber() bathrooms?: number;
+  @IsOptional() @IsNumber() parking?: number;
+  @IsOptional() @IsNumber() areaSqft?: number;
+  @IsOptional() @IsBoolean() furnished?: boolean;
+  @IsOptional() @IsString() facing?: string;
   @IsOptional() @IsNumber() buildUpArea?: number;
   @IsOptional() @IsNumber() carpetArea?: number;
-  @IsOptional() @IsString() facing?: string;
-  @IsOptional() @IsString() furnishStatus?: string;
-  @IsOptional() @IsString() completionStatus?: string;
-  @IsOptional() @IsString() ageOfProperty?: string;
-  @IsOptional() @IsString() ownershipType?: string;
+  @IsOptional() @IsNumber() totalFloors?: number;
+}
+
+export class PropertySeoDto {
+  @IsOptional() @IsString() metaTitle?: string;
+  @IsOptional() @IsString() metaDescription?: string;
+  @IsOptional() @IsString() metaKeywords?: string;
+  @IsOptional() @IsString() canonicalUrl?: string;
+  @IsOptional() @IsString() ogTitle?: string;
+  @IsOptional() @IsString() ogDescription?: string;
+  @IsOptional() @IsString() ogImageUrl?: string;
 }
 
 class PropertyLocationDto {
-  @IsString() address!: string;
+  @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsString() subLocation?: string;
   @IsOptional() @IsString() landmark?: string;
   @IsOptional() @IsString() mapUrl?: string;
   @IsOptional() @IsString() pincode?: string;
@@ -51,9 +60,11 @@ class PropertyFaqDto {
 
 export class CreatePropertyDto {
   @IsOptional() @IsString() propertyCode?: string;
+  @IsOptional() @IsString() slug?: string;
   @IsString() title!: string;
   @IsString() description!: string;
   @IsString() price!: string;
+  @IsOptional() @IsString() builderName?: string;
   
   @IsEnum(PropertyType)
   propertyType!: PropertyType;
@@ -100,4 +111,9 @@ export class CreatePropertyDto {
   @ValidateNested({ each: true })
   @Type(() => PropertyFaqDto)
   faqs?: PropertyFaqDto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PropertySeoDto)
+  seo?: PropertySeoDto;
 }
