@@ -27,6 +27,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { MetadataModule } from './modules/metadata/metadata.module';
 import { HomeModule } from './modules/home/home.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { RootController } from './root.controller';
 
 @Module({
@@ -82,6 +83,7 @@ import { RootController } from './root.controller';
     MetadataModule,
     HomeModule,
     AdminModule,
+    StorageModule,
   ],
   controllers: [RootController],
   providers: [
