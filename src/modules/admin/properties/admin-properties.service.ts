@@ -12,7 +12,6 @@ import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
 
 import { generateSeoSlug, normalizeSeoSlug, getPropertyTypeCode } from '../../properties/utils/property-slug.util';
 import { Location } from '../../../database/entities/location.entity';
-import { SeoMetadata, SeoEntityType } from '../../../database/entities/seo-metadata.entity';
 
 @Injectable()
 export class AdminPropertiesService {
@@ -168,18 +167,6 @@ export class AdminPropertiesService {
           return pfaq;
         });
         await queryRunner.manager.save(faqs);
-      }
-
-      // 8. Create SEO Metadata
-      if (payload.seo) {
-        const seoRepo = queryRunner.manager.getRepository(SeoMetadata);
-        const seoMeta = seoRepo.create({
-          ...payload.seo,
-          entityType: SeoEntityType.PROPERTY,
-          entityId: savedProperty.id,
-          slug: savedProperty.slug!, // using the final slug generated earlier in the transaction
-        });
-        await seoRepo.save(seoMeta);
       }
 
       await queryRunner.commitTransaction();

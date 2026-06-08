@@ -14,16 +14,6 @@ class PropertyDetailsDto {
   @IsOptional() @IsNumber() totalFloors?: number;
 }
 
-export class PropertySeoDto {
-  @IsOptional() @IsString() metaTitle?: string;
-  @IsOptional() @IsString() metaDescription?: string;
-  @IsOptional() @IsString() metaKeywords?: string;
-  @IsOptional() @IsString() canonicalUrl?: string;
-  @IsOptional() @IsString() ogTitle?: string;
-  @IsOptional() @IsString() ogDescription?: string;
-  @IsOptional() @IsString() ogImageUrl?: string;
-}
-
 class PropertyLocationDto {
   @IsOptional() @IsString() address?: string;
   @IsOptional() @IsString() subLocation?: string;
@@ -111,9 +101,4 @@ export class CreatePropertyDto {
   @ValidateNested({ each: true })
   @Type(() => PropertyFaqDto)
   faqs?: PropertyFaqDto[];
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => PropertySeoDto)
-  seo?: PropertySeoDto;
 }
