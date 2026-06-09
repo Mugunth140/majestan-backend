@@ -98,6 +98,14 @@ export class AdminTableService {
     return row;
   }
 
+  async findAll(table: string): Promise<Record<string, unknown>[]> {
+    return this.dataSource
+      .createQueryBuilder()
+      .select('t.*')
+      .from(table, 't')
+      .getRawMany<Record<string, unknown>>();
+  }
+
   async createRow(
     table: string,
     payload: Record<string, unknown>,

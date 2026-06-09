@@ -8,7 +8,11 @@ export class AdminLocalitiesService {
   constructor(private readonly adminTableService: AdminTableService) {}
 
   async list(query: PaginationQueryDto) {
-    return this.adminTableService.listRows('locations', query, ['name']);
+    return this.adminTableService.listRows('locations', query, ['cityName', 'localityName']);
+  }
+
+  async listAll() {
+    return this.adminTableService.findAll('locations'); // Ensure AdminTableService has findAll or implement directly
   }
 
   async details(id: number) {

@@ -26,6 +26,11 @@ export class AdminLocalitiesController {
     return this.adminLocalitiesService.list(query);
   }
 
+  @Get('all')
+  async listAll() {
+    return this.adminLocalitiesService.listAll();
+  }
+
   @Get(':id')
   async details(@Param('id', ParseIntPipe) id: number) {
     return this.adminLocalitiesService.details(id);
