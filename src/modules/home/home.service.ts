@@ -5,6 +5,10 @@ import { DataSource } from 'typeorm';
 type LocationRow = {
   id: number;
   sublocation: string;
+  cityId: number;
+  city: string;
+  state: string;
+  postalCode: string | null;
 };
 
 type UnitTypeRow = {
@@ -73,10 +77,17 @@ export class HomeService {
     return this.dataSource
       .createQueryBuilder()
       .select('s.id', 'id')
-      .addSelect('s.sublocation', 'sublocation')
+      .addSelect('s.locality_name', 'sublocation')
+      .addSelect('s.city_id', 'cityId')
+      .addSelect('c.city_name', 'city')
+      .addSelect('c.state_name', 'state')
+      .addSelect('s.postal_code', 'postalCode')
       .from('sublocations', 's')
-      .where('s.status = :status', { status: 1 })
-      .orderBy('s.sublocation', 'ASC')
+      .innerJoin('cities', 'c', 'c.id = s.city_id')
+      .where('s.is_active = :active', { active: 1 })
+      .andWhere('c.is_active = :active', { active: 1 })
+      .orderBy('c.city_name', 'ASC')
+      .addOrderBy('s.locality_name', 'ASC')
       .getRawMany<LocationRow>();
   }
 

@@ -42,8 +42,16 @@ export class PropertiesService {
 
   async getFormData() {
     const amenities = await this.dataSource.query('SELECT id, name FROM amenities WHERE is_active = 1');
-    const cities = await this.dataSource.query('SELECT id, city_name, state_name, country_name FROM cities WHERE is_active = 1');
-    const sublocations = await this.dataSource.query('SELECT id, city_id, locality_name FROM sublocations WHERE is_active = 1');
+    const cities = await this.dataSource.query(
+      'SELECT id, city_name, state_name, country_name FROM cities WHERE is_active = 1 ORDER BY city_name ASC',
+    );
+    const sublocations = await this.dataSource.query(
+      `SELECT s.id, s.city_id, s.locality_name, s.postal_code
+       FROM sublocations s
+       INNER JOIN cities c ON c.id = s.city_id
+       WHERE s.is_active = 1 AND c.is_active = 1
+       ORDER BY c.city_name ASC, s.locality_name ASC`,
+    );
     return {
       amenities,
       cities,

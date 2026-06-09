@@ -13,9 +13,9 @@ import { Roles } from '../../../common/decorators/roles.decorator';
 import { AppRole } from '../../../common/enums/app-role.enum';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UpdateStatusDto } from '../common/dto/update-status.dto';
-import { UpsertRecordDto } from '../common/dto/upsert-record.dto';
 import { AdminCitiesService } from './admin-cities.service';
-import { Public } from '../../../common/decorators/public.decorator';
+import { UpsertCityDto } from './dto/upsert-city.dto';
+
 @Roles(AppRole.Admin)
 @Controller('admin/cities')
 export class AdminCitiesController {
@@ -26,10 +26,9 @@ export class AdminCitiesController {
     return this.adminCitiesService.list(query);
   }
 
-  @Public()
   @Get('all')
   async listAll() {
-    return await this.adminCitiesService.listAll();
+    return this.adminCitiesService.listAll();
   }
 
   @Get(':id')
@@ -38,14 +37,14 @@ export class AdminCitiesController {
   }
 
   @Post()
-  async create(@Body() payload: UpsertRecordDto) {
+  async create(@Body() payload: UpsertCityDto) {
     return this.adminCitiesService.create(payload);
   }
 
   @Patch(':id')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() payload: UpsertRecordDto,
+    @Body() payload: UpsertCityDto,
   ) {
     return this.adminCitiesService.update(id, payload);
   }

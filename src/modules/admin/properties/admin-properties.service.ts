@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { Property, PropertyStatus, PropertyType } from '../../../database/entities/property.entity';
 import { PropertyDetails } from '../../../database/entities/property-details.entity';
 import { PropertyLocation } from '../../../database/entities/property-location.entity';
@@ -35,20 +35,52 @@ export class AdminPropertiesService {
     }
 
     const [data, total] = await qb.getManyAndCount();
-    return { data, total, propertyType, page, limit };
+    return { items: data, total, propertyType, page, limit };
   }
 
   async details(propertyType: string, id: number) {
     const record = await this.dataSource.getRepository(Property).findOne({
       where: { id, propertyType: propertyType as PropertyType },
-      relations: ['propertyDetails', 'propertyLocations', 'propertyAmenities', 'propertyUnits', 'propertyFiles', 'faqs'],
+      relations: [
+        'propertyDetails',
+        'propertyLocations',
+        'propertyLocations.sublocation',
+        'propertyAmenities',
+        'propertyUnits',
+        'propertyFiles',
+        'faqs',
+      ],
     });
 
     if (!record) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
-    return { propertyType, record };
+    const [
+      propertyDetails,
+      propertyLocations,
+      propertyAmenities,
+      propertyUnits,
+      propertyFiles,
+      faqs,
+    ] = await Promise.all([
+      record.propertyDetails,
+      record.propertyLocations,
+      record.propertyAmenities,
+      record.propertyUnits,
+      record.propertyFiles,
+      record.faqs,
+    ]);
+
+    return {
+      ...record,
+      propertyDetails,
+      propertyLocations,
+      propertyAmenities,
+      propertyUnits,
+      propertyFiles,
+      faqs,
+    };
   }
 
   async create(propertyType: string, payload: CreatePropertyDto) {
@@ -57,6 +89,11 @@ export class AdminPropertiesService {
     await queryRunner.startTransaction();
 
     try {
+      const selectedLocation = await this.resolveLocation(
+        queryRunner.manager,
+        payload,
+      );
+
       // 1. Create Base Property
       const property = new Property();
       Object.assign(property, {
@@ -67,9 +104,9 @@ export class AdminPropertiesService {
         price: payload.price,
         propertyType: propertyType as PropertyType,
         status: payload.status,
-        city: payload.city,
-        state: payload.state,
-        country: payload.country,
+        city: selectedLocation.city.cityName,
+        state: selectedLocation.city.stateName,
+        country: selectedLocation.city.countryName,
         ownerId: payload.ownerId,
         builderName: payload.builderName,
       });
@@ -92,49 +129,24 @@ export class AdminPropertiesService {
       // 2. Create Details
       if (payload.details) {
         const details = new PropertyDetails();
-        Object.assign(details, payload.details);
+        Object.assign(details, {
+          bedrooms: payload.details.bedrooms ?? 0,
+          bathrooms: payload.details.bathrooms ?? 0,
+          areaSqft: payload.details.areaSqft ?? 0,
+          parking: payload.details.parking ?? 0,
+          furnished: payload.details.furnished ?? false,
+        });
         details.propertyId = savedProperty.id;
         await queryRunner.manager.save(details);
       }
 
       // 3. Create Location
-      if (payload.location) {
-        let locationId: number | undefined;
-        if (payload.location.subLocation) {
-          const cityRepo = queryRunner.manager.getRepository(City);
-          const subLocationRepo = queryRunner.manager.getRepository(Sublocation);
-          
-          let city = await cityRepo.findOne({ where: { cityName: payload.city } });
-          if (!city) {
-            city = cityRepo.create({
-              countryCode: 'IN',
-              countryName: payload.country || 'India',
-              stateName: payload.state || 'Tamil Nadu',
-              cityName: payload.city,
-              isActive: 1,
-            });
-            city = await cityRepo.save(city);
-          }
-
-          let subLoc = await subLocationRepo.findOne({ where: { localityName: payload.location.subLocation, cityId: city.id } });
-          if (!subLoc) {
-            subLoc = subLocationRepo.create({
-              cityId: city.id,
-              localityName: payload.location.subLocation,
-              isActive: 1,
-            });
-            subLoc = await subLocationRepo.save(subLoc);
-          }
-          locationId = subLoc.id;
-        }
-
-        if (locationId) {
-          const location = new PropertyLocation();
-          Object.assign(location, payload.location);
-          location.propertyId = savedProperty.id;
-          location.locationId = locationId;
-          await queryRunner.manager.save(location);
-        }
+      if (payload.location || payload.sublocationId) {
+        const location = new PropertyLocation();
+        Object.assign(location, payload.location);
+        location.propertyId = savedProperty.id;
+        location.locationId = selectedLocation.sublocation.id;
+        await queryRunner.manager.save(location);
       }
 
       // 4. Create Amenities
@@ -198,15 +210,26 @@ export class AdminPropertiesService {
     await queryRunner.startTransaction();
 
     try {
+      const shouldUpdateLocation =
+        payload.cityId !== undefined ||
+        payload.sublocationId !== undefined ||
+        payload.city !== undefined ||
+        payload.location !== undefined;
+      const selectedLocation = shouldUpdateLocation
+        ? await this.resolveLocation(queryRunner.manager, payload)
+        : null;
+
       // 1. Update Base Property
       const updateData: any = {};
       if (payload.title) updateData.title = payload.title;
       if (payload.description) updateData.description = payload.description;
       if (payload.price) updateData.price = payload.price;
       if (payload.status) updateData.status = payload.status;
-      if (payload.city) updateData.city = payload.city;
-      if (payload.state) updateData.state = payload.state;
-      if (payload.country) updateData.country = payload.country;
+      if (selectedLocation) {
+        updateData.city = selectedLocation.city.cityName;
+        updateData.state = selectedLocation.city.stateName;
+        updateData.country = selectedLocation.city.countryName;
+      }
       if (payload.builderName) updateData.builderName = payload.builderName;
 
       if (Object.keys(updateData).length > 0) {
@@ -217,50 +240,25 @@ export class AdminPropertiesService {
       if (payload.details) {
         await queryRunner.manager.delete(PropertyDetails, { propertyId: id });
         const details = new PropertyDetails();
-        Object.assign(details, payload.details);
+        Object.assign(details, {
+          bedrooms: payload.details.bedrooms ?? 0,
+          bathrooms: payload.details.bathrooms ?? 0,
+          areaSqft: payload.details.areaSqft ?? 0,
+          parking: payload.details.parking ?? 0,
+          furnished: payload.details.furnished ?? false,
+        });
         details.propertyId = id;
         await queryRunner.manager.save(details);
       }
 
       // 3. Update Location
-      if (payload.location) {
+      if (selectedLocation) {
         await queryRunner.manager.delete(PropertyLocation, { propertyId: id });
-        let locationId: number | undefined;
-        if (payload.location.subLocation && payload.city) {
-          const cityRepo = queryRunner.manager.getRepository(City);
-          const subLocationRepo = queryRunner.manager.getRepository(Sublocation);
-          
-          let city = await cityRepo.findOne({ where: { cityName: payload.city } });
-          if (!city) {
-            city = cityRepo.create({
-              countryCode: 'IN',
-              countryName: payload.country || 'India',
-              stateName: payload.state || 'Tamil Nadu',
-              cityName: payload.city,
-              isActive: 1,
-            });
-            city = await cityRepo.save(city);
-          }
-
-          let subLoc = await subLocationRepo.findOne({ where: { localityName: payload.location.subLocation, cityId: city.id } });
-          if (!subLoc) {
-            subLoc = subLocationRepo.create({
-              cityId: city.id,
-              localityName: payload.location.subLocation,
-              isActive: 1,
-            });
-            subLoc = await subLocationRepo.save(subLoc);
-          }
-          locationId = subLoc.id;
-        }
-
-        if (locationId) {
-          const location = new PropertyLocation();
-          Object.assign(location, payload.location);
-          location.propertyId = id;
-          location.locationId = locationId;
-          await queryRunner.manager.save(location);
-        }
+        const location = new PropertyLocation();
+        Object.assign(location, payload.location);
+        location.propertyId = id;
+        location.locationId = selectedLocation.sublocation.id;
+        await queryRunner.manager.save(location);
       }
 
       // 4. Update Amenities
@@ -310,5 +308,55 @@ export class AdminPropertiesService {
   async remove(propertyType: string, id: number) {
     await this.dataSource.getRepository(Property).delete({ id });
     return { deleted: true, id };
+  }
+
+  private async resolveLocation(
+    manager: EntityManager,
+    payload: Partial<CreatePropertyDto>,
+  ): Promise<{ city: City; sublocation: Sublocation }> {
+    const cityRepository = manager.getRepository(City);
+    const sublocationRepository = manager.getRepository(Sublocation);
+
+    const city = payload.cityId
+      ? await cityRepository.findOne({
+          where: { id: payload.cityId, isActive: 1 },
+        })
+      : await cityRepository
+          .createQueryBuilder('city')
+          .where('LOWER(city.cityName) = LOWER(:cityName)', {
+            cityName: payload.city?.trim() ?? '',
+          })
+          .andWhere('city.isActive = :active', { active: 1 })
+          .getOne();
+
+    if (!city) {
+      throw new BadRequestException('Please select an active city');
+    }
+
+    const localityName = payload.location?.subLocation?.trim();
+    const sublocation = payload.sublocationId
+      ? await sublocationRepository.findOne({
+          where: {
+            id: payload.sublocationId,
+            cityId: city.id,
+            isActive: 1,
+          },
+        })
+      : await sublocationRepository
+          .createQueryBuilder('sublocation')
+          .where('sublocation.cityId = :cityId', { cityId: city.id })
+          .andWhere('LOWER(sublocation.localityName) = LOWER(:localityName)', {
+            localityName: localityName ?? '',
+          })
+          .andWhere('sublocation.isActive = :active', { active: 1 })
+          .getOne();
+
+    if (!sublocation) {
+      throw new BadRequestException(
+        'Please select an active sublocation for the selected city',
+      );
+    }
+
+    return { city, sublocation };
   }
 }

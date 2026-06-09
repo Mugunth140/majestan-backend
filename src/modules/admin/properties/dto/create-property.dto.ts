@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsEnum, IsArray, ValidateNested, IsBoolean } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PropertyType, PropertyStatus } from '../../../../database/entities/property.entity';
 
@@ -65,6 +65,9 @@ export class CreatePropertyDto {
   @IsString() city!: string;
   @IsString() state!: string;
   @IsString() country!: string;
+
+  @IsOptional() @IsInt() @Min(1) cityId?: number;
+  @IsOptional() @IsInt() @Min(1) sublocationId?: number;
   
   @IsNumber() ownerId!: number;
 

@@ -1,40 +1,165 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { City } from '../../../database/entities/city.entity';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
-import { UpsertRecordDto } from '../common/dto/upsert-record.dto';
-import { AdminTableService } from '../common/admin-table.service';
+import { UpsertCityDto } from './dto/upsert-city.dto';
 
 @Injectable()
 export class AdminCitiesService {
-  constructor(private readonly adminTableService: AdminTableService) {}
+  constructor(
+    @InjectRepository(City)
+    private readonly cityRepository: Repository<City>,
+  ) {}
 
   async list(query: PaginationQueryDto) {
-    return this.adminTableService.listRows('cities', query, ['city_name']);
+    const queryBuilder = this.cityRepository
+      .createQueryBuilder('city')
+      .select([
+        'city.id AS id',
+        'city.countryCode AS country_code',
+        'city.countryName AS country_name',
+        'city.stateName AS state_name',
+        'city.cityName AS city_name',
+        'city.isActive AS is_active',
+        'city.createdAt AS created_at',
+        'city.updatedAt AS updated_at',
+      ]);
+
+    const search = query.search?.trim();
+    if (search) {
+      queryBuilder.where(
+        '(city.cityName LIKE :search OR city.stateName LIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    if (query.status !== undefined) {
+      queryBuilder.andWhere('city.isActive = :status', {
+        status: query.status,
+      });
+    }
+
+    const total = await queryBuilder.clone().getCount();
+    const items = await queryBuilder
+      .orderBy('city.cityName', query.sortDirection.toUpperCase() as 'ASC' | 'DESC')
+      .offset((query.page - 1) * query.limit)
+      .limit(query.limit)
+      .getRawMany<Record<string, unknown>>();
+
+    return { items, total, page: query.page, limit: query.limit };
   }
 
   async listAll() {
-    return this.adminTableService.findAll('cities');
+    return this.cityRepository
+      .createQueryBuilder('city')
+      .select([
+        'city.id AS id',
+        'city.countryCode AS country_code',
+        'city.countryName AS country_name',
+        'city.stateName AS state_name',
+        'city.cityName AS city_name',
+        'city.isActive AS is_active',
+      ])
+      .where('city.isActive = :active', { active: 1 })
+      .orderBy('city.cityName', 'ASC')
+      .getRawMany<Record<string, unknown>>();
   }
 
   async details(id: number) {
-    return this.adminTableService.getRowById('cities', id);
+    const city = await this.cityRepository
+      .createQueryBuilder('city')
+      .select([
+        'city.id AS id',
+        'city.countryCode AS country_code',
+        'city.countryName AS country_name',
+        'city.stateName AS state_name',
+        'city.cityName AS city_name',
+        'city.isActive AS is_active',
+      ])
+      .where('city.id = :id', { id })
+      .getRawOne<Record<string, unknown>>();
+
+    if (!city) {
+      throw new NotFoundException('City not found');
+    }
+
+    return city;
   }
 
-  async create(payload: UpsertRecordDto) {
-    return this.adminTableService.createRow('cities', payload.data);
+  async create(payload: UpsertCityDto) {
+    await this.ensureUnique(payload.data.city_name, payload.data.state_name);
+    const city = this.cityRepository.create({
+      cityName: payload.data.city_name,
+      stateName: payload.data.state_name,
+      countryName: 'India',
+      countryCode: 'IN',
+      isActive: payload.data.is_active,
+    });
+    const saved = await this.cityRepository.save(city);
+    return { id: saved.id, record: await this.details(saved.id) };
   }
 
-  async update(id: number, payload: UpsertRecordDto) {
-    const record = await this.adminTableService.updateRow('cities', id, payload.data);
-    return { id, record };
+  async update(id: number, payload: UpsertCityDto) {
+    const city = await this.getCity(id);
+    await this.ensureUnique(
+      payload.data.city_name,
+      payload.data.state_name,
+      id,
+    );
+
+    city.cityName = payload.data.city_name;
+    city.stateName = payload.data.state_name;
+    city.countryName = 'India';
+    city.countryCode = 'IN';
+    city.isActive = payload.data.is_active;
+    await this.cityRepository.save(city);
+
+    return { id, record: await this.details(id) };
   }
 
   async updateStatus(id: number, status: number) {
-    const record = await this.adminTableService.updateStatus('cities', id, status);
-    return { id, record };
+    const city = await this.getCity(id);
+    city.isActive = status === 1 ? 1 : 0;
+    await this.cityRepository.save(city);
+    return { id, record: await this.details(id) };
   }
 
   async remove(id: number) {
-    await this.adminTableService.deleteRow('cities', id);
+    const city = await this.getCity(id);
+    city.isActive = 0;
+    await this.cityRepository.save(city);
     return { id };
+  }
+
+  private async getCity(id: number): Promise<City> {
+    const city = await this.cityRepository.findOne({ where: { id } });
+    if (!city) {
+      throw new NotFoundException('City not found');
+    }
+    return city;
+  }
+
+  private async ensureUnique(
+    cityName: string,
+    stateName: string,
+    excludedId?: number,
+  ): Promise<void> {
+    const query = this.cityRepository
+      .createQueryBuilder('city')
+      .where('LOWER(city.cityName) = LOWER(:cityName)', { cityName })
+      .andWhere('LOWER(city.stateName) = LOWER(:stateName)', { stateName });
+
+    if (excludedId) {
+      query.andWhere('city.id != :excludedId', { excludedId });
+    }
+
+    if (await query.getExists()) {
+      throw new ConflictException('This city already exists in the selected state');
+    }
   }
 }

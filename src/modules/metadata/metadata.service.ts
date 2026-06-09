@@ -9,12 +9,26 @@ export class MetadataService {
   async listSublocations() {
     return this.dataSource
       .createQueryBuilder()
-      .select('sublocations.id', 'id')
-      .addSelect('sublocations.sublocation', 'sublocation')
-      .from('sublocations', 'sublocations')
-      .where('sublocations.status = :status', { status: 1 })
-      .orderBy('sublocations.sublocation', 'ASC')
-      .getRawMany<{ id: number; sublocation: string }>();
+      .select('s.id', 'id')
+      .addSelect('s.locality_name', 'sublocation')
+      .addSelect('s.city_id', 'cityId')
+      .addSelect('c.city_name', 'city')
+      .addSelect('c.state_name', 'state')
+      .addSelect('s.postal_code', 'postalCode')
+      .from('sublocations', 's')
+      .innerJoin('cities', 'c', 'c.id = s.city_id')
+      .where('s.is_active = :active', { active: 1 })
+      .andWhere('c.is_active = :active', { active: 1 })
+      .orderBy('c.city_name', 'ASC')
+      .addOrderBy('s.locality_name', 'ASC')
+      .getRawMany<{
+        id: number;
+        sublocation: string;
+        cityId: number;
+        city: string;
+        state: string;
+        postalCode: string | null;
+      }>();
   }
 
   async listUnitTypes() {
@@ -31,11 +45,18 @@ export class MetadataService {
   async listCities() {
     return this.dataSource
       .createQueryBuilder()
-      .select('properties.city', 'city')
-      .from('properties', 'properties')
-      .where('properties.status = :status', { status: 'published' })
-      .groupBy('properties.city')
-      .orderBy('properties.city', 'ASC')
-      .getRawMany<{ city: string }>();
+      .select('c.id', 'id')
+      .addSelect('c.city_name', 'city')
+      .addSelect('c.state_name', 'state')
+      .addSelect('c.country_name', 'country')
+      .from('cities', 'c')
+      .where('c.is_active = :active', { active: 1 })
+      .orderBy('c.city_name', 'ASC')
+      .getRawMany<{
+        id: number;
+        city: string;
+        state: string;
+        country: string;
+      }>();
   }
 }

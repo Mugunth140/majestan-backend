@@ -13,9 +13,9 @@ import { Roles } from '../../../common/decorators/roles.decorator';
 import { AppRole } from '../../../common/enums/app-role.enum';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UpdateStatusDto } from '../common/dto/update-status.dto';
-import { UpsertRecordDto } from '../common/dto/upsert-record.dto';
 import { AdminSublocationsService } from './admin-sublocations.service';
-import { Public } from '../../../common/decorators/public.decorator';
+import { UpsertSublocationDto } from './dto/upsert-sublocation.dto';
+
 @Roles(AppRole.Admin)
 @Controller('admin/sublocations')
 export class AdminSublocationsController {
@@ -26,7 +26,6 @@ export class AdminSublocationsController {
     return this.adminSublocationsService.list(query);
   }
 
-  @Public()
   @Get('all')
   async listAll() {
     return this.adminSublocationsService.listAll();
@@ -38,14 +37,14 @@ export class AdminSublocationsController {
   }
 
   @Post()
-  async create(@Body() payload: UpsertRecordDto) {
+  async create(@Body() payload: UpsertSublocationDto) {
     return this.adminSublocationsService.create(payload);
   }
 
   @Patch(':id')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() payload: UpsertRecordDto,
+    @Body() payload: UpsertSublocationDto,
   ) {
     return this.adminSublocationsService.update(id, payload);
   }

@@ -6,11 +6,13 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  Unique,
 } from 'typeorm';
 import { Sublocation } from './sublocation.entity';
 
 @Entity('cities')
 @Index('idx_cities_is_active', ['isActive'])
+@Unique('uq_cities_name_state_country', ['cityName', 'stateName', 'countryCode'])
 export class City {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;

@@ -6,6 +6,7 @@ import { RefactorLegacyToUnifiedSchema1779100000000 } from './migrations/1779100
 import { AddPropertySeoSlugColumns1779200000000 } from './migrations/1779200000000-AddPropertySeoSlugColumns';
 import { UpdatePropertySeoSlugs1779300000000 } from './migrations/1779300000000-UpdatePropertySeoSlugs';
 import { SeedAdminUser1779400000000 } from './migrations/1779400000000-SeedAdminUser';
+import { AddManagedCitiesAndSublocations1781020414000 } from './migrations/1781020414000-AddManagedCitiesAndSublocations';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -39,6 +40,7 @@ export default new DataSource({
     AddPropertySeoSlugColumns1779200000000,
     UpdatePropertySeoSlugs1779300000000,
     SeedAdminUser1779400000000,
+    AddManagedCitiesAndSublocations1781020414000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),
