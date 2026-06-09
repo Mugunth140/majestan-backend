@@ -27,12 +27,35 @@ type SearchResult = {
   limit: number;
 };
 
+import { AdminPropertiesService } from '../admin/properties/admin-properties.service';
+import { CreatePropertyDto } from '../admin/properties/dto/create-property.dto';
+import { DataSource } from 'typeorm';
+
 @Injectable()
 export class PropertiesService {
   constructor(
     @InjectRepository(Property)
     private readonly propertyRepository: Repository<Property>,
+    private readonly adminPropertiesService: AdminPropertiesService,
+    private readonly dataSource: DataSource,
   ) {}
+
+  async getFormData() {
+    const amenities = await this.dataSource.query('SELECT id, name FROM amenities WHERE is_active = 1');
+    const cities = await this.dataSource.query('SELECT id, city_name, state_name, country_name FROM cities WHERE is_active = 1');
+    const sublocations = await this.dataSource.query('SELECT id, city_id, locality_name FROM sublocations WHERE is_active = 1');
+    return {
+      amenities,
+      cities,
+      sublocations,
+    };
+  }
+
+  async submit(propertyType: string, payload: CreatePropertyDto) {
+    // Force status to UNAVAILABLE so it goes to admin review
+    payload.status = PropertyStatus.UNAVAILABLE;
+    return this.adminPropertiesService.create(propertyType, payload);
+  }
 
   async search(query: PropertySearchQueryDto): Promise<SearchResult> {
     const qb = this.propertyRepository.createQueryBuilder('p')

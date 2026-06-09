@@ -2,77 +2,46 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  Index,
   JoinColumn,
   ManyToOne,
-  OneToOne,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Location } from './location.entity';
 import { Property } from './property.entity';
+import { Sublocation } from './sublocation.entity';
 
 @Entity('property_locations')
-@Index('idx_property_locations_location_id', ['locationId'])
-@Index('idx_property_locations_lat_lng', ['latitude', 'longitude'])
 export class PropertyLocation {
   @PrimaryColumn({ name: 'property_id', type: 'int', unsigned: true })
   propertyId!: number;
 
-  @Column({ name: 'location_id', type: 'int', unsigned: true, nullable: false })
+  @PrimaryColumn({ name: 'location_id', type: 'int', unsigned: true })
   locationId!: number;
+
+  @ManyToOne(() => Property, (property) => property.propertyLocations, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'property_id' })
+  property!: Property;
+
+  @ManyToOne(() => Sublocation, (sublocation) => sublocation.propertyLocations, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'location_id' })
+  sublocation!: Sublocation;
 
   @Column({ name: 'landmark', type: 'varchar', length: 255, nullable: true })
   landmark!: string | null;
 
-  @Column({
-    name: 'latitude',
-    type: 'decimal',
-    precision: 10,
-    scale: 7,
-    nullable: true,
-  })
-  latitude!: string | null;
+  @Column({ name: 'latitude', type: 'decimal', precision: 10, scale: 7, nullable: true })
+  latitude!: number | null;
 
-  @Column({
-    name: 'longitude',
-    type: 'decimal',
-    precision: 10,
-    scale: 7,
-    nullable: true,
-  })
-  longitude!: string | null;
+  @Column({ name: 'longitude', type: 'decimal', precision: 10, scale: 7, nullable: true })
+  longitude!: number | null;
 
-  @CreateDateColumn({
-    name: 'created_at',
-    type: 'timestamp',
-    nullable: false,
-    default: () => 'CURRENT_TIMESTAMP(6)',
-  })
+  @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  @UpdateDateColumn({
-    name: 'updated_at',
-    type: 'timestamp',
-    nullable: false,
-    default: () => 'CURRENT_TIMESTAMP(6)',
-    onUpdate: 'CURRENT_TIMESTAMP(6)',
-  })
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
-
-  @OneToOne(() => Property, {
-    lazy: true,
-    nullable: false,
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'property_id', referencedColumnName: 'id' })
-  property!: Promise<Property>;
-
-  @ManyToOne(() => Location, (location) => location.propertyLocations, {
-    lazy: true,
-    nullable: false,
-    onDelete: 'RESTRICT',
-  })
-  @JoinColumn({ name: 'location_id', referencedColumnName: 'id' })
-  location!: Promise<Location>;
 }

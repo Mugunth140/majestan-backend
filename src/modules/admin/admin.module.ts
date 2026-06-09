@@ -5,7 +5,8 @@ import { AdminBusinessModule } from './business/admin-business.module';
 import { AdminDashboardModule } from './dashboard/admin-dashboard.module';
 import { AdminEnquiriesModule } from './enquiries/admin-enquiries.module';
 import { AdminPropertiesModule } from './properties/admin-properties.module';
-import { AdminLocalitiesModule } from './localities/admin-localities.module';
+import { AdminCitiesModule } from './cities/admin-cities.module';
+import { AdminSublocationsModule } from './sublocations/admin-sublocations.module';
 import { AdminAmenitiesModule } from './amenities/admin-amenities.module';
 
 @Module({
@@ -16,7 +17,8 @@ import { AdminAmenitiesModule } from './amenities/admin-amenities.module';
     AdminBannersModule,
     AdminEnquiriesModule,
     AdminDashboardModule,
-    AdminLocalitiesModule,
+    AdminCitiesModule,
+    AdminSublocationsModule,
     AdminAmenitiesModule,
   ],
 })

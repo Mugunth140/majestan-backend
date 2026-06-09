@@ -43,6 +43,7 @@ export const getPropertyTypeCode = (propertyType: string): string => {
     case 'farmland':
       return 'fl';
     case 'industrial':
+    case 'industrial-space':
       return 'is';
     case 'independent-house':
     case 'individual_portion':

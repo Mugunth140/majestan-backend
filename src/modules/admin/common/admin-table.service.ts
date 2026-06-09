@@ -14,7 +14,7 @@ type SqlValue = string | number | boolean | Date | null;
 export class AdminTableService {
   private readonly columnsCache = new Map<string, Set<string>>();
 
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(@InjectDataSource() public readonly dataSource: DataSource) {}
 
   async listRows(
     table: string,

@@ -11,7 +11,8 @@ import { CreatePropertyDto } from './dto/create-property.dto';
 import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
 
 import { generateSeoSlug, normalizeSeoSlug, getPropertyTypeCode } from '../../properties/utils/property-slug.util';
-import { Location } from '../../../database/entities/location.entity';
+import { Sublocation } from '../../../database/entities/sublocation.entity';
+import { City } from '../../../database/entities/city.entity';
 
 @Injectable()
 export class AdminPropertiesService {
@@ -100,20 +101,31 @@ export class AdminPropertiesService {
       if (payload.location) {
         let locationId: number | undefined;
         if (payload.location.subLocation) {
-          const locRepo = queryRunner.manager.getRepository(Location);
-          let loc = await locRepo.findOne({ where: { localityName: payload.location.subLocation, cityName: payload.city } });
-          if (!loc) {
-            loc = locRepo.create({
+          const cityRepo = queryRunner.manager.getRepository(City);
+          const subLocationRepo = queryRunner.manager.getRepository(Sublocation);
+          
+          let city = await cityRepo.findOne({ where: { cityName: payload.city } });
+          if (!city) {
+            city = cityRepo.create({
               countryCode: 'IN',
               countryName: payload.country || 'India',
               stateName: payload.state || 'Tamil Nadu',
               cityName: payload.city,
-              localityName: payload.location.subLocation,
-              isActive: true,
+              isActive: 1,
             });
-            loc = await locRepo.save(loc);
+            city = await cityRepo.save(city);
           }
-          locationId = loc.id;
+
+          let subLoc = await subLocationRepo.findOne({ where: { localityName: payload.location.subLocation, cityId: city.id } });
+          if (!subLoc) {
+            subLoc = subLocationRepo.create({
+              cityId: city.id,
+              localityName: payload.location.subLocation,
+              isActive: 1,
+            });
+            subLoc = await subLocationRepo.save(subLoc);
+          }
+          locationId = subLoc.id;
         }
 
         if (locationId) {
@@ -181,19 +193,113 @@ export class AdminPropertiesService {
   }
 
   async update(propertyType: string, id: number, payload: Partial<CreatePropertyDto>) {
-    // Only updates base table fields for now. 
-    // In a fully featured admin panel, we would do a diff against existing sub-entities.
-    const updateData: any = {};
-    if (payload.title) updateData.title = payload.title;
-    if (payload.description) updateData.description = payload.description;
-    if (payload.price) updateData.price = payload.price;
-    if (payload.status) updateData.status = payload.status;
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (Object.keys(updateData).length > 0) {
-      await this.dataSource.getRepository(Property).update({ id }, updateData);
+    try {
+      // 1. Update Base Property
+      const updateData: any = {};
+      if (payload.title) updateData.title = payload.title;
+      if (payload.description) updateData.description = payload.description;
+      if (payload.price) updateData.price = payload.price;
+      if (payload.status) updateData.status = payload.status;
+      if (payload.city) updateData.city = payload.city;
+      if (payload.state) updateData.state = payload.state;
+      if (payload.country) updateData.country = payload.country;
+      if (payload.builderName) updateData.builderName = payload.builderName;
+
+      if (Object.keys(updateData).length > 0) {
+        await queryRunner.manager.update(Property, { id }, updateData);
+      }
+
+      // 2. Update Details
+      if (payload.details) {
+        await queryRunner.manager.delete(PropertyDetails, { propertyId: id });
+        const details = new PropertyDetails();
+        Object.assign(details, payload.details);
+        details.propertyId = id;
+        await queryRunner.manager.save(details);
+      }
+
+      // 3. Update Location
+      if (payload.location) {
+        await queryRunner.manager.delete(PropertyLocation, { propertyId: id });
+        let locationId: number | undefined;
+        if (payload.location.subLocation && payload.city) {
+          const cityRepo = queryRunner.manager.getRepository(City);
+          const subLocationRepo = queryRunner.manager.getRepository(Sublocation);
+          
+          let city = await cityRepo.findOne({ where: { cityName: payload.city } });
+          if (!city) {
+            city = cityRepo.create({
+              countryCode: 'IN',
+              countryName: payload.country || 'India',
+              stateName: payload.state || 'Tamil Nadu',
+              cityName: payload.city,
+              isActive: 1,
+            });
+            city = await cityRepo.save(city);
+          }
+
+          let subLoc = await subLocationRepo.findOne({ where: { localityName: payload.location.subLocation, cityId: city.id } });
+          if (!subLoc) {
+            subLoc = subLocationRepo.create({
+              cityId: city.id,
+              localityName: payload.location.subLocation,
+              isActive: 1,
+            });
+            subLoc = await subLocationRepo.save(subLoc);
+          }
+          locationId = subLoc.id;
+        }
+
+        if (locationId) {
+          const location = new PropertyLocation();
+          Object.assign(location, payload.location);
+          location.propertyId = id;
+          location.locationId = locationId;
+          await queryRunner.manager.save(location);
+        }
+      }
+
+      // 4. Update Amenities
+      if (payload.amenities !== undefined) {
+        await queryRunner.manager.delete(PropertyAmenity, { propertyId: id });
+        if (payload.amenities.length > 0) {
+          const amenities = payload.amenities.map(a => {
+            const pa = new PropertyAmenity();
+            Object.assign(pa, a);
+            pa.propertyId = id;
+            return pa;
+          });
+          await queryRunner.manager.save(amenities);
+        }
+      }
+
+      // 5. Update Files
+      if (payload.files !== undefined) {
+        await queryRunner.manager.delete(PropertyFile, { propertyId: id });
+        if (payload.files.length > 0) {
+          const files = payload.files.map(f => {
+            const pf = new PropertyFile();
+            Object.assign(pf, f);
+            pf.propertyId = id;
+            return pf;
+          });
+          await queryRunner.manager.save(files);
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return this.details(propertyType, id);
+
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-    
-    return this.details(propertyType, id);
   }
 
   async updateStatus(propertyType: string, id: number, status: string) {

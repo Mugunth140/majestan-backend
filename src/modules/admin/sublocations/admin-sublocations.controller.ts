@@ -14,31 +14,32 @@ import { AppRole } from '../../../common/enums/app-role.enum';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UpdateStatusDto } from '../common/dto/update-status.dto';
 import { UpsertRecordDto } from '../common/dto/upsert-record.dto';
-import { AdminLocalitiesService } from './admin-localities.service';
-
+import { AdminSublocationsService } from './admin-sublocations.service';
+import { Public } from '../../../common/decorators/public.decorator';
 @Roles(AppRole.Admin)
-@Controller('admin/localities')
-export class AdminLocalitiesController {
-  constructor(private readonly adminLocalitiesService: AdminLocalitiesService) {}
+@Controller('admin/sublocations')
+export class AdminSublocationsController {
+  constructor(private readonly adminSublocationsService: AdminSublocationsService) {}
 
   @Get()
   async list(@Query() query: PaginationQueryDto) {
-    return this.adminLocalitiesService.list(query);
+    return this.adminSublocationsService.list(query);
   }
 
+  @Public()
   @Get('all')
   async listAll() {
-    return this.adminLocalitiesService.listAll();
+    return this.adminSublocationsService.listAll();
   }
 
   @Get(':id')
   async details(@Param('id', ParseIntPipe) id: number) {
-    return this.adminLocalitiesService.details(id);
+    return this.adminSublocationsService.details(id);
   }
 
   @Post()
   async create(@Body() payload: UpsertRecordDto) {
-    return this.adminLocalitiesService.create(payload);
+    return this.adminSublocationsService.create(payload);
   }
 
   @Patch(':id')
@@ -46,7 +47,7 @@ export class AdminLocalitiesController {
     @Param('id', ParseIntPipe) id: number,
     @Body() payload: UpsertRecordDto,
   ) {
-    return this.adminLocalitiesService.update(id, payload);
+    return this.adminSublocationsService.update(id, payload);
   }
 
   @Patch(':id/status')
@@ -54,11 +55,11 @@ export class AdminLocalitiesController {
     @Param('id', ParseIntPipe) id: number,
     @Body() payload: UpdateStatusDto,
   ) {
-    return this.adminLocalitiesService.updateStatus(id, payload.status);
+    return this.adminSublocationsService.updateStatus(id, payload.status);
   }
 
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.adminLocalitiesService.remove(id);
+    return this.adminSublocationsService.remove(id);
   }
 }
