@@ -121,16 +121,21 @@ export class AdminTableService {
       throw new BadRequestException('No valid fields provided');
     }
 
-    const result = await this.dataSource
-      .createQueryBuilder()
-      .insert()
-      .into(table)
-      .values(sanitized)
-      .execute();
+    const keys = Object.keys(sanitized);
+    const placeholders = keys.map(() => '?').join(', ');
+    const sql = `INSERT INTO \`${table}\` (${keys.map(k => `\`${k}\``).join(', ')}) VALUES (${placeholders})`;
+
+    let result;
+    try {
+      result = await this.dataSource.query(sql, Object.values(sanitized));
+    } catch (e) {
+      console.error('Error inserting into table', table, 'with values', sanitized, e);
+      throw e;
+    }
 
     const insertedId =
-      Number(result.identifiers[0]?.id) ||
-      Number((result.raw as { insertId?: number }).insertId);
+      Number(result.insertId) ||
+      Number(result[0]?.insertId); // Handle different return formats depending on mysql driver
 
     if (!insertedId) {
       throw new InternalServerErrorException('Failed to create record');
@@ -155,26 +160,15 @@ export class AdminTableService {
       'created_at',
     ]);
 
-    if (Object.keys(sanitized).length === 0) {
-      throw new BadRequestException('No valid fields provided');
-    }
-
     const fields = Object.keys(sanitized);
     if (fields.length === 0) {
       throw new BadRequestException('No valid fields provided');
     }
 
-    const updatePayload: Record<string, unknown> = { ...sanitized };
-    if (columns.has('updated_at')) {
-      updatePayload.updated_at = () => 'CURRENT_TIMESTAMP';
-    }
+    const setClauses = fields.map(k => `\`${k}\` = ?`).join(', ');
+    const sql = `UPDATE \`${table}\` SET ${setClauses} WHERE id = ?`;
 
-    await this.dataSource
-      .createQueryBuilder()
-      .update(table)
-      .set(updatePayload)
-      .where('id = :id', { id })
-      .execute();
+    await this.dataSource.query(sql, [...Object.values(sanitized), id]);
 
     return this.getRowById(table, id);
   }
@@ -186,24 +180,15 @@ export class AdminTableService {
   ): Promise<Record<string, unknown>> {
     const columns = await this.getColumns(table);
 
-    if (!columns.has('status')) {
-      throw new BadRequestException(
-        `Table ${table} does not have a status column`,
-      );
+    let statusCol = '';
+    if (columns.has('status')) statusCol = 'status';
+    else if (columns.has('is_active')) statusCol = 'is_active';
+    else {
+      throw new BadRequestException(`Table ${table} does not have a status or is_active column`);
     }
 
-    const updatePayload: Record<string, unknown> = { status };
-
-    if (columns.has('updated_at')) {
-      updatePayload.updated_at = () => 'CURRENT_TIMESTAMP';
-    }
-
-    await this.dataSource
-      .createQueryBuilder()
-      .update(table)
-      .set(updatePayload)
-      .where('id = :id', { id })
-      .execute();
+    const sql = `UPDATE \`${table}\` SET \`${statusCol}\` = ? WHERE id = ?`;
+    await this.dataSource.query(sql, [status, id]);
 
     return this.getRowById(table, id);
   }
@@ -212,27 +197,17 @@ export class AdminTableService {
     const columns = await this.getColumns(table);
 
     if (columns.has('status')) {
-      const updatePayload: Record<string, unknown> = { status: 2 };
-
-      if (columns.has('updated_at')) {
-        updatePayload.updated_at = () => 'CURRENT_TIMESTAMP';
-      }
-
-      await this.dataSource
-        .createQueryBuilder()
-        .update(table)
-        .set(updatePayload)
-        .where('id = :id', { id })
-        .execute();
+      const sql = `UPDATE \`${table}\` SET \`status\` = 2 WHERE id = ?`;
+      await this.dataSource.query(sql, [id]);
+      return;
+    } else if (columns.has('is_active')) {
+      const sql = `UPDATE \`${table}\` SET \`is_active\` = 0 WHERE id = ?`;
+      await this.dataSource.query(sql, [id]);
       return;
     }
 
-    await this.dataSource
-      .createQueryBuilder()
-      .delete()
-      .from(table)
-      .where('id = :id', { id })
-      .execute();
+    const sql = `DELETE FROM \`${table}\` WHERE id = ?`;
+    await this.dataSource.query(sql, [id]);
   }
 
   async getColumns(table: string): Promise<Set<string>> {

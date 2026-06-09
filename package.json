@@ -42,6 +42,7 @@
     "cookie-parser": "^1.4.7",
     "helmet": "^8.1.0",
     "joi": "^18.1.2",
+    "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.22.2",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
