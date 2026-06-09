@@ -29,7 +29,7 @@ export class AdminCitiesController {
   @Public()
   @Get('all')
   async listAll() {
-    return this.adminCitiesService.listAll();
+    return await this.adminCitiesService.listAll();
   }
 
   @Get(':id')
