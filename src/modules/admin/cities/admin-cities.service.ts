@@ -46,7 +46,7 @@ export class AdminCitiesService {
 
     const total = await queryBuilder.clone().getCount();
     const items = await queryBuilder
-      .orderBy('city.cityName', query.sortDirection.toUpperCase() as 'ASC' | 'DESC')
+      .orderBy('city.cityName', (query.sortDirection || 'DESC').toUpperCase() as 'ASC' | 'DESC')
       .offset((query.page - 1) * query.limit)
       .limit(query.limit)
       .getRawMany<Record<string, unknown>>();
@@ -131,9 +131,8 @@ export class AdminCitiesService {
 
   async remove(id: number) {
     const city = await this.getCity(id);
-    city.isActive = 0;
-    await this.cityRepository.save(city);
-    return { id };
+    await this.cityRepository.delete(city.id);
+    return { id, deleted: true };
   }
 
   private async getCity(id: number): Promise<City> {

@@ -54,7 +54,7 @@ export class AdminSublocationsService {
     const items = await queryBuilder
       .orderBy(
         'sublocation.localityName',
-        query.sortDirection.toUpperCase() as 'ASC' | 'DESC',
+        (query.sortDirection || 'DESC').toUpperCase() as 'ASC' | 'DESC',
       )
       .offset((query.page - 1) * query.limit)
       .limit(query.limit)
@@ -150,9 +150,8 @@ export class AdminSublocationsService {
 
   async remove(id: number) {
     const sublocation = await this.getSublocation(id);
-    sublocation.isActive = 0;
-    await this.sublocationRepository.save(sublocation);
-    return { id };
+    await this.sublocationRepository.delete(sublocation.id);
+    return { id, deleted: true };
   }
 
   private async getSublocation(id: number): Promise<Sublocation> {
