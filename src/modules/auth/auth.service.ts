@@ -20,6 +20,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { UserLoginDto } from './dto/user-login.dto';
 import { PhoneAuthDto } from './dto/phone-auth.dto';
+import { User } from '../../database/entities/user.entity';
 
 type LegacyUserRow = {
   id: number;
@@ -118,14 +119,14 @@ export class AuthService {
     const result = await this.dataSource
       .createQueryBuilder()
       .insert()
-      .into('users')
+      .into(User)
       .values({
         name: payload.name.trim(),
         email,
         phone: payload.phone.trim(),
-        password_hash: passwordHash,
-        role: AppRole.User,
-        is_verified: false,
+        passwordHash: passwordHash,
+        role: AppRole.User as any,
+        isVerified: false,
       })
       .execute();
 
@@ -204,24 +205,26 @@ export class AuthService {
 
   
   async phoneLoginOrRegister(credentials: PhoneAuthDto) {
-    let user = await this.getAppUserByPhone(credentials.phone);
+    const fullPhone = `${credentials.countryCode}${credentials.phone}`;
+    let user = await this.getAppUserByPhone(fullPhone);
 
     if (!user) {
       // Auto-register
-      const email = `${credentials.phone}@user.majestan.local`;
+      const email = credentials.email || `${fullPhone}@user.majestan.local`;
+      const name = credentials.name || 'Majestan User';
       const dummyPassword = await hash(Math.random().toString(36).slice(-10), 10);
       
       const result = await this.dataSource
         .createQueryBuilder()
         .insert()
-        .into('users')
+        .into(User)
         .values({
-          name: 'Majestan User',
-          email,
-          phone: credentials.phone,
-          password_hash: dummyPassword,
-          role: 'user',
-          is_verified: true,
+          name: name,
+          email: email,
+          phone: fullPhone,
+          passwordHash: dummyPassword,
+          role: AppRole.User as any,
+          isVerified: true,
         })
         .execute();
 

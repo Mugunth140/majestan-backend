@@ -25,16 +25,15 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  @Post('users/login')
-  
-  @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('user/phone')
   async phoneAuth(@Body() credentials: PhoneAuthDto) {
     return this.authService.phoneLoginOrRegister(credentials);
   }
 
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('users/login')
   async loginUser(@Body() credentials: UserLoginDto) {
     return this.authService.loginUser(credentials);
   }
