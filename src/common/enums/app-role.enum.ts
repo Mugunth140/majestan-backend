@@ -1,5 +1,5 @@
 export enum AppRole {
   Admin = 'admin',
-  Agent = 'agent',
+  Staff = 'staff',
   User = 'user',
 }

@@ -32,11 +32,11 @@ async function seedDatabase() {
   console.log('Database cleared!');
 
   // Create an admin user if not exists
-  let adminUser = await db.getRepository(User).findOne({ where: { email: 'admin@majestan.com' } });
+  let adminUser = await db.getRepository(User).findOne({ where: { email: 'admin@majestanrealty.com' } });
   if (!adminUser) {
     adminUser = new User();
     adminUser.name = 'Demo Admin';
-    adminUser.email = 'admin@majestan.com';
+    adminUser.email = 'admin@majestanrealty.com';
     adminUser.phone = '9999999999';
     adminUser.passwordHash = 'hashed_password_here';
     adminUser.role = UserRole.ADMIN;

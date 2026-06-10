@@ -4,7 +4,7 @@ import { AppRole } from '../../../common/enums/app-role.enum';
 import { UpsertRecordDto } from '../common/dto/upsert-record.dto';
 import { AdminBusinessService } from './admin-business.service';
 
-@Roles(AppRole.Admin)
+@Roles(AppRole.Admin, AppRole.Staff)
 @Controller('admin/business')
 export class AdminBusinessController {
   constructor(private readonly adminBusinessService: AdminBusinessService) {}

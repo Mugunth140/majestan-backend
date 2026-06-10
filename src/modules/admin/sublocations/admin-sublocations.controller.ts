@@ -16,7 +16,7 @@ import { UpdateStatusDto } from '../common/dto/update-status.dto';
 import { AdminSublocationsService } from './admin-sublocations.service';
 import { UpsertSublocationDto } from './dto/upsert-sublocation.dto';
 
-@Roles(AppRole.Admin)
+@Roles(AppRole.Admin, AppRole.Staff)
 @Controller('admin/sublocations')
 export class AdminSublocationsController {
   constructor(private readonly adminSublocationsService: AdminSublocationsService) {}

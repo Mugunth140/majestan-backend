@@ -3,7 +3,7 @@ import { Roles } from '../../../common/decorators/roles.decorator';
 import { AppRole } from '../../../common/enums/app-role.enum';
 import { AdminDashboardService } from './admin-dashboard.service';
 
-@Roles(AppRole.Admin)
+@Roles(AppRole.Admin, AppRole.Staff)
 @Controller('admin/dashboard')
 export class AdminDashboardController {
   constructor(private readonly adminDashboardService: AdminDashboardService) {}

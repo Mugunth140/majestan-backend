@@ -38,7 +38,7 @@ async function runMigration() {
   if (!adminUser) {
     adminUser = new User();
     adminUser.name = 'Migration Admin';
-    adminUser.email = 'admin@majestan.com';
+    adminUser.email = 'admin@majestanrealty.com';
     adminUser.phone = '0000000000';
     adminUser.passwordHash = 'temp-hash';
     adminUser.role = UserRole.ADMIN;

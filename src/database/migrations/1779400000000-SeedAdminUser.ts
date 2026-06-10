@@ -14,17 +14,36 @@ export class SeedAdminUser1779400000000 implements MigrationInterface {
         is_verified
       ) VALUES (
         'Admin',
-        'admin@majestan.com',
+        'admin@majestanrealty.com',
         '9999999999',
-        '$2b$12$y.68HGG/Gm/oiCKGSCwoBu3/Q2CoFTX6hP8NP7AI31Yc.I0UdmMDi',
+        '$2b$12$/HqUveajy6Lq1P0UGiM74.Q7S3jEGtg1k5dMZdsO63q1kubIWG.wy',
         'admin',
         true
       ) ON DUPLICATE KEY UPDATE 
-        role = 'admin', password_hash = '$2b$12$y.68HGG/Gm/oiCKGSCwoBu3/Q2CoFTX6hP8NP7AI31Yc.I0UdmMDi';
+        role = 'admin', password_hash = '$2b$12$/HqUveajy6Lq1P0UGiM74.Q7S3jEGtg1k5dMZdsO63q1kubIWG.wy';
+    `);
+
+    await queryRunner.query(`
+      INSERT INTO users (
+        name,
+        email,
+        phone,
+        password_hash,
+        role,
+        is_verified
+      ) VALUES (
+        'Staff',
+        'staff@majestanrealty.com',
+        '8888888888',
+        '$2b$12$bOzWjPnx.LzgEwA2vH.CJ.0eZHIjFvJSIOh5kGeDFgN77jCBgvtHG',
+        'staff',
+        true
+      ) ON DUPLICATE KEY UPDATE 
+        role = 'staff', password_hash = '$2b$12$bOzWjPnx.LzgEwA2vH.CJ.0eZHIjFvJSIOh5kGeDFgN77jCBgvtHG';
     `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DELETE FROM users WHERE email = 'admin@majestan.com';`);
+    await queryRunner.query(`DELETE FROM users WHERE email IN ('admin@majestanrealty.com', 'staff@majestanrealty.com');`);
   }
 }

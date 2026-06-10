@@ -16,7 +16,7 @@ import { AdminPropertiesService } from './admin-properties.service';
 import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
 import { CreatePropertyDto } from './dto/create-property.dto';
 
-@Roles(AppRole.Admin)
+@Roles(AppRole.Admin, AppRole.Staff)
 @Controller('admin/properties')
 export class AdminPropertiesController {
   constructor(

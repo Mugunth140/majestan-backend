@@ -38,7 +38,7 @@ export const envValidationSchema = Joi.object({
       .min(1)
       .default('dev-only-change-this-secret-at-least-32-chars'),
   }),
-  JWT_ACCESS_TTL: Joi.string().default('15m'),
+  JWT_ACCESS_TTL: Joi.string().default('7d'),
   BCRYPT_SALT_ROUNDS: Joi.number().integer().min(10).max(15).default(12),
   AUTH_ALLOW_LEGACY_PLAIN_PASSWORD: Joi.boolean()
     .truthy('true', '1')

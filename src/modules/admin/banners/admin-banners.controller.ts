@@ -16,7 +16,7 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UpdateStatusDto } from '../common/dto/update-status.dto';
 import { UpsertRecordDto } from '../common/dto/upsert-record.dto';
 
-@Roles(AppRole.Admin)
+@Roles(AppRole.Admin, AppRole.Staff)
 @Controller('admin/banners')
 export class AdminBannersController {
   constructor(private readonly adminBannersService: AdminBannersService) {}

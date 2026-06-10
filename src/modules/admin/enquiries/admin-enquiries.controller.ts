@@ -4,7 +4,7 @@ import { AppRole } from '../../../common/enums/app-role.enum';
 import { AdminEnquiriesService } from './admin-enquiries.service';
 import { AdminEnquiryQueryDto } from './dto/admin-enquiry-query.dto';
 
-@Roles(AppRole.Admin)
+@Roles(AppRole.Admin, AppRole.Staff)
 @Controller('admin')
 export class AdminEnquiriesController {
   constructor(private readonly adminEnquiriesService: AdminEnquiriesService) {}

@@ -14,7 +14,7 @@ import { Wishlist } from './wishlist.entity';
 
 export enum UserRole {
   ADMIN = 'admin',
-  AGENT = 'agent',
+  STAFF = 'staff',
   USER = 'user',
 }
 

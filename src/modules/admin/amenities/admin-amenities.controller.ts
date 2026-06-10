@@ -16,7 +16,7 @@ import { UpdateStatusDto } from '../common/dto/update-status.dto';
 import { UpsertRecordDto } from '../common/dto/upsert-record.dto';
 import { AdminAmenitiesService } from './admin-amenities.service';
 
-@Roles(AppRole.Admin)
+@Roles(AppRole.Admin, AppRole.Staff)
 @Controller('admin/amenities')
 export class AdminAmenitiesController {
   constructor(private readonly adminAmenitiesService: AdminAmenitiesService) {}

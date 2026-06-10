@@ -16,7 +16,7 @@ import { UpdateStatusDto } from '../common/dto/update-status.dto';
 import { AdminCitiesService } from './admin-cities.service';
 import { UpsertCityDto } from './dto/upsert-city.dto';
 
-@Roles(AppRole.Admin)
+@Roles(AppRole.Admin, AppRole.Staff)
 @Controller('admin/cities')
 export class AdminCitiesController {
   constructor(private readonly adminCitiesService: AdminCitiesService) {}
