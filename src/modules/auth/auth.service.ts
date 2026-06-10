@@ -19,6 +19,7 @@ import { CreateAdminDto } from './dto/create-admin.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { UserLoginDto } from './dto/user-login.dto';
+import { PhoneAuthDto } from './dto/phone-auth.dto';
 
 type LegacyUserRow = {
   id: number;
@@ -200,6 +201,72 @@ export class AuthService {
       changed: true,
     };
   }
+
+  
+  async phoneLoginOrRegister(credentials: PhoneAuthDto) {
+    let user = await this.getAppUserByPhone(credentials.phone);
+
+    if (!user) {
+      // Auto-register
+      const email = `${credentials.phone}@user.majestan.local`;
+      const dummyPassword = await hash(Math.random().toString(36).slice(-10), 10);
+      
+      const result = await this.dataSource
+        .createQueryBuilder()
+        .insert()
+        .into('users')
+        .values({
+          name: 'Majestan User',
+          email,
+          phone: credentials.phone,
+          password_hash: dummyPassword,
+          role: 'user',
+          is_verified: true,
+        })
+        .execute();
+
+      const createdUserId =
+        Number(result.identifiers[0]?.id) ||
+        Number((result.raw as { insertId?: number })?.insertId);
+
+      user = await this.getAppUserById(createdUserId);
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Failed to authenticate');
+    }
+
+    const payload: JwtPayload = {
+      sub: user.id,
+      username: user.email,
+      role: user.role as AppRole,
+    };
+
+    return {
+      accessToken: this.jwtService.sign(payload),
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+    };
+  }
+
+  private async getAppUserByPhone(phone: string): Promise<AppUserRow | null> {
+    const row = await this.dataSource
+      .createQueryBuilder()
+      .select('users.*')
+      .from('users', 'users')
+      .where('users.phone = :phone', { phone: phone.trim() })
+      .andWhere('users.role = :role', { role: 'user' })
+      .limit(1)
+      .getRawOne<AppUserRow>();
+
+    return row ?? null;
+  }
+
 
   private async getAppUserByEmail(email: string): Promise<AppUserRow | null> {
     const row = await this.dataSource

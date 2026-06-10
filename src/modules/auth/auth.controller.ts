@@ -11,6 +11,7 @@ import { CreateAdminDto } from './dto/create-admin.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { UserLoginDto } from './dto/user-login.dto';
+import { PhoneAuthDto } from './dto/phone-auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -26,6 +27,14 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('users/login')
+  
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('user/phone')
+  async phoneAuth(@Body() credentials: PhoneAuthDto) {
+    return this.authService.phoneLoginOrRegister(credentials);
+  }
+
   async loginUser(@Body() credentials: UserLoginDto) {
     return this.authService.loginUser(credentials);
   }
