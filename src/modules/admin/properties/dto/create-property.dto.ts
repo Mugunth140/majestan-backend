@@ -12,6 +12,17 @@ class PropertyDetailsDto {
   @IsOptional() @IsNumber() buildUpArea?: number;
   @IsOptional() @IsNumber() carpetArea?: number;
   @IsOptional() @IsNumber() totalFloors?: number;
+  @IsOptional() @IsNumber() balconies?: number;
+  @IsOptional() @IsString() floorNumber?: string;
+  @IsOptional() @IsNumber() superBuiltUpArea?: number;
+  @IsOptional() @IsNumber() plotArea?: number;
+  @IsOptional() @IsString() areaUnit?: string;
+  @IsOptional() @IsString() propertyAge?: string;
+  @IsOptional() @IsString() possessionStatus?: string;
+  @IsOptional() @IsString() waterSupply?: string;
+  @IsOptional() @IsString() powerBackup?: string;
+  @IsOptional() @IsString() roadWidth?: string;
+  @IsOptional() @IsNumber() openSides?: number;
 }
 
 class PropertyLocationDto {
@@ -56,6 +67,29 @@ export class CreatePropertyDto {
   @IsString() price!: string;
   @IsOptional() @IsString() builderName?: string;
   
+  @IsOptional() @IsString() propertyCondition?: string;
+  @IsOptional() @IsString() ownershipType?: string;
+  @IsOptional() @IsString() reraNumber?: string;
+  @IsOptional() @IsString() projectName?: string;
+  
+  @IsOptional() @IsString() metaTitle?: string;
+  @IsOptional() @IsString() metaDescription?: string;
+  @IsOptional() @IsString() metaKeywords?: string;
+
+  @IsOptional() @IsString() ownerName?: string;
+  @IsOptional() @IsString() ownerEmail?: string;
+  @IsOptional() @IsString() ownerPhone?: string;
+
+  @IsOptional() @IsBoolean() negotiable?: boolean;
+  @IsOptional() @IsString() maintenanceCharges?: string;
+  @IsOptional() @IsString() securityDeposit?: string;
+  @IsOptional() @IsString() bookingAmount?: string;
+  
+  @IsOptional() @IsString() availableFrom?: string;
+  @IsOptional() @IsString() availableUntil?: string;
+  @IsOptional() @IsString() verificationStatus?: string;
+  @IsOptional() @IsString() approvalStatus?: string;
+
   @IsEnum(PropertyType)
   propertyType!: PropertyType;
   

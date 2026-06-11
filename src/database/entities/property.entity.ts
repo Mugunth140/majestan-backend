@@ -117,6 +117,60 @@ export class Property {
   @Column({ name: 'country', type: 'varchar', length: 255, nullable: false })
   country!: string;
 
+  @Column({ name: 'property_condition', type: 'varchar', length: 50, nullable: true })
+  propertyCondition!: string | null;
+
+  @Column({ name: 'ownership_type', type: 'varchar', length: 50, nullable: true })
+  ownershipType!: string | null;
+
+  @Column({ name: 'rera_number', type: 'varchar', length: 100, nullable: true })
+  reraNumber!: string | null;
+
+  @Column({ name: 'project_name', type: 'varchar', length: 255, nullable: true })
+  projectName!: string | null;
+
+  @Column({ name: 'negotiable', type: 'boolean', default: false })
+  negotiable!: boolean;
+
+  @Column({ name: 'maintenance_charges', type: 'varchar', length: 100, nullable: true })
+  maintenanceCharges!: string | null;
+
+  @Column({ name: 'security_deposit', type: 'varchar', length: 100, nullable: true })
+  securityDeposit!: string | null;
+
+  @Column({ name: 'booking_amount', type: 'varchar', length: 100, nullable: true })
+  bookingAmount!: string | null;
+
+  @Column({ name: 'available_from', type: 'date', nullable: true })
+  availableFrom!: Date | null;
+
+  @Column({ name: 'available_until', type: 'date', nullable: true })
+  availableUntil!: Date | null;
+
+  @Column({ name: 'verification_status', type: 'varchar', length: 50, default: 'Pending' })
+  verificationStatus!: string;
+
+  @Column({ name: 'approval_status', type: 'varchar', length: 50, default: 'Pending' })
+  approvalStatus!: string;
+
+  @Column({ name: 'meta_title', type: 'varchar', length: 255, nullable: true })
+  metaTitle!: string | null;
+
+  @Column({ name: 'meta_description', type: 'text', nullable: true })
+  metaDescription!: string | null;
+
+  @Column({ name: 'meta_keywords', type: 'text', nullable: true })
+  metaKeywords!: string | null;
+
+  @Column({ name: 'owner_name', type: 'varchar', length: 255, nullable: true })
+  ownerName!: string | null;
+
+  @Column({ name: 'owner_email', type: 'varchar', length: 255, nullable: true })
+  ownerEmail!: string | null;
+
+  @Column({ name: 'owner_phone', type: 'varchar', length: 50, nullable: true })
+  ownerPhone!: string | null;
+
   @CreateDateColumn({
     name: 'created_at',
     type: 'timestamp',

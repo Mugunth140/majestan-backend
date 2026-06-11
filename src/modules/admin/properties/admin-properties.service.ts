@@ -128,6 +128,24 @@ export class AdminPropertiesService {
         country: selectedLocation.city.countryName,
         ownerId: payload.ownerId,
         builderName: payload.builderName,
+        propertyCondition: payload.propertyCondition,
+        ownershipType: payload.ownershipType,
+        reraNumber: payload.reraNumber,
+        projectName: payload.projectName,
+        negotiable: payload.negotiable ?? false,
+        maintenanceCharges: payload.maintenanceCharges,
+        securityDeposit: payload.securityDeposit,
+        bookingAmount: payload.bookingAmount,
+        availableFrom: payload.availableFrom ? new Date(payload.availableFrom) : null,
+        availableUntil: payload.availableUntil ? new Date(payload.availableUntil) : null,
+        verificationStatus: payload.verificationStatus || 'Pending',
+        approvalStatus: payload.approvalStatus || 'Pending',
+        metaTitle: payload.metaTitle,
+        metaDescription: payload.metaDescription,
+        metaKeywords: payload.metaKeywords,
+        ownerName: payload.ownerName,
+        ownerEmail: payload.ownerEmail,
+        ownerPhone: payload.ownerPhone,
       });
       let savedProperty = await queryRunner.manager.save(property);
       
@@ -154,6 +172,21 @@ export class AdminPropertiesService {
           areaSqft: payload.details.areaSqft ?? 0,
           parking: payload.details.parking ?? 0,
           furnished: payload.details.furnished ?? false,
+          balconies: payload.details.balconies ?? 0,
+          floorNumber: payload.details.floorNumber,
+          totalFloors: payload.details.totalFloors ?? 0,
+          builtUpArea: payload.details.buildUpArea,
+          carpetArea: payload.details.carpetArea,
+          superBuiltUpArea: payload.details.superBuiltUpArea,
+          plotArea: payload.details.plotArea,
+          areaUnit: payload.details.areaUnit || 'Sq Ft',
+          propertyFacing: payload.details.facing,
+          propertyAge: payload.details.propertyAge,
+          possessionStatus: payload.details.possessionStatus,
+          waterSupply: payload.details.waterSupply,
+          powerBackup: payload.details.powerBackup,
+          roadWidth: payload.details.roadWidth,
+          openSides: payload.details.openSides ?? 0,
         });
         details.propertyId = savedProperty.id;
         await queryRunner.manager.save(details);
@@ -254,6 +287,24 @@ export class AdminPropertiesService {
         updateData.country = selectedLocation.city.countryName;
       }
       if (payload.builderName) updateData.builderName = payload.builderName;
+      if (payload.propertyCondition !== undefined) updateData.propertyCondition = payload.propertyCondition;
+      if (payload.ownershipType !== undefined) updateData.ownershipType = payload.ownershipType;
+      if (payload.reraNumber !== undefined) updateData.reraNumber = payload.reraNumber;
+      if (payload.projectName !== undefined) updateData.projectName = payload.projectName;
+      if (payload.negotiable !== undefined) updateData.negotiable = payload.negotiable;
+      if (payload.maintenanceCharges !== undefined) updateData.maintenanceCharges = payload.maintenanceCharges;
+      if (payload.securityDeposit !== undefined) updateData.securityDeposit = payload.securityDeposit;
+      if (payload.bookingAmount !== undefined) updateData.bookingAmount = payload.bookingAmount;
+      if (payload.availableFrom !== undefined) updateData.availableFrom = payload.availableFrom ? new Date(payload.availableFrom) : null;
+      if (payload.availableUntil !== undefined) updateData.availableUntil = payload.availableUntil ? new Date(payload.availableUntil) : null;
+      if (payload.verificationStatus !== undefined) updateData.verificationStatus = payload.verificationStatus;
+      if (payload.approvalStatus !== undefined) updateData.approvalStatus = payload.approvalStatus;
+      if (payload.metaTitle !== undefined) updateData.metaTitle = payload.metaTitle;
+      if (payload.metaDescription !== undefined) updateData.metaDescription = payload.metaDescription;
+      if (payload.metaKeywords !== undefined) updateData.metaKeywords = payload.metaKeywords;
+      if (payload.ownerName !== undefined) updateData.ownerName = payload.ownerName;
+      if (payload.ownerEmail !== undefined) updateData.ownerEmail = payload.ownerEmail;
+      if (payload.ownerPhone !== undefined) updateData.ownerPhone = payload.ownerPhone;
 
       if (Object.keys(updateData).length > 0) {
         await queryRunner.manager.update(Property, { id }, updateData);
@@ -269,6 +320,21 @@ export class AdminPropertiesService {
           areaSqft: payload.details.areaSqft ?? 0,
           parking: payload.details.parking ?? 0,
           furnished: payload.details.furnished ?? false,
+          balconies: payload.details.balconies ?? 0,
+          floorNumber: payload.details.floorNumber,
+          totalFloors: payload.details.totalFloors ?? 0,
+          builtUpArea: payload.details.buildUpArea,
+          carpetArea: payload.details.carpetArea,
+          superBuiltUpArea: payload.details.superBuiltUpArea,
+          plotArea: payload.details.plotArea,
+          areaUnit: payload.details.areaUnit || 'Sq Ft',
+          propertyFacing: payload.details.facing,
+          propertyAge: payload.details.propertyAge,
+          possessionStatus: payload.details.possessionStatus,
+          waterSupply: payload.details.waterSupply,
+          powerBackup: payload.details.powerBackup,
+          roadWidth: payload.details.roadWidth,
+          openSides: payload.details.openSides ?? 0,
         });
         details.propertyId = id;
         await queryRunner.manager.save(details);

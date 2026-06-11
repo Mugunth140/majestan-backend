@@ -33,6 +33,12 @@ export class PropertyLocation {
   @Column({ name: 'landmark', type: 'varchar', length: 255, nullable: true })
   landmark!: string | null;
 
+  @Column({ name: 'address', type: 'text', nullable: true })
+  address!: string | null;
+
+  @Column({ name: 'pincode', type: 'varchar', length: 20, nullable: true })
+  pincode!: string | null;
+
   @Column({ name: 'latitude', type: 'decimal', precision: 10, scale: 7, nullable: true })
   latitude!: number | null;
 
