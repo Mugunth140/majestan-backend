@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, S3File } from 'bun';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Force load the .env file in case ConfigModule failed
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 @Injectable()
 export class StorageService {
@@ -8,12 +13,18 @@ export class StorageService {
   private bucketName: string;
 
   constructor(private configService: ConfigService) {
-    this.bucketName = this.configService.get<string>('R2_BUCKET_NAME') || 'majestan-assets';
-    const accountId = this.configService.get<string>('R2_ACCOUNT_ID') || 'account-id-placeholder';
+    const getEnv = (key: string, fallback: string) => {
+      return process.env[key] || this.configService.get<string>(key) || fallback;
+    };
+
+    this.bucketName = getEnv('R2_BUCKET_NAME', 'majestan-assets');
+    const accountId = getEnv('R2_ACCOUNT_ID', 'account-id-placeholder');
+    
+    console.log(`[StorageService] Initializing R2 Client with Account ID: ${accountId}`);
     
     this.s3Client = new S3Client({
-      accessKeyId: this.configService.get<string>('R2_ACCESS_KEY_ID') || 'placeholder-access-key',
-      secretAccessKey: this.configService.get<string>('R2_SECRET_ACCESS_KEY') || 'placeholder-secret-key',
+      accessKeyId: getEnv('R2_ACCESS_KEY_ID', 'placeholder-access-key'),
+      secretAccessKey: getEnv('R2_SECRET_ACCESS_KEY', 'placeholder-secret-key'),
       bucket: this.bucketName,
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
     });

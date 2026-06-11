@@ -69,7 +69,7 @@ export class CreatePropertyDto {
   @IsOptional() @IsInt() @Min(1) cityId?: number;
   @IsOptional() @IsInt() @Min(1) sublocationId?: number;
   
-  @IsNumber() ownerId!: number;
+  @IsOptional() @IsNumber() ownerId?: number;
 
   @IsOptional()
   @ValidateNested()
