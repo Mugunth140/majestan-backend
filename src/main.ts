@@ -52,9 +52,9 @@ async function bootstrap() {
     }),
   );
 
-  const corsOrigins = configService.get<string[]>('app.corsOrigins', []);
+  // Allow all CORS origins dynamically to support any frontend URL or IP
   app.enableCors({
-    origin: corsOrigins.length === 0 ? true : corsOrigins,
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
