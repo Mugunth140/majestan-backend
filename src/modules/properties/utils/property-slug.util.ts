@@ -56,5 +56,18 @@ export const getPropertyTypeCode = (propertyType: string): string => {
 export const generateSeoSlug = (title: string, propertyType: string, id: number): string => {
   const normalizedTitle = normalizeSeoSlug(title);
   const code = getPropertyTypeCode(propertyType);
-  return `${normalizedTitle}-${code}${id}`;
+  const paddedId = String(id).padStart(3, '0');
+  return `${normalizedTitle}-${code}${paddedId}`;
+};
+
+export const stripPropertyIdSuffix = (slug: string): string => {
+  const normalized = normalizeSeoSlug(slug);
+  return normalized.replace(/-[a-z]{1,6}\d+$/i, '');
+};
+
+export const enforceSlugSuffix = (slug: string, propertyType: string, id: number): string => {
+  const stripped = stripPropertyIdSuffix(slug);
+  const code = getPropertyTypeCode(propertyType);
+  const paddedId = String(id).padStart(3, '0');
+  return `${stripped}-${code}${paddedId}`;
 };

@@ -46,4 +46,37 @@ export class StorageService {
 
     return { url, key };
   }
+
+  /**
+   * Generates a URL for reading a file from R2.
+   * If R2_PUBLIC_URL is configured, returns the public URL.
+   * Otherwise falls back to a 7-day presigned GET URL.
+   */
+  generateReadUrl(key: string): string {
+    // If it's already a full URL, return as-is
+    if (key.startsWith('http://') || key.startsWith('https://')) return key;
+    
+    const publicUrl = process.env.R2_PUBLIC_URL || this.configService.get<string>('R2_PUBLIC_URL');
+    if (publicUrl) {
+      // Ensure no double slashes between URL and key
+      const baseUrl = publicUrl.endsWith('/') ? publicUrl.slice(0, -1) : publicUrl;
+      const fileKey = key.startsWith('/') ? key.slice(1) : key;
+      return `${baseUrl}/${fileKey}`;
+    }
+
+    return this.s3Client.presign(key, {
+      method: "GET",
+      expiresIn: 604800, // 7 days
+    });
+  }
+
+  /**
+   * Transforms an array of image objects by resolving their keys to signed read URLs.
+   */
+  resolveImageUrls<T extends { imageUrl?: string; imageKey?: string }>(images: T[]): T[] {
+    return images.map(img => ({
+      ...img,
+      imageUrl: img.imageUrl ? this.generateReadUrl(img.imageUrl) : img.imageUrl,
+    }));
+  }
 }

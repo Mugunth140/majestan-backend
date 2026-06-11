@@ -4,22 +4,6 @@ import { Repository } from 'typeorm';
 import { Property, PropertyType, PropertyStatus } from '../../database/entities/property.entity';
 import { PropertySearchQueryDto, PropertySortOption } from './dto/property-search.dto';
 
-function getPropertyIdSuffix(type: PropertyType, id: number): string {
-  const map: Record<PropertyType, string> = {
-    [PropertyType.APARTMENT]: 'ap',
-    [PropertyType.VILLA]: 'vl',
-    [PropertyType.PLOT]: 'pl',
-    [PropertyType.COMMERCIAL]: 'cm',
-    [PropertyType.COWORKING]: 'co',
-    [PropertyType.FARMLAND]: 'ag',
-    [PropertyType.INDUSTRIAL]: 'in',
-    [PropertyType.OTHER]: 'ot',
-    [PropertyType.INDIVIDUAL_PORTION]: 'ip',
-  };
-  const prefix = map[type] || 'pr';
-  return `-${prefix}${id}`;
-}
-
 type SearchResult = {
   items: Property[];
   total: number;
@@ -30,6 +14,7 @@ type SearchResult = {
 import { AdminPropertiesService } from '../admin/properties/admin-properties.service';
 import { CreatePropertyDto } from '../admin/properties/dto/create-property.dto';
 import { DataSource } from 'typeorm';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class PropertiesService {
@@ -38,6 +23,7 @@ export class PropertiesService {
     private readonly propertyRepository: Repository<Property>,
     private readonly adminPropertiesService: AdminPropertiesService,
     private readonly dataSource: DataSource,
+    private readonly storageService: StorageService,
   ) {}
 
   async getFormData() {
@@ -114,9 +100,14 @@ export class PropertiesService {
 
     const [items, total] = await qb.getManyAndCount();
 
-    const mappedItems = items.map(p => ({
-      ...p,
-      canonicalSlug: p.slug ? `${p.slug}${getPropertyIdSuffix(p.propertyType, p.id)}` : null
+    const mappedItems = await Promise.all(items.map(async p => {
+      const images = await p.propertyImages;
+      return {
+        ...p,
+        propertyImages: this.storageService.resolveImageUrls(images || []),
+        images: this.storageService.resolveImageUrls(images || []),
+        canonicalSlug: p.slug ? p.slug : null
+      };
     }));
 
     return { items: mappedItems as any, total, page, limit };
@@ -140,6 +131,10 @@ export class PropertiesService {
       throw new NotFoundException('Property not found');
     }
 
+    const propertyImages = await property.propertyImages;
+    (property as any).propertyImages = this.storageService.resolveImageUrls(
+      propertyImages || []
+    );
     return property;
   }
 
@@ -184,10 +179,39 @@ export class PropertiesService {
       throw new NotFoundException('Property not found');
     }
 
-    const expectedCanonicalSlug = property.slug ? `${property.slug}${getPropertyIdSuffix(property.propertyType, property.id)}` : slug;
+    const propertyImages = await property.propertyImages;
+    const resolvedImages = this.storageService.resolveImageUrls(
+      propertyImages || []
+    );
+
+    const expectedCanonicalSlug = property.slug || slug;
+
+    const [
+      propertyDetails,
+      propertyLocations,
+      propertyAmenities,
+      propertyUnits,
+      propertyFiles,
+      faqs,
+    ] = await Promise.all([
+      property.propertyDetails,
+      property.propertyLocations,
+      property.propertyAmenities,
+      property.propertyUnits,
+      property.propertyFiles,
+      property.faqs,
+    ]);
 
     return {
       ...property,
+      propertyDetails,
+      propertyLocations,
+      propertyAmenities,
+      propertyUnits,
+      propertyFiles,
+      faqs,
+      propertyImages: resolvedImages,
+      images: resolvedImages,
       requestedSlug: slug,
       canonicalSlug: expectedCanonicalSlug,
       shouldRedirect: expectedCanonicalSlug !== slug

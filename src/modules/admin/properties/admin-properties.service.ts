@@ -11,16 +11,21 @@ import { PropertyFaq } from '../../../database/entities/property-faq.entity';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
 
-import { generateSeoSlug, normalizeSeoSlug, getPropertyTypeCode } from '../../properties/utils/property-slug.util';
+import { generateSeoSlug, normalizeSeoSlug, getPropertyTypeCode, enforceSlugSuffix } from '../../properties/utils/property-slug.util';
 import { Sublocation } from '../../../database/entities/sublocation.entity';
 import { City } from '../../../database/entities/city.entity';
+import { StorageService } from '../../storage/storage.service';
 
 @Injectable()
 export class AdminPropertiesService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly storageService: StorageService,
+  ) {}
 
   async list(propertyType: string, query: AdminPropertyQueryDto) {
-    const qb = this.dataSource.getRepository(Property).createQueryBuilder('p');
+    const qb = this.dataSource.getRepository(Property).createQueryBuilder('p')
+      .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true');
     
     if (propertyType && propertyType !== 'all') {
       qb.where('p.propertyType = :propertyType', { propertyType });
@@ -36,7 +41,16 @@ export class AdminPropertiesService {
     }
 
     const [data, total] = await qb.getManyAndCount();
-    return { items: data, total, propertyType, page, limit };
+    
+    const mappedData = await Promise.all(data.map(async p => {
+      const images = await p.propertyImages;
+      return {
+        ...p,
+        propertyImages: this.storageService.resolveImageUrls(images || [])
+      };
+    }));
+
+    return { items: mappedData, total, propertyType, page, limit };
   }
 
   async details(propertyType: string, id: number) {
@@ -83,7 +97,7 @@ export class AdminPropertiesService {
       propertyAmenities,
       propertyUnits,
       propertyFiles,
-      propertyImages,
+      propertyImages: this.storageService.resolveImageUrls(propertyImages || []),
       faqs,
     };
   }
@@ -119,7 +133,7 @@ export class AdminPropertiesService {
       
       // Update with correct slug and propertyCode now that we have ID
       if (payload.slug) {
-         savedProperty.slug = `${normalizeSeoSlug(payload.slug)}-${getPropertyTypeCode(savedProperty.propertyType)}${savedProperty.id}`;
+         savedProperty.slug = enforceSlugSuffix(payload.slug, savedProperty.propertyType, savedProperty.id);
       } else {
          savedProperty.slug = generateSeoSlug(savedProperty.title, savedProperty.propertyType, savedProperty.id);
       }
@@ -232,6 +246,8 @@ export class AdminPropertiesService {
       if (payload.description) updateData.description = payload.description;
       if (payload.price) updateData.price = payload.price;
       if (payload.status) updateData.status = payload.status;
+      if (payload.slug) updateData.slug = enforceSlugSuffix(payload.slug, propertyType, id);
+      
       if (selectedLocation) {
         updateData.city = selectedLocation.city.cityName;
         updateData.state = selectedLocation.city.stateName;
