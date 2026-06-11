@@ -62,7 +62,7 @@ import { RootController } from './root.controller';
           password: configService.getOrThrow<string>('database.password'),
           database: configService.getOrThrow<string>('database.database'),
           entities: [__dirname + '/**/*.entity{.ts,.js}'],
-          synchronize: false,
+          synchronize: true,
           logging: true,
           extra: {
             connectionLimit: configService.getOrThrow<number>(

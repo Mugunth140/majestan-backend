@@ -13,6 +13,7 @@
     "start:debug": "bun --watch --inspect run src/main.ts",
     "start:prod": "bun run dist/src/main.js",
     "db:init": "bun run scripts/init-db.ts",
+    "seed:admin": "bun run scripts/seed-admin.ts",
     "db:seed-dump": "bash scripts/seed-dump.sh",
     "migration:run": "bun run scripts/run-migrations.ts",
     "migration:revert": "bun run scripts/revert-migration.ts",
