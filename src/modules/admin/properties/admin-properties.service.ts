@@ -31,6 +31,10 @@ export class AdminPropertiesService {
       qb.where('p.propertyType = :propertyType', { propertyType });
     }
     
+    if (query.listingType) {
+      qb.andWhere('p.listingType = :listingType', { listingType: query.listingType });
+    }
+    
     // Pagination (defaults to 0, 10)
     const page = query.page || 1;
     const limit = query.limit || 10;
