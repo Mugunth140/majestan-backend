@@ -2,10 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UpsertRecordDto } from '../common/dto/upsert-record.dto';
 import { AdminTableService } from '../common/admin-table.service';
+import { DataSource } from 'typeorm';
 
 @Injectable()
 export class AdminAmenitiesService {
-  constructor(private readonly adminTableService: AdminTableService) {}
+  constructor(
+    private readonly adminTableService: AdminTableService,
+    private readonly dataSource: DataSource,
+  ) {}
 
   async list(query: PaginationQueryDto) {
     return this.adminTableService.listRows('amenities', query, ['name']);
@@ -30,7 +34,9 @@ export class AdminAmenitiesService {
   }
 
   async remove(id: number) {
-    await this.adminTableService.deleteRow('amenities', id);
+    // Explicit hard delete for amenities, because adminTableService does soft delete on `is_active`
+    // which conflicts with the active/inactive status toggle.
+    await this.dataSource.query(`DELETE FROM \`amenities\` WHERE id = ?`, [id]);
     return { id, deleted: true };
   }
 }
