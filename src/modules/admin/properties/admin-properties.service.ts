@@ -6,6 +6,7 @@ import { PropertyLocation } from '../../../database/entities/property-location.e
 import { PropertyAmenity } from '../../../database/entities/property-amenity.entity';
 import { PropertyUnit } from '../../../database/entities/property-unit.entity';
 import { PropertyFile } from '../../../database/entities/property-file.entity';
+import { PropertyImage } from '../../../database/entities/property-image.entity';
 import { PropertyFaq } from '../../../database/entities/property-faq.entity';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
@@ -48,6 +49,7 @@ export class AdminPropertiesService {
         'propertyAmenities',
         'propertyUnits',
         'propertyFiles',
+        'propertyImages',
         'faqs',
       ],
     });
@@ -62,6 +64,7 @@ export class AdminPropertiesService {
       propertyAmenities,
       propertyUnits,
       propertyFiles,
+      propertyImages,
       faqs,
     ] = await Promise.all([
       record.propertyDetails,
@@ -69,6 +72,7 @@ export class AdminPropertiesService {
       record.propertyAmenities,
       record.propertyUnits,
       record.propertyFiles,
+      record.propertyImages,
       record.faqs,
     ]);
 
@@ -79,6 +83,7 @@ export class AdminPropertiesService {
       propertyAmenities,
       propertyUnits,
       propertyFiles,
+      propertyImages,
       faqs,
     };
   }
@@ -171,15 +176,17 @@ export class AdminPropertiesService {
         await queryRunner.manager.save(units);
       }
 
-      // 6. Create Files
+      // 6. Create Images
       if (payload.files && payload.files.length > 0) {
-        const files = payload.files.map(f => {
-          const pf = new PropertyFile();
-          Object.assign(pf, f);
-          pf.propertyId = savedProperty.id;
-          return pf;
+        const images = payload.files.map((f, idx) => {
+          const pi = new PropertyImage();
+          pi.propertyId = savedProperty.id;
+          pi.imageUrl = f.fileUrl;
+          pi.imageKey = f.fileUrl;
+          pi.isPrimary = idx === 0;
+          return pi;
         });
-        await queryRunner.manager.save(files);
+        await queryRunner.manager.save(images);
       }
 
       // 7. Create FAQs
@@ -275,17 +282,19 @@ export class AdminPropertiesService {
         }
       }
 
-      // 5. Update Files
+      // 5. Update Images
       if (payload.files !== undefined) {
-        await queryRunner.manager.delete(PropertyFile, { propertyId: id });
+        await queryRunner.manager.delete(PropertyImage, { propertyId: id });
         if (payload.files.length > 0) {
-          const files = payload.files.map(f => {
-            const pf = new PropertyFile();
-            Object.assign(pf, f);
-            pf.propertyId = id;
-            return pf;
+          const images = payload.files.map((f, idx) => {
+            const pi = new PropertyImage();
+            pi.propertyId = id;
+            pi.imageUrl = f.fileUrl;
+            pi.imageKey = f.fileUrl;
+            pi.isPrimary = idx === 0;
+            return pi;
           });
-          await queryRunner.manager.save(files);
+          await queryRunner.manager.save(images);
         }
       }
 
