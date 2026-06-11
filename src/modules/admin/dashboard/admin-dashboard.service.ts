@@ -16,8 +16,8 @@ export class AdminDashboardService {
     ] = await Promise.all([
       this.fetchPropertyCounts(),
       this.fetchSimpleCount('leads', "status = 'new'"),
-      this.fetchSimpleCount('locations', 'status = 1'),
-      this.fetchSimpleCount('blogs', 'status = 1'),
+      this.fetchSimpleCount('cities', 'is_active = 1'),
+      this.fetchSimpleCount('blogs', "status = 'published'"),
     ]);
 
     const totalProperties = Object.values(propertyCounts).reduce((acc, count) => acc + count, 0);

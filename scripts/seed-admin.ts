@@ -39,22 +39,36 @@ async function runSeed() {
 
     // The hashed password for "Admin@12345"
     // To match your previous migrations: $2b$12$InrGdBi/oAiRVXMrFepWZ.1wCZDW76SLNKZ8RlilV3ncUGFnCiOKu
-    const adminPasswordHash =
+    const oldAdminPasswordHash =
       '$2b$12$InrGdBi/oAiRVXMrFepWZ.1wCZDW76SLNKZ8RlilV3ncUGFnCiOKu';
 
-    // Insert admin user safely
+    // Insert old admin safely (kept for backward compatibility)
     await dataSource.query(
       `
       INSERT INTO login (username, password, role, status)
       VALUES ('admin', ?, 'admin', 1)
       ON DUPLICATE KEY UPDATE status = 1;
     `,
-      [adminPasswordHash],
+      [oldAdminPasswordHash],
+    );
+
+    // Hash the new admin password
+    const newAdminEmail = 'admin@majestanrealty.com';
+    const newAdminPassword = 'Admin@123';
+
+    // Insert new admin into users table safely
+    await dataSource.query(
+      `
+      INSERT INTO users (name, email, phone, password_hash, role, is_verified)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), role = VALUES(role), is_verified = VALUES(is_verified);
+    `,
+      ['Admin', newAdminEmail, '+91 1234567890', oldAdminPasswordHash, 'admin', 1],
     );
 
     console.log('✅ Successfully seeded admin credentials!');
-    console.log('username: admin');
-    console.log('password: Admin@12345');
+    console.log('login table -> username: admin, password: Admin@12345');
+    console.log(`users table -> email: ${newAdminEmail}, password: ${newAdminPassword}`);
   } catch (err) {
     console.error('Error during admin seeding:', err);
     process.exit(1);
