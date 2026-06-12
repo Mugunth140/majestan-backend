@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { Property, PropertyStatus } from '../../database/entities/property.entity';
+import { StorageService } from '../storage/storage.service';
 
 type LocationRow = {
   id: number;
@@ -41,7 +43,10 @@ type FeaturedProperty = FeaturedPropertyRow & {
 
 @Injectable()
 export class HomeService {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly storageService: StorageService,
+  ) {}
 
   async getHomePage() {
     const [
@@ -153,63 +158,45 @@ export class HomeService {
   private async listFeaturedProperties(
     propertyType: 'apartment' | 'villa',
   ): Promise<FeaturedProperty[]> {
-    const table = propertyType === 'apartment' ? 'apartment' : 'villas';
-    const codeColumn =
-      propertyType === 'apartment' ? 'apartment_code' : 'villa_code';
+    const properties = await this.dataSource.getRepository(Property).find({
+      where: {
+        propertyType: propertyType as any,
+        status: PropertyStatus.AVAILABLE,
+      },
+      relations: ['propertyImages', 'propertyLocations', 'propertyDetails'],
+      order: { createdAt: 'DESC' },
+      take: 10,
+    });
+
     const suffix = propertyType === 'apartment' ? 'ap' : 'v';
 
-    if (!(await this.tableExists(table))) {
-      return [];
-    }
+    const mapped = await Promise.all(properties.map(async (p) => {
+      const slug = p.slug?.trim() || `${propertyType}-${p.id}`;
+      const images = await p.propertyImages;
+      let primaryImageUrl = images?.find(img => img.isPrimary)?.imageUrl || images?.[0]?.imageUrl || null;
+      
+      if (primaryImageUrl) {
+        primaryImageUrl = this.storageService.generateReadUrl(primaryImageUrl);
+      }
 
-    const slugColumn = await this.firstExistingColumn(table, [
-      'slug_url',
-      'slug',
-    ]);
-    const photoColumn = await this.firstExistingColumn(table, [
-      'photo1',
-      'image',
-    ]);
-    const priceColumn = await this.firstExistingColumn(table, [
-      'price',
-      'price_per_sqft',
-    ]);
-
-    const query = this.dataSource
-      .createQueryBuilder()
-      .select('p.id', 'id')
-      .addSelect(slugColumn ? `p.${slugColumn}` : 'NULL', 'slugUrl')
-      .addSelect('p.propertyname', 'propertyName')
-      .addSelect('p.sublocation', 'sublocation')
-      .addSelect(photoColumn ? `p.${photoColumn}` : 'NULL', 'photo')
-      .addSelect('p.posttype', 'postType')
-      .addSelect('p.expectedsaleprice', 'expectedSalePrice')
-      .addSelect('p.monthly_rent', 'monthlyRent')
-      .addSelect(priceColumn ? `p.${priceColumn}` : 'NULL', 'pricePerSqft')
-      .from(table, 'p')
-      .where('p.status = :status', { status: 1 });
-
-    if (await this.columnExists(table, 'featured_property')) {
-      query.andWhere('p.featured_property = :featured', { featured: 1 });
-    }
-
-    const orderColumn = (await this.columnExists(table, codeColumn))
-      ? codeColumn
-      : 'id';
-    const rows = await query
-      .orderBy(`p.${orderColumn}`, 'DESC')
-      .limit(10)
-      .getRawMany<FeaturedPropertyRow>();
-
-    return rows.map((row) => {
-      const slug = row.slugUrl?.trim() || `${propertyType}-${row.id}`;
+      const locations = await p.propertyLocations;
+      const loc = locations?.[0];
 
       return {
-        ...row,
+        id: p.id,
         propertyType,
-        detailPath: `/${slug}-${suffix}${row.id}`,
-      };
-    });
+        slugUrl: slug,
+        propertyName: p.title,
+        sublocation: loc?.address || p.city,
+        photo: primaryImageUrl,
+        postType: p.listingType,
+        expectedSalePrice: p.price,
+        monthlyRent: p.price,
+        pricePerSqft: null,
+        detailPath: `/${slug}-${suffix}${p.id}`,
+      } as any;
+    }));
+    return mapped;
   }
 
   private async tableExists(tableName: string): Promise<boolean> {

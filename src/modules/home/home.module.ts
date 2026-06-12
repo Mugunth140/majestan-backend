@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { HomeController } from './home.controller';
 import { HomeService } from './home.service';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
+  imports: [StorageModule],
   controllers: [HomeController],
   providers: [HomeService],
 })
