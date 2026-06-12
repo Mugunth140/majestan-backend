@@ -20,6 +20,7 @@ import { PropertyAmenity } from './property-amenity.entity';
 import { PropertyUnit } from './property-unit.entity';
 import { PropertyFile } from './property-file.entity';
 import { PropertyFaq } from './property-faq.entity';
+import { PropertySeo } from './property-seo.entity';
 
 export enum PropertyType {
   APARTMENT = 'apartment',
@@ -159,15 +160,6 @@ export class Property {
   @Column({ name: 'approval_status', type: 'varchar', length: 50, default: 'Pending' })
   approvalStatus!: string;
 
-  @Column({ name: 'meta_title', type: 'varchar', length: 255, nullable: true })
-  metaTitle!: string | null;
-
-  @Column({ name: 'meta_description', type: 'text', nullable: true })
-  metaDescription!: string | null;
-
-  @Column({ name: 'meta_keywords', type: 'text', nullable: true })
-  metaKeywords!: string | null;
-
   @Column({ name: 'owner_name', type: 'varchar', length: 255, nullable: true })
   ownerName!: string | null;
 
@@ -234,4 +226,7 @@ export class Property {
 
   @OneToMany('PropertyFaq', (propertyFaq: any) => propertyFaq.property, { lazy: true })
   faqs!: Promise<PropertyFaq[]>;
+
+  @OneToOne('PropertySeo', (propertySeo: any) => propertySeo.property, { lazy: true, nullable: true })
+  seo!: Promise<PropertySeo | null>;
 }

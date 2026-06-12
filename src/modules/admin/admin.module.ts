@@ -8,6 +8,7 @@ import { AdminPropertiesModule } from './properties/admin-properties.module';
 import { AdminCitiesModule } from './cities/admin-cities.module';
 import { AdminSublocationsModule } from './sublocations/admin-sublocations.module';
 import { AdminAmenitiesModule } from './amenities/admin-amenities.module';
+import { AdminSeoModule } from './seo/admin-seo.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AdminAmenitiesModule } from './amenities/admin-amenities.module';
     AdminCitiesModule,
     AdminSublocationsModule,
     AdminAmenitiesModule,
+    AdminSeoModule,
   ],
 })
 export class AdminModule {}

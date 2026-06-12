@@ -153,7 +153,8 @@ export class PropertiesService {
         'propertyUnits',
         'propertyFiles',
         'propertyImages',
-        'faqs'
+        'faqs',
+        'seo'
       ],
     });
 
@@ -165,15 +166,16 @@ export class PropertiesService {
         property = await this.propertyRepository.findOne({
           where: { id, status: PropertyStatus.AVAILABLE },
           relations: [
-        'propertyDetails',
-        'propertyLocations',
-        'propertyAmenities',
-        'propertyAmenities.amenity',
-        'propertyUnits',
-        'propertyFiles',
-        'propertyImages',
-        'faqs'
-      ],
+            'propertyDetails',
+            'propertyLocations',
+            'propertyAmenities',
+            'propertyAmenities.amenity',
+            'propertyUnits',
+            'propertyFiles',
+            'propertyImages',
+            'faqs',
+            'seo'
+          ],
         });
       }
     }
@@ -196,6 +198,7 @@ export class PropertiesService {
       propertyUnits,
       propertyFiles,
       faqs,
+      seo,
     ] = await Promise.all([
       property.propertyDetails,
       property.propertyLocations,
@@ -203,6 +206,7 @@ export class PropertiesService {
       property.propertyUnits,
       property.propertyFiles,
       property.faqs,
+      property.seo,
     ]);
 
     return {
@@ -213,6 +217,7 @@ export class PropertiesService {
       propertyUnits,
       propertyFiles,
       faqs,
+      seo,
       propertyImages: resolvedImages,
       images: resolvedImages,
       requestedSlug: slug,
