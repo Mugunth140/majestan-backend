@@ -23,6 +23,11 @@ export class PropertiesController {
     return this.propertiesService.detailsBySlug(slug);
   }
 
+  @Get('all-slugs')
+  async getAllSlugs() {
+    return this.propertiesService.getAllSlugs();
+  }
+
   @Get(':propertyType/:id')
   async details(
     @Param('propertyType') propertyType: string,

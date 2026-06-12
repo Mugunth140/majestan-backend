@@ -120,6 +120,7 @@ export class PropertiesService {
         'propertyDetails',
         'propertyLocations',
         'propertyAmenities',
+        'propertyAmenities.amenity',
         'propertyUnits',
         'propertyFiles',
         'propertyImages',
@@ -148,6 +149,7 @@ export class PropertiesService {
         'propertyDetails',
         'propertyLocations',
         'propertyAmenities',
+        'propertyAmenities.amenity',
         'propertyUnits',
         'propertyFiles',
         'propertyImages',
@@ -163,14 +165,15 @@ export class PropertiesService {
         property = await this.propertyRepository.findOne({
           where: { id, status: PropertyStatus.AVAILABLE },
           relations: [
-            'propertyDetails',
-            'propertyLocations',
-            'propertyAmenities',
-            'propertyUnits',
-            'propertyFiles',
-            'propertyImages',
-            'faqs'
-          ],
+        'propertyDetails',
+        'propertyLocations',
+        'propertyAmenities',
+        'propertyAmenities.amenity',
+        'propertyUnits',
+        'propertyFiles',
+        'propertyImages',
+        'faqs'
+      ],
         });
       }
     }
@@ -216,5 +219,13 @@ export class PropertiesService {
       canonicalSlug: expectedCanonicalSlug,
       shouldRedirect: expectedCanonicalSlug !== slug
     };
+  }
+
+  async getAllSlugs(): Promise<string[]> {
+    const properties = await this.propertyRepository.find({
+      where: { status: PropertyStatus.AVAILABLE },
+      select: ['slug', 'propertyCode']
+    });
+    return properties.map(p => p.slug || p.propertyCode).filter(Boolean) as string[];
   }
 }
