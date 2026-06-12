@@ -255,6 +255,9 @@ export class AdminPropertiesService {
       }
 
       await queryRunner.commitTransaction();
+      if (savedProperty.slug) {
+        await this.triggerFrontendRevalidation(savedProperty.slug);
+      }
       return this.details(propertyType, savedProperty.id);
 
     } catch (err) {
@@ -391,7 +394,11 @@ export class AdminPropertiesService {
       }
 
       await queryRunner.commitTransaction();
-      return this.details(propertyType, id);
+      const prop = await this.details(propertyType, id);
+      if (prop.slug) {
+        await this.triggerFrontendRevalidation(prop.slug);
+      }
+      return prop;
 
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -403,7 +410,11 @@ export class AdminPropertiesService {
 
   async updateStatus(propertyType: string, id: number, status: string) {
     await this.dataSource.getRepository(Property).update({ id }, { status: status as PropertyStatus });
-    return this.details(propertyType, id);
+    const prop = await this.details(propertyType, id);
+    if (prop.slug) {
+      await this.triggerFrontendRevalidation(prop.slug);
+    }
+    return prop;
   }
 
   async remove(propertyType: string, id: number) {
@@ -459,5 +470,21 @@ export class AdminPropertiesService {
     }
 
     return { city, sublocation };
+  }
+
+  private async triggerFrontendRevalidation(slug: string) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://147.93.168.178:3000';
+    try {
+      await fetch(`${frontendUrl}/api/revalidate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          slug, 
+          secret: process.env.REVALIDATE_SECRET || 'majestan-isr-secret' 
+        })
+      });
+    } catch (error) {
+      console.error(`Failed to revalidate frontend for slug: ${slug}`, error);
+    }
   }
 }
