@@ -77,6 +77,9 @@ export class CreatePropertyDto {
   @IsOptional() @IsString() metaDescription?: string;
   @IsOptional() @IsString() metaKeywords?: string;
 
+  @IsOptional() @IsString() brokerageType?: string;
+  @IsOptional() @IsString() brokerageValue?: string;
+
   @IsOptional() @IsString() ownerName?: string;
   @IsOptional() @IsString() ownerEmail?: string;
   @IsOptional() @IsString() ownerPhone?: string;

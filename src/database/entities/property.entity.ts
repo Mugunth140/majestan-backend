@@ -141,6 +141,12 @@ export class Property {
   @Column({ name: 'booking_amount', type: 'varchar', length: 100, nullable: true })
   bookingAmount!: string | null;
 
+  @Column({ name: 'brokerage_type', type: 'varchar', length: 50, nullable: true, default: 'no_brokerage' })
+  brokerageType!: string | null;
+
+  @Column({ name: 'brokerage_value', type: 'varchar', length: 100, nullable: true })
+  brokerageValue!: string | null;
+
   @Column({ name: 'available_from', type: 'date', nullable: true })
   availableFrom!: Date | null;
 

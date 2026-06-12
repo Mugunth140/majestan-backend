@@ -141,6 +141,8 @@ export class AdminPropertiesService {
         maintenanceCharges: payload.maintenanceCharges,
         securityDeposit: payload.securityDeposit,
         bookingAmount: payload.bookingAmount,
+        brokerageType: payload.brokerageType || 'no_brokerage',
+        brokerageValue: payload.brokerageValue,
         availableFrom: payload.availableFrom ? new Date(payload.availableFrom) : null,
         availableUntil: payload.availableUntil ? new Date(payload.availableUntil) : null,
         verificationStatus: payload.verificationStatus || 'Pending',
@@ -301,6 +303,8 @@ export class AdminPropertiesService {
       if (payload.maintenanceCharges !== undefined) updateData.maintenanceCharges = payload.maintenanceCharges;
       if (payload.securityDeposit !== undefined) updateData.securityDeposit = payload.securityDeposit;
       if (payload.bookingAmount !== undefined) updateData.bookingAmount = payload.bookingAmount;
+      if (payload.brokerageType !== undefined) updateData.brokerageType = payload.brokerageType;
+      if (payload.brokerageValue !== undefined) updateData.brokerageValue = payload.brokerageValue;
       if (payload.availableFrom !== undefined) updateData.availableFrom = payload.availableFrom ? new Date(payload.availableFrom) : null;
       if (payload.availableUntil !== undefined) updateData.availableUntil = payload.availableUntil ? new Date(payload.availableUntil) : null;
       if (payload.verificationStatus !== undefined) updateData.verificationStatus = payload.verificationStatus;
