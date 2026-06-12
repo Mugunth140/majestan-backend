@@ -65,6 +65,7 @@ export class CreatePropertyDto {
   @IsString() title!: string;
   @IsString() description!: string;
   @IsString() price!: string;
+  @IsOptional() @IsEnum(['Sell', 'Rent']) listingType?: 'Sell' | 'Rent';
   @IsOptional() @IsString() builderName?: string;
   
   @IsOptional() @IsString() propertyCondition?: string;

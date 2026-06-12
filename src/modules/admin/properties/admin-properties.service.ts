@@ -126,6 +126,7 @@ export class AdminPropertiesService {
         description: payload.description,
         price: payload.price,
         propertyType: propertyType as PropertyType,
+        listingType: payload.listingType || 'Sell',
         status: payload.status,
         city: selectedLocation.city.cityName,
         state: selectedLocation.city.stateName,
@@ -282,6 +283,7 @@ export class AdminPropertiesService {
       if (payload.title) updateData.title = payload.title;
       if (payload.description) updateData.description = payload.description;
       if (payload.price) updateData.price = payload.price;
+      if (payload.listingType) updateData.listingType = payload.listingType;
       if (payload.status) updateData.status = payload.status;
       if (payload.slug) updateData.slug = enforceSlugSuffix(payload.slug, propertyType, id);
       
