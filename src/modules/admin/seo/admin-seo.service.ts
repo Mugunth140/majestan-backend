@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { Property } from '../../../database/entities/property.entity';
+import { Property, PropertyStatus } from '../../../database/entities/property.entity';
 import { PropertySeo } from '../../../database/entities/property-seo.entity';
 import { UpsertPropertySeoDto } from './dto/upsert-property-seo.dto';
 
@@ -97,13 +97,26 @@ export class AdminSeoService {
     }
     if (approvalStatus !== undefined) {
       seo.approvalStatus = approvalStatus;
+      
+      let statusChanged = false;
+      if (approvalStatus === 'published' && property.status !== PropertyStatus.AVAILABLE) {
+        property.status = PropertyStatus.AVAILABLE;
+        statusChanged = true;
+      } else if (approvalStatus === 'unpublished' && property.status !== PropertyStatus.UNAVAILABLE) {
+        property.status = PropertyStatus.UNAVAILABLE;
+        statusChanged = true;
+      }
+      
+      if (statusChanged) {
+        await propertyRepo.save(property);
+      }
     }
 
     const saved = await seoRepo.save(seo);
 
     // Trigger frontend revalidation if property has a slug
     if (property.slug) {
-      await this.triggerFrontendRevalidation(property.slug);
+      this.triggerFrontendRevalidation(property.slug).catch(console.error);
     }
 
     return saved;
@@ -112,6 +125,8 @@ export class AdminSeoService {
   private async triggerFrontendRevalidation(slug: string) {
     const frontendUrl = process.env.FRONTEND_URL || 'http://147.93.168.178:3000';
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       await fetch(`${frontendUrl}/api/revalidate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -119,7 +134,9 @@ export class AdminSeoService {
           slug,
           secret: process.env.REVALIDATE_SECRET || 'majestan-isr-secret',
         }),
+        signal: controller.signal as any,
       });
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error(`Failed to revalidate frontend for slug: ${slug}`, error);
     }
