@@ -9,7 +9,6 @@ import {
   Min,
 } from 'class-validator';
 import { ListingType } from '../../../common/enums/listing-type.enum';
-import { PropertyType } from '../../../common/enums/property-type.enum';
 import { normalizeArray } from '../../../common/utils/normalize-array.util';
 
 export enum PropertySortOption {
@@ -20,9 +19,15 @@ export enum PropertySortOption {
 }
 
 export class PropertySearchQueryDto {
+  /**
+   * Accepts both DB enum values ('commercial', 'industrial', 'individual_portion')
+   * and API alias values ('commercial-space', 'industrial-space', 'independent-house').
+   * Normalization to DB values happens in the service layer.
+   */
   @IsOptional()
-  @IsEnum(PropertyType)
-  propertyType?: PropertyType;
+  @IsString()
+  @MaxLength(64)
+  propertyType?: string;
 
   @IsOptional()
   @IsEnum(ListingType)

@@ -4,6 +4,37 @@ import { Repository } from 'typeorm';
 import { Property, PropertyType, PropertyStatus } from '../../database/entities/property.entity';
 import { PropertySearchQueryDto, PropertySortOption } from './dto/property-search.dto';
 
+/**
+ * Normalizes any property type string (API value, URL slug, legacy value)
+ * to the canonical DB enum value stored in the `properties.property_type` column.
+ * DB stores: 'apartment','villa','plot','commercial','industrial','individual_portion','farmland','coworking','other'
+ */
+function normalizePropertyType(value: string): string {
+  const map: Record<string, string> = {
+    // API / common enum aliases → DB enum values
+    'commercial-space':  'commercial',
+    'commercialspace':   'commercial',
+    'industrial-space':  'industrial',
+    'industrialspace':   'industrial',
+    'independent-house': 'individual_portion',
+    'independenthouse':  'individual_portion',
+    'independent_house': 'individual_portion',
+    'individual-house':  'individual_portion',
+    'individual-portion':'individual_portion',
+    // Pass-through values that already match DB enum
+    'apartment':         'apartment',
+    'villa':             'villa',
+    'plot':              'plot',
+    'commercial':        'commercial',
+    'industrial':        'industrial',
+    'individual_portion':'individual_portion',
+    'farmland':          'farmland',
+    'coworking':         'coworking',
+    'other':             'other',
+  };
+  return map[value.toLowerCase()] ?? value;
+}
+
 type SearchResult = {
   items: Property[];
   total: number;
@@ -59,7 +90,8 @@ export class PropertiesService {
       .where('p.status = :status', { status: PropertyStatus.AVAILABLE });
 
     if (query.propertyType) {
-      qb.andWhere('p.propertyType = :propertyType', { propertyType: query.propertyType });
+      const dbPropertyType = normalizePropertyType(query.propertyType as string);
+      qb.andWhere('p.propertyType = :propertyType', { propertyType: dbPropertyType });
     }
 
     if (query.listingType) {
