@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PropertyType, PropertyStatus } from '../../../../database/entities/property.entity';
 
@@ -70,7 +70,7 @@ export class CreatePropertyDto {
   
   @IsOptional() @IsString() propertyCondition?: string;
   @IsOptional() @IsString() ownershipType?: string;
-  @IsOptional() @IsString() reraNumber?: string;
+  @IsString() @IsNotEmpty() reraNumber!: string;
   @IsOptional() @IsString() projectName?: string;
   
   @IsOptional() @IsString() metaTitle?: string;
