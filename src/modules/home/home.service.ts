@@ -163,7 +163,7 @@ export class HomeService {
         propertyType: propertyType as any,
         status: PropertyStatus.AVAILABLE,
       },
-      relations: ['propertyImages', 'propertyLocations', 'propertyDetails'],
+      relations: ['propertyImages', 'propertyLocations', 'propertyLocations.sublocation', 'propertyDetails'],
       order: { createdAt: 'DESC' },
       take: 10,
     });
@@ -182,12 +182,17 @@ export class HomeService {
       const locations = await p.propertyLocations;
       const loc = locations?.[0];
 
+      let formattedLocation = p.city;
+      if (loc?.sublocation?.localityName) {
+        formattedLocation = `${loc.sublocation.localityName}, ${p.city}`;
+      }
+
       return {
         id: p.id,
         propertyType,
         slugUrl: slug,
         propertyName: p.title,
-        sublocation: loc?.address || p.city,
+        sublocation: formattedLocation,
         photo: primaryImageUrl,
         postType: p.listingType,
         expectedSalePrice: p.price,
