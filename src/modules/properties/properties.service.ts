@@ -87,6 +87,7 @@ export class PropertiesService {
       .leftJoinAndSelect('p.propertyDetails', 'details')
       .leftJoinAndSelect('p.propertyLocations', 'locations')
       .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
+      .leftJoinAndSelect('p.propertyUnits', 'units')
       .where('p.status = :status', { status: PropertyStatus.AVAILABLE });
 
     if (query.propertyType) {

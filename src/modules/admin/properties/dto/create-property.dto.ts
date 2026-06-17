@@ -46,6 +46,7 @@ class PropertyUnitDto {
   @IsOptional() @IsNumber() sizeSqft?: number;
   @IsOptional() @IsString() price?: string;
   @IsOptional() @IsString() floorPlanImageUrl?: string;
+  @IsOptional() @IsString() floorPlanImageKey?: string;
 }
 
 class PropertyFileDto {

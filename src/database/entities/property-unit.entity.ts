@@ -229,6 +229,12 @@ export class PropertyUnit {
   })
   status!: PropertyUnitStatus;
 
+  @Column({ name: 'floor_plan_image_url', type: 'varchar', length: 1024, nullable: true })
+  floorPlanImageUrl!: string | null;
+
+  @Column({ name: 'floor_plan_image_key', type: 'varchar', length: 1024, nullable: true })
+  floorPlanImageKey!: string | null;
+
   @Column({
     name: 'is_primary',
     type: 'boolean',
