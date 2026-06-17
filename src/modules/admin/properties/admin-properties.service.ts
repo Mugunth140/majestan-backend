@@ -79,7 +79,7 @@ export class AdminPropertiesService {
     const [
       propertyDetails,
       propertyLocations,
-      propertyAmenities,
+      propertyAmenitiesRaw,
       propertyUnits,
       propertyFiles,
       propertyImages,
@@ -93,6 +93,13 @@ export class AdminPropertiesService {
       record.propertyImages,
       record.faqs,
     ]);
+
+    const propertyAmenities = propertyAmenitiesRaw ? await Promise.all(
+      propertyAmenitiesRaw.map(async (pa) => {
+        const amenity = await pa.amenity;
+        return { ...pa, amenity };
+      })
+    ) : [];
 
     return {
       ...record,

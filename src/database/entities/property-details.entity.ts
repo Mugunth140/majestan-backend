@@ -89,6 +89,30 @@ export class PropertyDetails {
   @Column({ name: 'open_sides', type: 'int', default: 0 })
   openSides!: number;
 
+  @Column({ name: 'plot_length', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  plotLength!: string | null;
+
+  @Column({ name: 'plot_width', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  plotWidth!: string | null;
+
+  @Column({ name: 'boundary_wall', type: 'boolean', nullable: true })
+  boundaryWall!: boolean | null;
+
+  @Column({ name: 'suitable_for', type: 'varchar', length: 255, nullable: true })
+  suitableFor!: string | null;
+
+  @Column({ name: 'has_pantry', type: 'boolean', nullable: true })
+  hasPantry!: boolean | null;
+
+  @Column({ name: 'has_central_ac', type: 'boolean', nullable: true })
+  hasCentralAc!: boolean | null;
+
+  @Column({ name: 'ceiling_height_ft', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  ceilingHeightFt!: string | null;
+
+  @Column({ name: 'heavy_vehicle_access', type: 'boolean', nullable: true })
+  heavyVehicleAccess!: boolean | null;
+
   @OneToOne(() => Property, (property) => property.propertyDetails, {
     lazy: true,
     nullable: false,

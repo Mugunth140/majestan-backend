@@ -146,7 +146,7 @@ export class PropertiesService {
     return { items: mappedItems as any, total, page, limit };
   }
 
-  async details(propertyType: string, id: number): Promise<Property> {
+  async details(propertyType: string, id: number): Promise<Record<string, unknown>> {
     const property = await this.propertyRepository.findOne({
       where: { id, propertyType: propertyType as PropertyType, status: PropertyStatus.AVAILABLE },
       relations: [
@@ -165,11 +165,44 @@ export class PropertiesService {
       throw new NotFoundException('Property not found');
     }
 
-    const propertyImages = await property.propertyImages;
-    (property as any).propertyImages = this.storageService.resolveImageUrls(
-      propertyImages || []
-    );
-    return property;
+    const [
+      propertyDetails,
+      propertyLocations,
+      propertyAmenitiesRaw,
+      propertyUnits,
+      propertyFiles,
+      propertyImages,
+      faqs,
+    ] = await Promise.all([
+      property.propertyDetails,
+      property.propertyLocations,
+      property.propertyAmenities,
+      property.propertyUnits,
+      property.propertyFiles,
+      property.propertyImages,
+      property.faqs,
+    ]);
+
+    const propertyAmenities = propertyAmenitiesRaw ? await Promise.all(
+      propertyAmenitiesRaw.map(async (pa) => {
+        const amenity = await pa.amenity;
+        return { ...pa, amenity };
+      })
+    ) : [];
+
+    const resolvedImages = this.storageService.resolveImageUrls(propertyImages || []);
+
+    return {
+      ...property,
+      propertyDetails,
+      propertyLocations,
+      propertyAmenities,
+      propertyUnits,
+      propertyFiles,
+      propertyImages: resolvedImages,
+      images: resolvedImages,
+      faqs,
+    };
   }
 
   async detailsBySlug(slug: string): Promise<Record<string, unknown>> {
@@ -227,7 +260,7 @@ export class PropertiesService {
     const [
       propertyDetails,
       propertyLocations,
-      propertyAmenities,
+      propertyAmenitiesRaw,
       propertyUnits,
       propertyFiles,
       faqs,
@@ -241,6 +274,13 @@ export class PropertiesService {
       property.faqs,
       property.seo,
     ]);
+
+    const propertyAmenities = propertyAmenitiesRaw ? await Promise.all(
+      propertyAmenitiesRaw.map(async (pa) => {
+        const amenity = await pa.amenity;
+        return { ...pa, amenity };
+      })
+    ) : [];
 
     return {
       ...property,

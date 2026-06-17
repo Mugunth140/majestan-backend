@@ -23,6 +23,14 @@ class PropertyDetailsDto {
   @IsOptional() @IsString() powerBackup?: string;
   @IsOptional() @IsString() roadWidth?: string;
   @IsOptional() @IsNumber() openSides?: number;
+  @IsOptional() @IsNumber() plotLength?: number;
+  @IsOptional() @IsNumber() plotWidth?: number;
+  @IsOptional() @IsBoolean() boundaryWall?: boolean;
+  @IsOptional() @IsString() suitableFor?: string;
+  @IsOptional() @IsBoolean() hasPantry?: boolean;
+  @IsOptional() @IsBoolean() hasCentralAc?: boolean;
+  @IsOptional() @IsNumber() ceilingHeightFt?: number;
+  @IsOptional() @IsBoolean() heavyVehicleAccess?: boolean;
 }
 
 class PropertyLocationDto {
