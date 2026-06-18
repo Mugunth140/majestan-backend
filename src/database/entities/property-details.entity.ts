@@ -80,8 +80,8 @@ export class PropertyDetails {
   @Column({ name: 'water_supply', type: 'varchar', length: 255, nullable: true })
   waterSupply!: string | null;
 
-  @Column({ name: 'power_backup', type: 'varchar', length: 255, nullable: true })
-  powerBackup!: string | null;
+  @Column({ name: 'power_backup', type: 'boolean', nullable: true })
+  powerBackup!: boolean | null;
 
   @Column({ name: 'road_width', type: 'varchar', length: 100, nullable: true })
   roadWidth!: string | null;

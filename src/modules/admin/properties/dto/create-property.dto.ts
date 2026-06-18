@@ -20,7 +20,7 @@ class PropertyDetailsDto {
   @IsOptional() @IsString() propertyAge?: string;
   @IsOptional() @IsString() possessionStatus?: string;
   @IsOptional() @IsString() waterSupply?: string;
-  @IsOptional() @IsString() powerBackup?: string;
+  @IsOptional() @IsBoolean() powerBackup?: boolean;
   @IsOptional() @IsString() roadWidth?: string;
   @IsOptional() @IsNumber() openSides?: number;
   @IsOptional() @IsNumber() plotLength?: number;
