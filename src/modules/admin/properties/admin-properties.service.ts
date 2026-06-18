@@ -460,6 +460,20 @@ export class AdminPropertiesService {
         }
       }
 
+      // 6. Update FAQs
+      if (payload.faqs !== undefined) {
+        await queryRunner.manager.delete(PropertyFaq, { propertyId: id });
+        if (payload.faqs.length > 0) {
+          const faqs = payload.faqs.map(f => {
+            const pfaq = new PropertyFaq();
+            Object.assign(pfaq, f);
+            pfaq.propertyId = id;
+            return pfaq;
+          });
+          await queryRunner.manager.save(faqs);
+        }
+      }
+
       await queryRunner.commitTransaction();
       const prop = await this.details(propertyType, id);
       if (prop.slug) {

@@ -92,6 +92,7 @@ class PropertyFileDto {
 class PropertyFaqDto {
   @IsString() question!: string;
   @IsString() answer!: string;
+  @IsOptional() @IsString() section?: string;
 }
 
 export class CreatePropertyDto {

@@ -25,6 +25,9 @@ export class PropertyFaq {
   @Column({ name: 'answer', type: 'text', nullable: false })
   answer!: string;
 
+  @Column({ name: 'section', type: 'varchar', length: 100, nullable: false, default: 'overview' })
+  section!: string;
+
   @Column({
     name: 'sort_order',
     type: 'int',
