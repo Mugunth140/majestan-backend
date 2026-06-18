@@ -71,6 +71,27 @@ export class StorageService {
   }
 
   /**
+   * Deletes a single file from R2 by its key.
+   */
+  async deleteFile(key: string): Promise<void> {
+    if (!key || key.startsWith('http://') || key.startsWith('https://')) return;
+    try {
+      await this.s3Client.delete(key);
+    } catch (err) {
+      console.error(`[StorageService] Failed to delete R2 file: ${key}`, err);
+    }
+  }
+
+  /**
+   * Deletes multiple files from R2 in parallel by their keys.
+   */
+  async deleteFiles(keys: string[]): Promise<void> {
+    const validKeys = keys.filter(k => k && !k.startsWith('http://') && !k.startsWith('https://'));
+    if (validKeys.length === 0) return;
+    await Promise.all(validKeys.map(key => this.deleteFile(key)));
+  }
+
+  /**
    * Transforms an array of image objects by resolving their keys to signed read URLs.
    */
   resolveImageUrls<T extends { imageUrl?: string; imageKey?: string }>(images: T[]): T[] {

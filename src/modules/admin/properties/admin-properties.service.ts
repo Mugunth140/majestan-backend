@@ -293,7 +293,7 @@ export class AdminPropertiesService {
 
       await queryRunner.commitTransaction();
       if (savedProperty.slug) {
-        await this.triggerFrontendRevalidation(savedProperty.slug);
+        this.triggerFrontendRevalidation(savedProperty.slug);
       }
       return this.details(propertyType, savedProperty.id);
 
@@ -444,8 +444,13 @@ export class AdminPropertiesService {
         }
       }
 
-      // 5. Update Images
+      // 5. Update Images (diff-delete orphaned R2 files)
       if (payload.files !== undefined) {
+        const existingImages = await queryRunner.manager.find(PropertyImage, { where: { propertyId: id } });
+        const existingKeys = existingImages.map(img => img.imageKey).filter(Boolean) as string[];
+        const newKeys = payload.files.map(f => f.fileUrl);
+        const orphanedKeys = existingKeys.filter(k => !newKeys.includes(k));
+
         await queryRunner.manager.delete(PropertyImage, { propertyId: id });
         if (payload.files.length > 0) {
           const images = payload.files.map((f, idx) => {
@@ -457,6 +462,42 @@ export class AdminPropertiesService {
             return pi;
           });
           await queryRunner.manager.save(images);
+        }
+
+        // Delete orphaned R2 files after transaction data is safe
+        if (orphanedKeys.length > 0) {
+          this.storageService.deleteFiles(orphanedKeys).catch(err =>
+            console.error(`[AdminProperties] Failed to delete orphaned R2 images`, err)
+          );
+        }
+      }
+
+      // 5b. Update Units (floor plans) — diff-delete orphaned R2 files
+      if (payload.units !== undefined) {
+        const existingUnits = await queryRunner.manager.find(PropertyUnit, { where: { propertyId: id } });
+        const existingUnitKeys = existingUnits
+          .map(u => u.floorPlanImageKey)
+          .filter(Boolean) as string[];
+        const newUnitKeys = (payload.units || [])
+          .map(u => u.floorPlanImageKey)
+          .filter(Boolean) as string[];
+        const orphanedUnitKeys = existingUnitKeys.filter(k => !newUnitKeys.includes(k));
+
+        await queryRunner.manager.delete(PropertyUnit, { propertyId: id });
+        if (payload.units.length > 0) {
+          const units = payload.units.map(u => {
+            const pu = new PropertyUnit();
+            Object.assign(pu, u);
+            pu.propertyId = id;
+            return pu;
+          });
+          await queryRunner.manager.save(units);
+        }
+
+        if (orphanedUnitKeys.length > 0) {
+          this.storageService.deleteFiles(orphanedUnitKeys).catch(err =>
+            console.error(`[AdminProperties] Failed to delete orphaned R2 unit images`, err)
+          );
         }
       }
 
@@ -477,7 +518,7 @@ export class AdminPropertiesService {
       await queryRunner.commitTransaction();
       const prop = await this.details(propertyType, id);
       if (prop.slug) {
-        await this.triggerFrontendRevalidation(prop.slug);
+        this.triggerFrontendRevalidation(prop.slug);
       }
       return prop;
 
@@ -493,13 +534,29 @@ export class AdminPropertiesService {
     await this.dataSource.getRepository(Property).update({ id }, { status: status as PropertyStatus });
     const prop = await this.details(propertyType, id);
     if (prop.slug) {
-      await this.triggerFrontendRevalidation(prop.slug);
+      this.triggerFrontendRevalidation(prop.slug);
     }
     return prop;
   }
 
   async remove(propertyType: string, id: number) {
+    // Gather all R2 keys before deleting from DB
+    const [images, units] = await Promise.all([
+      this.dataSource.getRepository(PropertyImage).find({ where: { propertyId: id } }),
+      this.dataSource.getRepository(PropertyUnit).find({ where: { propertyId: id } }),
+    ]);
+    const imageKeys = images.map(img => img.imageKey).filter(Boolean) as string[];
+    const unitKeys = units.map(u => u.floorPlanImageKey).filter(Boolean) as string[];
+    const allKeys = [...imageKeys, ...unitKeys];
+
     await this.dataSource.getRepository(Property).delete({ id });
+
+    if (allKeys.length > 0) {
+      this.storageService.deleteFiles(allKeys).catch(err =>
+        console.error(`[AdminProperties] Failed to delete R2 files for property ${id}`, err)
+      );
+    }
+
     return { deleted: true, id };
   }
 
@@ -553,19 +610,17 @@ export class AdminPropertiesService {
     return { city, sublocation };
   }
 
-  private async triggerFrontendRevalidation(slug: string) {
+  private triggerFrontendRevalidation(slug: string) {
     const frontendUrl = process.env.FRONTEND_URL || 'http://147.93.168.178:3000';
-    try {
-      await fetch(`${frontendUrl}/api/revalidate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          slug, 
-          secret: process.env.REVALIDATE_SECRET || 'majestan-isr-secret' 
-        })
-      });
-    } catch (error) {
+    fetch(`${frontendUrl}/api/revalidate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        slug, 
+        secret: process.env.REVALIDATE_SECRET || 'majestan-isr-secret' 
+      })
+    }).catch(error => {
       console.error(`Failed to revalidate frontend for slug: ${slug}`, error);
-    }
+    });
   }
 }
