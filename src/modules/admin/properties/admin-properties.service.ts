@@ -201,6 +201,36 @@ export class AdminPropertiesService {
           powerBackup: payload.details.powerBackup,
           roadWidth: payload.details.roadWidth,
           openSides: payload.details.openSides ?? 0,
+          // Previously added fields
+          plotLength: payload.details.plotLength,
+          plotWidth: payload.details.plotWidth,
+          boundaryWall: payload.details.boundaryWall,
+          suitableFor: payload.details.suitableFor,
+          hasPantry: payload.details.hasPantry,
+          hasCentralAc: payload.details.hasCentralAc,
+          ceilingHeightFt: payload.details.ceilingHeightFt,
+          heavyVehicleAccess: payload.details.heavyVehicleAccess,
+          // Plot
+          plotSizeCents: payload.details.plotSizeCents,
+          // Coworking
+          minSeats: payload.details.minSeats,
+          rentPerSeat: payload.details.rentPerSeat,
+          privateCabins: payload.details.privateCabins,
+          meetingRooms: payload.details.meetingRooms,
+          availableWorkstations: payload.details.availableWorkstations,
+          hasRestroom: payload.details.hasRestroom,
+          // Commercial
+          floorsOccupied: payload.details.floorsOccupied,
+          // Industrial
+          truckParking: payload.details.truckParking,
+          carParking: payload.details.carParking,
+          bikeParking: payload.details.bikeParking,
+          coveredArea: payload.details.coveredArea,
+          openArea: payload.details.openArea,
+          floorType: payload.details.floorType,
+          powerSupplyHp: payload.details.powerSupplyHp,
+          // Apartment
+          guestParking: payload.details.guestParking,
         });
         details.propertyId = savedProperty.id;
         await queryRunner.manager.save(details);
@@ -355,6 +385,36 @@ export class AdminPropertiesService {
           powerBackup: payload.details.powerBackup,
           roadWidth: payload.details.roadWidth,
           openSides: payload.details.openSides ?? 0,
+          // Previously added fields
+          plotLength: payload.details.plotLength,
+          plotWidth: payload.details.plotWidth,
+          boundaryWall: payload.details.boundaryWall,
+          suitableFor: payload.details.suitableFor,
+          hasPantry: payload.details.hasPantry,
+          hasCentralAc: payload.details.hasCentralAc,
+          ceilingHeightFt: payload.details.ceilingHeightFt,
+          heavyVehicleAccess: payload.details.heavyVehicleAccess,
+          // Plot
+          plotSizeCents: payload.details.plotSizeCents,
+          // Coworking
+          minSeats: payload.details.minSeats,
+          rentPerSeat: payload.details.rentPerSeat,
+          privateCabins: payload.details.privateCabins,
+          meetingRooms: payload.details.meetingRooms,
+          availableWorkstations: payload.details.availableWorkstations,
+          hasRestroom: payload.details.hasRestroom,
+          // Commercial
+          floorsOccupied: payload.details.floorsOccupied,
+          // Industrial
+          truckParking: payload.details.truckParking,
+          carParking: payload.details.carParking,
+          bikeParking: payload.details.bikeParking,
+          coveredArea: payload.details.coveredArea,
+          openArea: payload.details.openArea,
+          floorType: payload.details.floorType,
+          powerSupplyHp: payload.details.powerSupplyHp,
+          // Apartment
+          guestParking: payload.details.guestParking,
         });
         details.propertyId = id;
         await queryRunner.manager.save(details);

@@ -31,6 +31,32 @@ class PropertyDetailsDto {
   @IsOptional() @IsBoolean() hasCentralAc?: boolean;
   @IsOptional() @IsNumber() ceilingHeightFt?: number;
   @IsOptional() @IsBoolean() heavyVehicleAccess?: boolean;
+
+  // Plot
+  @IsOptional() @IsNumber() plotSizeCents?: number;
+
+  // Coworking
+  @IsOptional() @IsNumber() minSeats?: number;
+  @IsOptional() @IsNumber() rentPerSeat?: number;
+  @IsOptional() @IsNumber() privateCabins?: number;
+  @IsOptional() @IsNumber() meetingRooms?: number;
+  @IsOptional() @IsNumber() availableWorkstations?: number;
+  @IsOptional() @IsBoolean() hasRestroom?: boolean;
+
+  // Commercial
+  @IsOptional() @IsArray() floorsOccupied?: string[];
+
+  // Industrial
+  @IsOptional() @IsNumber() truckParking?: number;
+  @IsOptional() @IsNumber() carParking?: number;
+  @IsOptional() @IsNumber() bikeParking?: number;
+  @IsOptional() @IsNumber() coveredArea?: number;
+  @IsOptional() @IsNumber() openArea?: number;
+  @IsOptional() @IsString() floorType?: string;
+  @IsOptional() @IsNumber() powerSupplyHp?: number;
+
+  // Apartment
+  @IsOptional() @IsBoolean() guestParking?: boolean;
 }
 
 class PropertyLocationDto {

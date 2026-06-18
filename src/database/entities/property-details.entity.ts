@@ -113,6 +113,59 @@ export class PropertyDetails {
   @Column({ name: 'heavy_vehicle_access', type: 'boolean', nullable: true })
   heavyVehicleAccess!: boolean | null;
 
+  // ── Plot ──────────────────────────────────────────────────────────────────
+  @Column({ name: 'plot_size_cents', type: 'decimal', precision: 12, scale: 4, nullable: true })
+  plotSizeCents!: string | null;
+
+  // ── Coworking ─────────────────────────────────────────────────────────────
+  @Column({ name: 'min_seats', type: 'int', nullable: true })
+  minSeats!: number | null;
+
+  @Column({ name: 'rent_per_seat', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  rentPerSeat!: string | null;
+
+  @Column({ name: 'private_cabins', type: 'int', nullable: true })
+  privateCabins!: number | null;
+
+  @Column({ name: 'meeting_rooms', type: 'int', nullable: true })
+  meetingRooms!: number | null;
+
+  @Column({ name: 'available_workstations', type: 'int', nullable: true })
+  availableWorkstations!: number | null;
+
+  @Column({ name: 'has_restroom', type: 'boolean', nullable: true })
+  hasRestroom!: boolean | null;
+
+  // ── Commercial ────────────────────────────────────────────────────────────
+  @Column({ name: 'floors_occupied', type: 'simple-json', nullable: true })
+  floorsOccupied!: string[] | null;
+
+  // ── Industrial ────────────────────────────────────────────────────────────
+  @Column({ name: 'truck_parking', type: 'int', nullable: true })
+  truckParking!: number | null;
+
+  @Column({ name: 'car_parking', type: 'int', nullable: true })
+  carParking!: number | null;
+
+  @Column({ name: 'bike_parking', type: 'int', nullable: true })
+  bikeParking!: number | null;
+
+  @Column({ name: 'covered_area', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  coveredArea!: string | null;
+
+  @Column({ name: 'open_area', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  openArea!: string | null;
+
+  @Column({ name: 'floor_type', type: 'varchar', length: 100, nullable: true })
+  floorType!: string | null;
+
+  @Column({ name: 'power_supply_hp', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  powerSupplyHp!: string | null;
+
+  // ── Apartment ─────────────────────────────────────────────────────────────
+  @Column({ name: 'guest_parking', type: 'boolean', nullable: true })
+  guestParking!: boolean | null;
+
   @OneToOne(() => Property, (property) => property.propertyDetails, {
     lazy: true,
     nullable: false,
