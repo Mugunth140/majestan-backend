@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min, IsNotEmpty } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min, IsNotEmpty, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PropertyType, PropertyStatus } from '../../../../database/entities/property.entity';
 
@@ -86,6 +86,7 @@ class PropertyUnitDto {
 class PropertyFileDto {
   @IsString() fileType!: string; // BROCHURE, LEGAL_DOC, etc.
   @IsString() fileUrl!: string;
+  @IsOptional() @IsString() fileKey?: string; // R2 object key (separate from public URL)
   @IsOptional() @IsString() title?: string;
 }
 
@@ -101,7 +102,7 @@ export class CreatePropertyDto {
   @IsString() title!: string;
   @IsString() description!: string;
   @IsString() price!: string;
-  @IsOptional() @IsEnum(['Sell', 'Rent']) listingType?: 'Sell' | 'Rent';
+  @IsOptional() @IsIn(['Sell', 'Rent']) listingType?: 'Sell' | 'Rent';
   @IsOptional() @IsString() builderName?: string;
   
   @IsOptional() @IsString() propertyCondition?: string;

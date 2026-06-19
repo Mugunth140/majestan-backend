@@ -63,18 +63,15 @@ export class AdminSeoService {
   }
 
   async upsertPropertySeo(propertyId: number, dto: UpsertPropertySeoDto): Promise<PropertySeo> {
-    const propertyRepo = this.dataSource.getRepository(Property);
-    const seoRepo = this.dataSource.getRepository(PropertySeo);
-
-    const property = await propertyRepo.findOne({ where: { id: propertyId } });
+    const property = await this.dataSource.getRepository(Property).findOne({ where: { id: propertyId } });
     if (!property) {
       throw new NotFoundException(`Property with ID ${propertyId} not found`);
     }
 
-    // Find or create SEO row
-    let seo = await seoRepo.findOne({ where: { propertyId } });
+    // Find or create SEO row outside transaction to allow merge
+    let seo = await this.dataSource.getRepository(PropertySeo).findOne({ where: { propertyId } });
     if (!seo) {
-      seo = seoRepo.create({ propertyId, seoData: {} });
+      seo = this.dataSource.getRepository(PropertySeo).create({ propertyId, seoData: {} });
     }
 
     // Deep-merge section data into existing seoData
@@ -95,10 +92,10 @@ export class AdminSeoService {
     if (verificationStatus !== undefined) {
       seo.verificationStatus = verificationStatus;
     }
+
+    let statusChanged = false;
     if (approvalStatus !== undefined) {
       seo.approvalStatus = approvalStatus;
-      
-      let statusChanged = false;
       if (approvalStatus === 'published' && property.status !== PropertyStatus.AVAILABLE) {
         property.status = PropertyStatus.AVAILABLE;
         statusChanged = true;
@@ -106,13 +103,15 @@ export class AdminSeoService {
         property.status = PropertyStatus.UNAVAILABLE;
         statusChanged = true;
       }
-      
-      if (statusChanged) {
-        await propertyRepo.save(property);
-      }
     }
 
-    const saved = await seoRepo.save(seo);
+    // Wrap both saves atomically
+    const saved = await this.dataSource.transaction(async (manager) => {
+      if (statusChanged) {
+        await manager.save(property);
+      }
+      return manager.save(seo!);
+    });
 
     // Trigger frontend revalidation if property has a slug
     if (property.slug) {
@@ -123,7 +122,11 @@ export class AdminSeoService {
   }
 
   private async triggerFrontendRevalidation(slug: string) {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://147.93.168.178:3000';
+    const frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+      console.warn('[AdminSeo] FRONTEND_URL is not set — skipping ISR revalidation');
+      return;
+    }
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);

@@ -107,16 +107,26 @@ export class PropertiesService {
       qb.andWhere('p.city = :location', { location: query.location });
     }
 
-    // Example range filters
+    // Parameterized price range filters (prevent SQL injection)
     if (query.priceRanges && query.priceRanges.length > 0) {
-      const priceFilters = query.priceRanges.map((range, index) => {
-        const [min, max] = range.split('-');
-        if (max) {
-          return `(CAST(p.price AS DECIMAL(12,2)) >= ${min} AND CAST(p.price AS DECIMAL(12,2)) <= ${max})`;
+      const priceConditions: string[] = [];
+      query.priceRanges.forEach((range, index) => {
+        const parts = range.split('-');
+        const min = parseFloat(parts[0]);
+        const max = parts[1] !== undefined ? parseFloat(parts[1]) : null;
+        if (!isFinite(min)) return; // skip malformed entries
+        if (max !== null && isFinite(max)) {
+          priceConditions.push(`(CAST(p.price AS DECIMAL(12,2)) >= :prMin${index} AND CAST(p.price AS DECIMAL(12,2)) <= :prMax${index})`);
+          qb.setParameter(`prMin${index}`, min);
+          qb.setParameter(`prMax${index}`, max);
+        } else {
+          priceConditions.push(`CAST(p.price AS DECIMAL(12,2)) >= :prMin${index}`);
+          qb.setParameter(`prMin${index}`, min);
         }
-        return `CAST(p.price AS DECIMAL(12,2)) >= ${min}`;
       });
-      qb.andWhere(`(${priceFilters.join(' OR ')})`);
+      if (priceConditions.length > 0) {
+        qb.andWhere(`(${priceConditions.join(' OR ')})`);
+      }
     }
 
     if (query.sort === PropertySortOption.PriceLowToHigh) {

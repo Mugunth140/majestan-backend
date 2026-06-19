@@ -1,11 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, S3File } from 'bun';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
-
-// Force load the .env file in case ConfigModule failed
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 @Injectable()
 export class StorageService {

@@ -47,10 +47,11 @@ export class AdminPropertiesService {
     const [data, total] = await qb.getManyAndCount();
     
     const mappedData = await Promise.all(data.map(async p => {
-      const images = await p.propertyImages;
+      // TypeORM leftJoinAndSelect populates the relation, but it's still wrapped in a Promise
+      const images = await p.propertyImages || [];
       return {
         ...p,
-        propertyImages: this.storageService.resolveImageUrls(images || [])
+        propertyImages: this.storageService.resolveImageUrls(images)
       };
     }));
 
@@ -273,7 +274,7 @@ export class AdminPropertiesService {
           const pi = new PropertyImage();
           pi.propertyId = savedProperty.id;
           pi.imageUrl = f.fileUrl;
-          pi.imageKey = f.fileUrl;
+          pi.imageKey = f.fileKey ?? f.fileUrl; // prefer explicit R2 key
           pi.isPrimary = idx === 0;
           return pi;
         });
@@ -457,7 +458,7 @@ export class AdminPropertiesService {
             const pi = new PropertyImage();
             pi.propertyId = id;
             pi.imageUrl = f.fileUrl;
-            pi.imageKey = f.fileUrl;
+            pi.imageKey = f.fileKey ?? f.fileUrl; // prefer explicit R2 key
             pi.isPrimary = idx === 0;
             return pi;
           });
@@ -549,7 +550,10 @@ export class AdminPropertiesService {
     const unitKeys = units.map(u => u.floorPlanImageKey).filter(Boolean) as string[];
     const allKeys = [...imageKeys, ...unitKeys];
 
-    await this.dataSource.getRepository(Property).delete({ id });
+    const result = await this.dataSource.getRepository(Property).delete({ id });
+    if (!result.affected || result.affected === 0) {
+      throw new NotFoundException(`Property with ID ${id} not found`);
+    }
 
     if (allKeys.length > 0) {
       this.storageService.deleteFiles(allKeys).catch(err =>
@@ -611,16 +615,26 @@ export class AdminPropertiesService {
   }
 
   private triggerFrontendRevalidation(slug: string) {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://147.93.168.178:3000';
+    const frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+      console.warn('[AdminProperties] FRONTEND_URL is not set — skipping ISR revalidation');
+      return;
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
     fetch(`${frontendUrl}/api/revalidate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        slug, 
-        secret: process.env.REVALIDATE_SECRET || 'majestan-isr-secret' 
-      })
-    }).catch(error => {
-      console.error(`Failed to revalidate frontend for slug: ${slug}`, error);
-    });
+      body: JSON.stringify({
+        slug,
+        secret: process.env.REVALIDATE_SECRET || 'majestan-isr-secret',
+      }),
+      signal: controller.signal as any,
+    })
+      .then(() => clearTimeout(timeoutId))
+      .catch(error => {
+        clearTimeout(timeoutId);
+        console.error(`Failed to revalidate frontend for slug: ${slug}`, error);
+      });
   }
 }
