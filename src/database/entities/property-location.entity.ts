@@ -45,6 +45,9 @@ export class PropertyLocation {
   @Column({ name: 'longitude', type: 'decimal', precision: 10, scale: 7, nullable: true })
   longitude!: number | null;
 
+  @Column({ name: 'locality_data', type: 'json', nullable: true })
+  localityData!: any | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

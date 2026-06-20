@@ -259,25 +259,37 @@ export class AdminPropertiesService {
 
       // 5. Create Units
       if (payload.units && payload.units.length > 0) {
-        const units = payload.units.map(u => {
+        const units = await Promise.all(payload.units.map(async u => {
+          let finalKey = u.floorPlanImageKey;
+          if (finalKey && finalKey.includes('uploads/temp/')) {
+            finalKey = await this.storageService.processAndUploadImage(finalKey);
+            u.floorPlanImageKey = finalKey;
+            u.floorPlanImageUrl = finalKey;
+          }
           const pu = new PropertyUnit();
           Object.assign(pu, u);
           pu.propertyId = savedProperty.id;
           return pu;
-        });
+        }));
         await queryRunner.manager.save(units);
       }
 
       // 6. Create Images
       if (payload.files && payload.files.length > 0) {
-        const images = payload.files.map((f, idx) => {
+        const images = await Promise.all(payload.files.map(async (f, idx) => {
+          let finalKey = f.fileKey ?? f.fileUrl;
+          
+          if (finalKey && finalKey.includes('uploads/temp/')) {
+            finalKey = await this.storageService.processAndUploadImage(finalKey);
+          }
+          
           const pi = new PropertyImage();
           pi.propertyId = savedProperty.id;
-          pi.imageUrl = f.fileUrl;
-          pi.imageKey = f.fileKey ?? f.fileUrl; // prefer explicit R2 key
+          pi.imageKey = finalKey;
+          pi.imageUrl = finalKey; // Assuming frontend uses the key and storage service resolves it
           pi.isPrimary = idx === 0;
           return pi;
-        });
+        }));
         await queryRunner.manager.save(images);
       }
 
@@ -449,19 +461,23 @@ export class AdminPropertiesService {
       if (payload.files !== undefined) {
         const existingImages = await queryRunner.manager.find(PropertyImage, { where: { propertyId: id } });
         const existingKeys = existingImages.map(img => img.imageKey).filter(Boolean) as string[];
-        const newKeys = payload.files.map(f => f.fileUrl);
-        const orphanedKeys = existingKeys.filter(k => !newKeys.includes(k));
+        const requestedKeys = payload.files.map(f => f.fileKey ?? f.fileUrl);
+        const orphanedKeys = existingKeys.filter(k => !requestedKeys.includes(k));
 
         await queryRunner.manager.delete(PropertyImage, { propertyId: id });
         if (payload.files.length > 0) {
-          const images = payload.files.map((f, idx) => {
+          const images = await Promise.all(payload.files.map(async (f, idx) => {
+            let finalKey = f.fileKey ?? f.fileUrl;
+            if (finalKey && finalKey.includes('uploads/temp/')) {
+              finalKey = await this.storageService.processAndUploadImage(finalKey);
+            }
             const pi = new PropertyImage();
             pi.propertyId = id;
-            pi.imageUrl = f.fileUrl;
-            pi.imageKey = f.fileKey ?? f.fileUrl; // prefer explicit R2 key
+            pi.imageKey = finalKey;
+            pi.imageUrl = finalKey;
             pi.isPrimary = idx === 0;
             return pi;
-          });
+          }));
           await queryRunner.manager.save(images);
         }
 
@@ -486,12 +502,18 @@ export class AdminPropertiesService {
 
         await queryRunner.manager.delete(PropertyUnit, { propertyId: id });
         if (payload.units.length > 0) {
-          const units = payload.units.map(u => {
+          const units = await Promise.all(payload.units.map(async u => {
+            let finalKey = u.floorPlanImageKey;
+            if (finalKey && finalKey.includes('uploads/temp/')) {
+              finalKey = await this.storageService.processAndUploadImage(finalKey);
+              u.floorPlanImageKey = finalKey;
+              u.floorPlanImageUrl = finalKey;
+            }
             const pu = new PropertyUnit();
             Object.assign(pu, u);
             pu.propertyId = id;
             return pu;
-          });
+          }));
           await queryRunner.manager.save(units);
         }
 
@@ -615,7 +637,7 @@ export class AdminPropertiesService {
   }
 
   private triggerFrontendRevalidation(slug: string) {
-    const frontendUrl = process.env.FRONTEND_URL;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     if (!frontendUrl) {
       console.warn('[AdminProperties] FRONTEND_URL is not set — skipping ISR revalidation');
       return;

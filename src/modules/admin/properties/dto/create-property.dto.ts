@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min, IsNotEmpty, IsIn } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsObject, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min, IsNotEmpty, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PropertyType, PropertyStatus } from '../../../../database/entities/property.entity';
 
@@ -67,6 +67,7 @@ class PropertyLocationDto {
   @IsOptional() @IsString() pincode?: string;
   @IsOptional() @IsNumber() latitude?: number;
   @IsOptional() @IsNumber() longitude?: number;
+  @IsOptional() @IsObject() localityData?: any;
 }
 
 class PropertyAmenityDto {

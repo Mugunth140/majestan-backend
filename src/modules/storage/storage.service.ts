@@ -30,7 +30,7 @@ export class StorageService {
    * using Bun's native high-performance S3 client.
    */
   async generatePresignedUrl(fileName: string, fileType: string): Promise<{ url: string; key: string }> {
-    const key = `uploads/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    const key = `uploads/temp/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     
     // URL expires in 15 minutes (900 seconds)
     const url = this.s3Client.presign(key, {
@@ -84,6 +84,53 @@ export class StorageService {
     const validKeys = keys.filter(k => k && !k.startsWith('http://') && !k.startsWith('https://'));
     if (validKeys.length === 0) return;
     await Promise.all(validKeys.map(key => this.deleteFile(key)));
+  }
+
+  /**
+   * Processes an image via imgproxy and uploads the optimized webp to R2 final destination.
+   */
+  async processAndUploadImage(originalKey: string): Promise<string> {
+    if (!originalKey.includes('uploads/temp/')) return originalKey;
+
+    const publicUrl = process.env.R2_PUBLIC_URL || this.configService.get<string>('R2_PUBLIC_URL');
+    if (!publicUrl) {
+      console.warn('[StorageService] R2_PUBLIC_URL missing. Skipping imgproxy.');
+      return originalKey;
+    }
+    
+    const baseUrl = publicUrl.endsWith('/') ? publicUrl.slice(0, -1) : publicUrl;
+    const fileUrl = `${baseUrl}/${originalKey}`;
+
+    // Compress, webp, and watermark. 
+    // Watermark uses 1 opacity since SVG has its own opacity, centered (ce), scale 0.8 to make it large
+    const processingString = 'rs:fit:1920:1080:0/q:85/wm:1:ce:0:0:0.8/format:webp';
+    const imgproxyUrl = `http://imgproxy:8080/insecure/${processingString}/plain/${fileUrl}`;
+
+    try {
+      const response = await fetch(imgproxyUrl);
+      if (!response.ok) {
+        throw new Error(`Imgproxy failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const buffer = await response.arrayBuffer();
+      
+      // Construct new key: move from uploads/temp/ to uploads/properties/ and change extension to .webp
+      const filename = originalKey.split('/').pop() || Date.now().toString();
+      const finalKey = `uploads/properties/${filename.replace(/\.[^/.]+$/, "")}.webp`;
+      
+      await this.s3Client.write(finalKey, buffer, {
+        type: 'image/webp'
+      });
+
+      // Fire and forget delete of the raw original temp file
+      this.deleteFile(originalKey).catch(console.error);
+
+      return finalKey;
+    } catch (err) {
+      console.error(`[StorageService] Failed to process image ${originalKey} via imgproxy`, err);
+      // Fallback: if imgproxy fails, just use the original temp file
+      return originalKey;
+    }
   }
 
   /**

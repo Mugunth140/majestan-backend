@@ -5,6 +5,7 @@ import {
   Param,
   ParseIntPipe,
   Put,
+  Post,
 } from '@nestjs/common';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { AppRole } from '../../../common/enums/app-role.enum';
@@ -32,5 +33,10 @@ export class AdminSeoController {
     @Body() dto: UpsertPropertySeoDto,
   ) {
     return this.adminSeoService.upsertPropertySeo(id, dto);
+  }
+
+  @Post('properties/:id/generate-locality')
+  async generateLocality(@Param('id', ParseIntPipe) id: number) {
+    return this.adminSeoService.generateLocalityData(id);
   }
 }

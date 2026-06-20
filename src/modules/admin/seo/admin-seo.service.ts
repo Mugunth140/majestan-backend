@@ -1,12 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { Property, PropertyStatus } from '../../../database/entities/property.entity';
+import { PropertyLocation } from '../../../database/entities/property-location.entity';
 import { PropertySeo } from '../../../database/entities/property-seo.entity';
 import { UpsertPropertySeoDto } from './dto/upsert-property-seo.dto';
+import { LocalityService } from './locality.service';
 
 @Injectable()
 export class AdminSeoService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(private readonly dataSource: DataSource, private localityService: LocalityService) {}
 
   async getPropertySeoList() {
     const properties = await this.dataSource
@@ -122,7 +124,7 @@ export class AdminSeoService {
   }
 
   private async triggerFrontendRevalidation(slug: string) {
-    const frontendUrl = process.env.FRONTEND_URL;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     if (!frontendUrl) {
       console.warn('[AdminSeo] FRONTEND_URL is not set — skipping ISR revalidation');
       return;
@@ -143,5 +145,31 @@ export class AdminSeoService {
     } catch (error) {
       console.error(`Failed to revalidate frontend for slug: ${slug}`, error);
     }
+  }
+
+  async generateLocalityData(propertyId: number): Promise<PropertySeo> {
+    const loc = await this.dataSource.getRepository(PropertyLocation).findOne({ where: { propertyId } });
+    if (!loc || !loc.latitude || !loc.longitude) {
+      throw new BadRequestException('Property location does not have latitude and longitude set. Please update it in the properties wizard first.');
+    }
+
+    const places = await this.localityService.fetchNearbyPlaces(Number(loc.latitude), Number(loc.longitude));
+
+    // Find or create SEO row
+    let seo = await this.dataSource.getRepository(PropertySeo).findOne({ where: { propertyId } });
+    if (!seo) {
+      seo = this.dataSource.getRepository(PropertySeo).create({ propertyId, seoData: {} });
+    }
+
+    const existingData = seo.seoData || {};
+    seo.seoData = {
+      ...existingData,
+      locality: {
+        ...(existingData.locality || {}),
+        categories: places
+      }
+    };
+
+    return this.dataSource.getRepository(PropertySeo).save(seo);
   }
 }

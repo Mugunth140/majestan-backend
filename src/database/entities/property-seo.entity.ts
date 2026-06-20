@@ -23,6 +23,7 @@ export interface SeoPageData {
   content_education?: string;
   content_healthcare?: string;
   content_shopping?: string;
+  categories?: any[];
 }
 
 export interface PropertySeoData {
