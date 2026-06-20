@@ -57,6 +57,10 @@ class PropertyDetailsDto {
 
   // Apartment
   @IsOptional() @IsBoolean() guestParking?: boolean;
+
+  // Floor Plans & Rooms
+  @IsOptional() @IsArray() roomDimensions?: any[];
+  @IsOptional() @IsArray() floorPlanImages?: any[];
 }
 
 class PropertyLocationDto {

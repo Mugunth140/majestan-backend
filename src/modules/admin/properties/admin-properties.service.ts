@@ -232,7 +232,23 @@ export class AdminPropertiesService {
           powerSupplyHp: payload.details.powerSupplyHp,
           // Apartment
           guestParking: payload.details.guestParking,
+          // Floor Plans & Rooms
+          roomDimensions: payload.details.roomDimensions,
         });
+
+        if (payload.details.floorPlanImages && payload.details.floorPlanImages.length > 0) {
+          const processedImages = await Promise.all(payload.details.floorPlanImages.map(async img => {
+            let finalKey = img.imageKey;
+            if (finalKey && finalKey.includes('uploads/temp/')) {
+              finalKey = await this.storageService.processAndUploadImage(finalKey);
+              img.imageKey = finalKey;
+              img.imageUrl = finalKey;
+            }
+            return img;
+          }));
+          details.floorPlanImages = processedImages;
+        }
+
         details.propertyId = savedProperty.id;
         await queryRunner.manager.save(details);
       }
@@ -375,6 +391,9 @@ export class AdminPropertiesService {
 
       // 2. Update Details
       if (payload.details) {
+        const existingDetails = await queryRunner.manager.findOne(PropertyDetails, { where: { propertyId: id } });
+        const existingFloorPlanKeys = existingDetails?.floorPlanImages?.map(img => img.imageKey).filter(Boolean) || [];
+        
         await queryRunner.manager.delete(PropertyDetails, { propertyId: id });
         const details = new PropertyDetails();
         Object.assign(details, {
@@ -428,9 +447,35 @@ export class AdminPropertiesService {
           powerSupplyHp: payload.details.powerSupplyHp,
           // Apartment
           guestParking: payload.details.guestParking,
+          // Floor Plans & Rooms
+          roomDimensions: payload.details.roomDimensions,
         });
+
+        if (payload.details.floorPlanImages) {
+          const processedImages = await Promise.all(payload.details.floorPlanImages.map(async img => {
+            let finalKey = img.imageKey;
+            if (finalKey && finalKey.includes('uploads/temp/')) {
+              finalKey = await this.storageService.processAndUploadImage(finalKey);
+              img.imageKey = finalKey;
+              img.imageUrl = finalKey;
+            }
+            return img;
+          }));
+          details.floorPlanImages = processedImages;
+        }
+
         details.propertyId = id;
         await queryRunner.manager.save(details);
+
+        if (payload.details.floorPlanImages) {
+          const newFloorPlanKeys = details.floorPlanImages?.map(img => img.imageKey).filter(Boolean) || [];
+          const orphanedFloorPlanKeys = existingFloorPlanKeys.filter(k => !newFloorPlanKeys.includes(k));
+          if (orphanedFloorPlanKeys.length > 0) {
+            this.storageService.deleteFiles(orphanedFloorPlanKeys).catch(err =>
+              console.error(`[AdminProperties] Failed to delete orphaned R2 floor plan images`, err)
+            );
+          }
+        }
       }
 
       // 3. Update Location

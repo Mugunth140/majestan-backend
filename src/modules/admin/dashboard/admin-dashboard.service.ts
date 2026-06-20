@@ -132,6 +132,7 @@ export class AdminDashboardService {
       queryBuilder.where(whereClause);
     }
 
-    return queryBuilder.getCount();
+    const result = await queryBuilder.select('COUNT(*)', 'cnt').getRawOne();
+    return parseInt(result?.cnt || '0', 10);
   }
 }

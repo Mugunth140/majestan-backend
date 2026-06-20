@@ -166,6 +166,13 @@ export class PropertyDetails {
   @Column({ name: 'guest_parking', type: 'boolean', nullable: true })
   guestParking!: boolean | null;
 
+  // ── Floor Plans & Rooms ───────────────────────────────────────────────────
+  @Column({ name: 'room_dimensions', type: 'simple-json', nullable: true })
+  roomDimensions!: { name: string; dimensions: string }[] | null;
+
+  @Column({ name: 'floor_plan_images', type: 'simple-json', nullable: true })
+  floorPlanImages!: { title: string; imageUrl: string; imageKey: string }[] | null;
+
   @OneToOne(() => Property, (property) => property.propertyDetails, {
     lazy: true,
     nullable: false,
