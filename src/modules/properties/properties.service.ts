@@ -292,6 +292,12 @@ export class PropertiesService {
       })
     ) : [];
 
+    if (propertyDetails?.floorPlanImages) {
+      propertyDetails.floorPlanImages = this.storageService.resolveImageUrls(
+        propertyDetails.floorPlanImages as any
+      );
+    }
+
     return {
       ...property,
       propertyDetails,

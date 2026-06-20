@@ -102,6 +102,12 @@ export class AdminPropertiesService {
       })
     ) : [];
 
+    if (propertyDetails?.floorPlanImages) {
+      propertyDetails.floorPlanImages = this.storageService.resolveImageUrls(
+        propertyDetails.floorPlanImages as any
+      );
+    }
+
     return {
       ...record,
       propertyDetails,
