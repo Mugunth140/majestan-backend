@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/site-backend
+  IMAGE_NAME: mugunth140/site-backend
 
 jobs:
   build-and-push:
