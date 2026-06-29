@@ -47,4 +47,4 @@ jobs:
             echo "${{ secrets.GH_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker pull ghcr.io/${{ env.IMAGE_NAME }}:latest
             # Update the specific service in the site stack
-            docker service update --with-registry-auth --image ghcr.io/${{ env.IMAGE_NAME }}:latest site_backend
+            docker service update --with-registry-auth --image ghcr.io/${{ env.IMAGE_NAME }}:latest site_site-backend
