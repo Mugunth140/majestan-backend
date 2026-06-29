@@ -2,7 +2,7 @@ name: Deploy Site Backend
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 env:
   REGISTRY: ghcr.io
