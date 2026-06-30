@@ -37,7 +37,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Execute Swarm Rolling Update via SSH
+      - name: Deploy site stack via compose
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -45,6 +45,6 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             echo "${{ secrets.GH_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker pull ghcr.io/${{ env.IMAGE_NAME }}:latest
-            # Update the specific service in the site stack
-            docker service update --with-registry-auth --image ghcr.io/${{ env.IMAGE_NAME }}:latest site_site-backend
+            cd ${{ secrets.SERVER_REPO_PATH }}
+            git pull
+            ./scripts/deploy.sh site
