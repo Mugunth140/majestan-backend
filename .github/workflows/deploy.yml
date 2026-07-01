@@ -37,14 +37,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy site stack via compose
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            echo "${{ secrets.GH_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            cd ${{ secrets.SERVER_PATH }}
-            docker compose -f site-compose.yml --env-file .env pull
-            docker compose -f site-compose.yml --env-file .env up -d --no-build --remove-orphans
+      - name: Trigger VPS Webhook
+        run: |
+          curl -X POST "http://${{ secrets.VPS_IP }}:9000/hooks/deploy-majestan" \
+               -H "X-Deploy-Token: ${{ secrets.WEBHOOK_SECRET }}"
