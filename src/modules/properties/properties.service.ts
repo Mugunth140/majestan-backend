@@ -46,6 +46,7 @@ import { AdminPropertiesService } from '../admin/properties/admin-properties.ser
 import { CreatePropertyDto } from '../admin/properties/dto/create-property.dto';
 import { DataSource } from 'typeorm';
 import { StorageService } from '../storage/storage.service';
+import { SearchService } from '../search/search.service';
 
 @Injectable()
 export class PropertiesService {
@@ -55,6 +56,7 @@ export class PropertiesService {
     private readonly adminPropertiesService: AdminPropertiesService,
     private readonly dataSource: DataSource,
     private readonly storageService: StorageService,
+    private readonly searchService: SearchService,
   ) {}
 
   async getFormData() {
@@ -83,6 +85,32 @@ export class PropertiesService {
   }
 
   async search(query: PropertySearchQueryDto): Promise<SearchResult> {
+    if (this.searchService?.isEnabled() && query.propertyName && query.propertyName.trim().length >= 2) {
+      try {
+        const dbPropertyType = query.propertyType ? normalizePropertyType(query.propertyType as string) : undefined;
+        const meili = await this.searchService.search(query.propertyName, { propertyType: dbPropertyType, listingType: query.listingType, city: query.location || query.city }, query.page || 1, query.limit || 10);
+        if (meili.hits.length > 0) {
+          const ids = meili.hits.map((h: any) => h.id);
+          const props = await this.propertyRepository.createQueryBuilder('p')
+            .leftJoinAndSelect('p.propertyDetails', 'details')
+            .leftJoinAndSelect('p.propertyLocations', 'locations')
+            .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
+            .leftJoinAndSelect('p.propertyUnits', 'units')
+            .where('p.id IN (:...ids)', { ids })
+            .andWhere('p.status = :status', { status: PropertyStatus.AVAILABLE })
+            .getMany();
+          const byId = new Map(props.map((p) => [p.id, p]));
+          const ordered = ids.map((id: number) => byId.get(id)).filter(Boolean) as Property[];
+          const mappedItems = await Promise.all(ordered.map(async (p) => {
+            const images = await p.propertyImages;
+            return { ...p, propertyImages: this.storageService.resolveImageUrls(images || []), images: this.storageService.resolveImageUrls(images || []), canonicalSlug: p.slug ? p.slug : null };
+          }));
+          return { items: mappedItems as any, total: meili.total, page: query.page || 1, limit: query.limit || 10 };
+        }
+        if (meili.total === 0) return { items: [], total: 0, page: query.page || 1, limit: query.limit || 10 };
+      } catch {}
+    }
+
     const qb = this.propertyRepository.createQueryBuilder('p')
       .leftJoinAndSelect('p.propertyDetails', 'details')
       .leftJoinAndSelect('p.propertyLocations', 'locations')

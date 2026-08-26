@@ -15,12 +15,14 @@ import { generateSeoSlug, normalizeSeoSlug, getPropertyTypeCode, enforceSlugSuff
 import { Sublocation } from '../../../database/entities/sublocation.entity';
 import { City } from '../../../database/entities/city.entity';
 import { StorageService } from '../../storage/storage.service';
+import { SearchService } from '../../search/search.service';
 
 @Injectable()
 export class AdminPropertiesService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly storageService: StorageService,
+    private readonly searchService: SearchService,
   ) {}
 
   async list(propertyType: string, query: AdminPropertyQueryDto) {
@@ -330,6 +332,7 @@ export class AdminPropertiesService {
       if (savedProperty.slug) {
         this.triggerFrontendRevalidation(savedProperty.slug);
       }
+      this.searchService.indexProperty(savedProperty.id).catch(() => {});
       return this.details(propertyType, savedProperty.id);
 
     } catch (err) {
@@ -594,6 +597,7 @@ export class AdminPropertiesService {
       if (prop.slug) {
         this.triggerFrontendRevalidation(prop.slug);
       }
+      this.searchService.indexProperty(id).catch(() => {});
       return prop;
 
     } catch (err) {
@@ -610,6 +614,7 @@ export class AdminPropertiesService {
     if (prop.slug) {
       this.triggerFrontendRevalidation(prop.slug);
     }
+    this.searchService.indexProperty(id).catch(() => {});
     return prop;
   }
 
@@ -634,6 +639,7 @@ export class AdminPropertiesService {
       );
     }
 
+    this.searchService.deleteProperty(id).catch(() => {});
     return { deleted: true, id };
   }
 

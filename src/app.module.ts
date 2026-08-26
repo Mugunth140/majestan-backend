@@ -11,6 +11,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import appConfig from './config/app.config';
 import authConfig from './config/auth.config';
 import databaseConfig from './config/database.config';
+import meilisearchConfig from './config/meilisearch.config';
 import { envValidationSchema } from './config/env.validation';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -28,6 +29,7 @@ import { LeadsModule } from './modules/leads/leads.module';
 import { MetadataModule } from './modules/metadata/metadata.module';
 import { HomeModule } from './modules/home/home.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { SearchModule } from './modules/search/search.module';
 import { RootController } from './root.controller';
 
 @Module({
@@ -35,7 +37,7 @@ import { RootController } from './root.controller';
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      load: [appConfig, authConfig, databaseConfig],
+      load: [appConfig, authConfig, databaseConfig, meilisearchConfig],
       validationSchema: envValidationSchema,
     }),
     ThrottlerModule.forRootAsync({
@@ -84,6 +86,7 @@ import { RootController } from './root.controller';
     HomeModule,
     AdminModule,
     StorageModule,
+    SearchModule,
   ],
   controllers: [RootController],
   providers: [
