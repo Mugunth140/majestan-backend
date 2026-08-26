@@ -36,13 +36,16 @@ export class SearchService implements OnModuleInit {
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {
     const host = this.configService.get<string>('meilisearch.host') || process.env.MEILI_HOST || '';
-    const apiKey = this.configService.get<string>('meilisearch.apiKey') || process.env.MEILI_MASTER_KEY || '';
+    const apiKey = this.configService.get<string>('meilisearch.apiKey') || process.env.MEILI_MASTER_KEY || process.env.MEILI_API_KEY || '';
     if (host) {
+      if (!apiKey) {
+        this.logger.warn('Meilisearch enabled but MEILI_MASTER_KEY is empty — server with --master-key requires Bearer auth. Set same key in infra/.env and site/.env / site/majestan-backend/.env then restart both services.');
+      }
       try {
         this.client = new Meilisearch({ host, apiKey: apiKey || undefined });
         this.enabled = true;
         this.index = this.client.index<PropertyDocument>(INDEX_NAME);
-        this.logger.log(`Meilisearch enabled host=${host}`);
+        this.logger.log(`Meilisearch enabled host=${host} key=${apiKey ? '***' + apiKey.slice(-4) : 'none'}`);
       } catch (e) {
         this.logger.warn(`Meilisearch init failed: ${(e as Error).message}`);
       }
@@ -75,7 +78,12 @@ export class SearchService implements OnModuleInit {
       });
       this.logger.log(`Meilisearch index ${INDEX_NAME} ready`);
     } catch (e) {
-      this.logger.warn(`ensureIndex error: ${(e as Error).message}`);
+      const msg = (e as any)?.message || String(e);
+      if (msg.includes('Authorization header is missing')) {
+        this.logger.warn(`ensureIndex error: ${msg} — MEILI_MASTER_KEY mismatch or not sent. Ensure infra/.env and site/.env have same hex key and restart: infra: docker compose up -d meilisearch && site: docker compose up -d site-backend (or bun run start:dev).`);
+      } else {
+        this.logger.warn(`ensureIndex error: ${msg}`);
+      }
     }
   }
 
