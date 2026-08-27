@@ -119,8 +119,9 @@ export class StorageService {
       const filename = originalKey.split('/').pop() || Date.now().toString();
       const finalKey = `uploads/properties/${filename.replace(/\.[^/.]+$/, "")}.webp`;
 
-      // Stream directly into R2 — avoids materialising the full image in the Node heap
-      await this.s3Client.write(finalKey, response.body, {
+      // Read as Blob — Bun S3Client accepts Blob natively without a JS-side buffer copy
+      const blob = await response.blob();
+      await this.s3Client.write(finalKey, blob, {
         type: 'image/webp'
       });
 
