@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   Put,
   Post,
+  Query,
 } from '@nestjs/common';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { AppRole } from '../../../common/enums/app-role.enum';
@@ -18,8 +19,14 @@ export class AdminSeoController {
   constructor(private readonly adminSeoService: AdminSeoService) {}
 
   @Get('properties')
-  async getPropertySeoList() {
-    return this.adminSeoService.getPropertySeoList();
+  async getPropertySeoList(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminSeoService.getPropertySeoList(
+      page ? Number(page) : 1,
+      limit ? Math.min(Number(limit), 500) : 100,
+    );
   }
 
   @Get('properties/:id')

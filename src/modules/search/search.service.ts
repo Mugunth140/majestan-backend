@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -25,7 +25,7 @@ export type PropertyDocument = {
 const INDEX_NAME = 'properties';
 
 @Injectable()
-export class SearchService implements OnModuleInit {
+export class SearchService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SearchService.name);
   private client: Meilisearch | null = null;
   private index: Index<PropertyDocument> | null = null;
@@ -61,6 +61,14 @@ export class SearchService implements OnModuleInit {
     } catch (e) {
       this.logger.warn(`Meilisearch ensureIndex failed: ${(e as Error).message}`);
     }
+  }
+
+  async onModuleDestroy() {
+    // Meilisearch JS client uses stateless HTTP — no persistent socket to close.
+    // Set flags to prevent any in-flight callers from issuing new requests after shutdown.
+    this.enabled = false;
+    this.client = null;
+    this.index = null;
   }
 
   private async ensureIndex() {
@@ -141,16 +149,33 @@ export class SearchService implements OnModuleInit {
   async reindexAll(): Promise<{ indexed: number }> {
     if (!this.enabled || !this.index) throw new Error('Meilisearch not enabled');
     const repo = this.dataSource.getRepository(Property);
-    const props = await repo.find({ where: { status: PropertyStatus.AVAILABLE } });
-    const docs = props.map((p) => this.toDocument(p));
-    if (docs.length === 0) {
-      await this.index.deleteAllDocuments().catch(() => {});
-      return { indexed: 0 };
-    }
+
     await this.index.deleteAllDocuments().catch(() => {});
-    const task = await this.index.addDocuments(docs);
-    this.logger.log(`Reindex queued task ${task.taskUid} docs=${docs.length}`);
-    return { indexed: docs.length };
+
+    const BATCH_SIZE = 500;
+    let offset = 0;
+    let totalIndexed = 0;
+
+    while (true) {
+      const props = await repo.find({
+        where: { status: PropertyStatus.AVAILABLE },
+        take: BATCH_SIZE,
+        skip: offset,
+      });
+
+      if (props.length === 0) break;
+
+      const docs = props.map((p) => this.toDocument(p));
+      const task = await this.index.addDocuments(docs);
+      this.logger.log(`Reindex batch offset=${offset} count=${docs.length} taskUid=${task.taskUid}`);
+      totalIndexed += docs.length;
+      offset += BATCH_SIZE;
+
+      if (props.length < BATCH_SIZE) break;
+    }
+
+    this.logger.log(`Reindex complete: total=${totalIndexed}`);
+    return { indexed: totalIndexed };
   }
 
   async search(query: string, filters: { propertyType?: string; listingType?: string; city?: string }, page: number, limit: number) {

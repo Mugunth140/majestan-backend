@@ -3,9 +3,16 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AdminEnquiryQueryDto } from './dto/admin-enquiry-query.dto';
 
+const COLUMNS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+interface CachedColumns {
+  columns: Set<string>;
+  expiresAt: number;
+}
+
 @Injectable()
 export class AdminEnquiriesService {
-  private readonly columnsCache = new Map<string, Set<string>>();
+  private readonly columnsCache = new Map<string, CachedColumns>();
 
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
@@ -127,8 +134,8 @@ export class AdminEnquiriesService {
 
   private async getColumns(table: string): Promise<Set<string>> {
     const cached = this.columnsCache.get(table);
-    if (cached) {
-      return cached;
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.columns;
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -138,7 +145,7 @@ export class AdminEnquiriesService {
       const columns = new Set(
         (tableMetadata?.columns ?? []).map((column) => column.name),
       );
-      this.columnsCache.set(table, columns);
+      this.columnsCache.set(table, { columns, expiresAt: Date.now() + COLUMNS_CACHE_TTL_MS });
       return columns;
     } finally {
       await queryRunner.release();

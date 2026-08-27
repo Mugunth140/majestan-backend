@@ -111,14 +111,16 @@ export class StorageService {
       if (!response.ok) {
         throw new Error(`Imgproxy failed: ${response.status} ${response.statusText}`);
       }
-      
-      const buffer = await response.arrayBuffer();
-      
+      if (!response.body) {
+        throw new Error('Imgproxy returned empty body');
+      }
+
       // Construct new key: move from uploads/temp/ to uploads/properties/ and change extension to .webp
       const filename = originalKey.split('/').pop() || Date.now().toString();
       const finalKey = `uploads/properties/${filename.replace(/\.[^/.]+$/, "")}.webp`;
-      
-      await this.s3Client.write(finalKey, buffer, {
+
+      // Stream directly into R2 — avoids materialising the full image in the Node heap
+      await this.s3Client.write(finalKey, response.body, {
         type: 'image/webp'
       });
 

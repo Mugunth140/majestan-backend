@@ -10,8 +10,9 @@ import { LocalityService } from './locality.service';
 export class AdminSeoService {
   constructor(private readonly dataSource: DataSource, private localityService: LocalityService) {}
 
-  async getPropertySeoList() {
-    const properties = await this.dataSource
+  async getPropertySeoList(page = 1, limit = 100) {
+    const skip = (page - 1) * limit;
+    const [properties, total] = await this.dataSource
       .getRepository(Property)
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.seo', 'seo')
@@ -26,9 +27,11 @@ export class AdminSeoService {
         'seo.verificationStatus',
         'seo.approvalStatus',
       ])
-      .getMany();
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
-    return properties.map((p) => {
+    const items = properties.map((p) => {
       const seo = (p as any).seo as PropertySeo | null;
       return {
         id: p.id,
@@ -42,6 +45,8 @@ export class AdminSeoService {
         approvalStatus: seo?.approvalStatus ?? null,
       };
     });
+
+    return { items, total, page, limit };
   }
 
   async getPropertySeo(propertyId: number) {

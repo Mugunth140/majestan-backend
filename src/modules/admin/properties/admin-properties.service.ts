@@ -1,5 +1,27 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
+
+/**
+ * Run an async map with at most `concurrency` promises in-flight at once.
+ * Prevents unbounded Promise.all() from saturating memory on large image uploads.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const idx = nextIndex++;
+      results[idx] = await fn(items[idx], idx);
+    }
+  }
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, worker);
+  await Promise.all(workers);
+  return results;
+}
 import { Property, PropertyStatus, PropertyType } from '../../../database/entities/property.entity';
 import { PropertyDetails } from '../../../database/entities/property-details.entity';
 import { PropertyLocation } from '../../../database/entities/property-location.entity';
@@ -245,7 +267,7 @@ export class AdminPropertiesService {
         });
 
         if (payload.details.floorPlanImages && payload.details.floorPlanImages.length > 0) {
-          const processedImages = await Promise.all(payload.details.floorPlanImages.map(async img => {
+          const processedImages = await mapWithConcurrency(payload.details.floorPlanImages, 3, async img => {
             let finalKey = img.imageKey;
             if (finalKey && finalKey.includes('uploads/temp/')) {
               finalKey = await this.storageService.processAndUploadImage(finalKey);
@@ -253,7 +275,7 @@ export class AdminPropertiesService {
               img.imageUrl = finalKey;
             }
             return img;
-          }));
+          });
           details.floorPlanImages = processedImages;
         }
 
@@ -283,7 +305,7 @@ export class AdminPropertiesService {
 
       // 5. Create Units
       if (payload.units && payload.units.length > 0) {
-        const units = await Promise.all(payload.units.map(async u => {
+        const units = await mapWithConcurrency(payload.units, 3, async u => {
           let finalKey = u.floorPlanImageKey;
           if (finalKey && finalKey.includes('uploads/temp/')) {
             finalKey = await this.storageService.processAndUploadImage(finalKey);
@@ -294,13 +316,13 @@ export class AdminPropertiesService {
           Object.assign(pu, u);
           pu.propertyId = savedProperty.id;
           return pu;
-        }));
+        });
         await queryRunner.manager.save(units);
       }
 
       // 6. Create Images
       if (payload.files && payload.files.length > 0) {
-        const images = await Promise.all(payload.files.map(async (f, idx) => {
+        const images = await mapWithConcurrency(payload.files, 3, async (f, idx) => {
           let finalKey = f.fileKey ?? f.fileUrl;
           
           if (finalKey && finalKey.includes('uploads/temp/')) {
@@ -313,7 +335,7 @@ export class AdminPropertiesService {
           pi.imageUrl = finalKey; // Assuming frontend uses the key and storage service resolves it
           pi.isPrimary = idx === 0;
           return pi;
-        }));
+        });
         await queryRunner.manager.save(images);
       }
 
@@ -461,7 +483,7 @@ export class AdminPropertiesService {
         });
 
         if (payload.details.floorPlanImages) {
-          const processedImages = await Promise.all(payload.details.floorPlanImages.map(async img => {
+          const processedImages = await mapWithConcurrency(payload.details.floorPlanImages, 3, async img => {
             let finalKey = img.imageKey;
             if (finalKey && finalKey.includes('uploads/temp/')) {
               finalKey = await this.storageService.processAndUploadImage(finalKey);
@@ -469,7 +491,7 @@ export class AdminPropertiesService {
               img.imageUrl = finalKey;
             }
             return img;
-          }));
+          });
           details.floorPlanImages = processedImages;
         }
 
@@ -520,7 +542,7 @@ export class AdminPropertiesService {
 
         await queryRunner.manager.delete(PropertyImage, { propertyId: id });
         if (payload.files.length > 0) {
-          const images = await Promise.all(payload.files.map(async (f, idx) => {
+          const images = await mapWithConcurrency(payload.files, 3, async (f, idx) => {
             let finalKey = f.fileKey ?? f.fileUrl;
             if (finalKey && finalKey.includes('uploads/temp/')) {
               finalKey = await this.storageService.processAndUploadImage(finalKey);
@@ -531,7 +553,7 @@ export class AdminPropertiesService {
             pi.imageUrl = finalKey;
             pi.isPrimary = idx === 0;
             return pi;
-          }));
+          });
           await queryRunner.manager.save(images);
         }
 
@@ -556,7 +578,7 @@ export class AdminPropertiesService {
 
         await queryRunner.manager.delete(PropertyUnit, { propertyId: id });
         if (payload.units.length > 0) {
-          const units = await Promise.all(payload.units.map(async u => {
+          const units = await mapWithConcurrency(payload.units, 3, async u => {
             let finalKey = u.floorPlanImageKey;
             if (finalKey && finalKey.includes('uploads/temp/')) {
               finalKey = await this.storageService.processAndUploadImage(finalKey);
@@ -567,7 +589,7 @@ export class AdminPropertiesService {
             Object.assign(pu, u);
             pu.propertyId = id;
             return pu;
-          }));
+          });
           await queryRunner.manager.save(units);
         }
 
