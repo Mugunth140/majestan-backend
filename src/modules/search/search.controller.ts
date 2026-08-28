@@ -18,7 +18,7 @@ export class SearchController {
       return { hits: [], total: 0, page: query.page, limit: query.limit, fallback: true };
     }
     try {
-      const res = await this.searchService.search(query.q || '', { propertyType: query.propertyType, listingType: query.listingType, city: query.city }, query.page, query.limit);
+      const res = await this.searchService.search(query.q || '', { propertyType: query.propertyType, listingType: query.listingType, city: query.city, locality: query.locality }, query.page, query.limit, query.hybrid ?? false);
       return { ...res, fallback: false };
     } catch {
       return { hits: [], total: 0, page: query.page, limit: query.limit, fallback: true };

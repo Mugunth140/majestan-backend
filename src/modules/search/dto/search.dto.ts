@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class SearchQueryDto {
@@ -21,6 +21,16 @@ export class SearchQueryDto {
   @IsString()
   @MaxLength(100)
   city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  locality?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  hybrid?: boolean;
 
   @Transform(({ value }) => Number.parseInt(String(value ?? '1'), 10))
   @IsInt()

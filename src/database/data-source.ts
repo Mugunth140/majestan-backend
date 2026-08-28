@@ -7,6 +7,7 @@ import { AddPropertySeoSlugColumns1779200000000 } from './migrations/17792000000
 import { UpdatePropertySeoSlugs1779300000000 } from './migrations/1779300000000-UpdatePropertySeoSlugs';
 import { SeedAdminUser1779400000000 } from './migrations/1779400000000-SeedAdminUser';
 import { AddManagedCitiesAndSublocations1781020414000 } from './migrations/1781020414000-AddManagedCitiesAndSublocations';
+import { AddListingPageSeoTable1756540000000 } from './migrations/1756540000000-AddListingPageSeoTable';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -41,6 +42,7 @@ export default new DataSource({
     UpdatePropertySeoSlugs1779300000000,
     SeedAdminUser1779400000000,
     AddManagedCitiesAndSublocations1781020414000,
+    AddListingPageSeoTable1756540000000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),

@@ -34,6 +34,11 @@ import { CreatePropertyDto } from './dto/create-property.dto';
 import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
 
 import { generateSeoSlug, normalizeSeoSlug, getPropertyTypeCode, enforceSlugSuffix } from '../../properties/utils/property-slug.util';
+
+function toSlug(value: string): string {
+  return value.trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
 import { Sublocation } from '../../../database/entities/sublocation.entity';
 import { City } from '../../../database/entities/city.entity';
 import { StorageService } from '../../storage/storage.service';
@@ -355,6 +360,8 @@ export class AdminPropertiesService {
         this.triggerFrontendRevalidation(savedProperty.slug);
       }
       this.searchService.indexProperty(savedProperty.id).catch(() => {});
+      const localitySlug = toSlug(selectedLocation.sublocation.localityName);
+      this.triggerListingRevalidation(localitySlug);
       return this.details(propertyType, savedProperty.id);
 
     } catch (err) {
@@ -620,6 +627,10 @@ export class AdminPropertiesService {
         this.triggerFrontendRevalidation(prop.slug);
       }
       this.searchService.indexProperty(id).catch(() => {});
+      if (selectedLocation) {
+        const localitySlug = toSlug(selectedLocation.sublocation.localityName);
+        this.triggerListingRevalidation(localitySlug);
+      }
       return prop;
 
     } catch (err) {
@@ -713,6 +724,26 @@ export class AdminPropertiesService {
     }
 
     return { city, sublocation };
+  }
+
+  private triggerListingRevalidation(localitySlug: string) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    fetch(`${frontendUrl}/api/revalidate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tag: localitySlug,
+        secret: process.env.REVALIDATE_SECRET || 'majestan-isr-secret',
+      }),
+      signal: controller.signal as any,
+    })
+      .then(() => clearTimeout(timeoutId))
+      .catch(error => {
+        clearTimeout(timeoutId);
+        console.error(`Failed to revalidate listing pages for locality: ${localitySlug}`, error);
+      });
   }
 
   private triggerFrontendRevalidation(slug: string) {

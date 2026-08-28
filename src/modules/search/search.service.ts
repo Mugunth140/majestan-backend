@@ -20,9 +20,29 @@ export type PropertyDocument = {
   price: string | null;
   priceNumeric: number;
   createdAt: number;
+  locality: string;
+  localitySlug: string;
+  citySlug: string;
+  bedrooms: number | null;
+  canonicalUrl: string;
 };
 
 const INDEX_NAME = 'properties';
+
+function toSlug(value: string): string {
+  return value.trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+const PROPERTY_TYPE_SLUG_MAP: Record<string, string> = {
+  apartment: 'apartments',
+  villa: 'villas',
+  plot: 'plots',
+  commercial: 'commercial-spaces',
+  industrial: 'industrial-spaces',
+  individual_portion: 'independent-houses',
+  farmland: 'farmlands',
+  coworking: 'coworking',
+};
 
 @Injectable()
 export class SearchService implements OnModuleInit, OnModuleDestroy {
@@ -77,13 +97,27 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
       await this.client.getIndex(INDEX_NAME).catch(async () => {
         await this.client!.createIndex(INDEX_NAME, { primaryKey: 'id' });
       });
-      await this.index.updateSettings({
-        searchableAttributes: ['title', 'description', 'city', 'state', 'propertyCode', 'slug', 'propertyType'],
-        filterableAttributes: ['propertyType', 'listingType', 'city', 'state', 'status', 'priceNumeric'],
+
+      const baseSettings: any = {
+        searchableAttributes: ['title', 'description', 'city', 'locality', 'state', 'propertyCode', 'slug', 'propertyType'],
+        filterableAttributes: ['propertyType', 'listingType', 'city', 'citySlug', 'state', 'status', 'priceNumeric', 'localitySlug', 'bedrooms'],
         sortableAttributes: ['priceNumeric', 'createdAt'],
         rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness'],
         typoTolerance: { enabled: true, minWordSizeForTypos: { oneTypo: 4, twoTypos: 8 } },
-      });
+      };
+
+      if (process.env.OPENAI_API_KEY) {
+        baseSettings.embedders = {
+          openai: {
+            source: 'openAi' as any,
+            apiKey: process.env.OPENAI_API_KEY,
+            model: 'text-embedding-3-small',
+            documentTemplate: '{{doc.title}} in {{doc.locality}}, {{doc.city}}. {{doc.propertyType}} for {{doc.listingType}}.',
+          },
+        };
+      }
+
+      await this.index.updateSettings(baseSettings);
       this.logger.log(`Meilisearch index ${INDEX_NAME} ready`);
     } catch (e) {
       const msg = (e as any)?.message || String(e);
@@ -99,8 +133,35 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     return this.enabled && !!this.client;
   }
 
-  private toDocument(p: Property): PropertyDocument {
+  private async toDocument(p: Property): Promise<PropertyDocument> {
     const priceNumeric = p.price ? Number(p.price) : 0;
+
+    // Relations may be lazy Promises or eagerly loaded arrays — resolve safely
+    const locs = await Promise.resolve(p.propertyLocations).catch(() => []) as any[];
+    const details = await Promise.resolve(p.propertyDetails).catch(() => null) as any;
+
+    // Extract the first locality name from the resolved locations
+    let localityName = '';
+    if (Array.isArray(locs) && locs.length > 0) {
+      const firstLoc = locs[0];
+      // sublocation may itself be a lazy relation
+      const sublocation = firstLoc?.sublocation
+        ? await Promise.resolve(firstLoc.sublocation).catch(() => null)
+        : null;
+      localityName = (sublocation as any)?.localityName || '';
+    }
+
+    const localitySlug = localityName ? toSlug(localityName) : '';
+    const citySlug = p.city ? toSlug(p.city) : '';
+    const bedrooms: number | null = details?.bedrooms != null ? Number(details.bedrooms) : null;
+
+    // Build canonical URL
+    const listingPrefix = p.listingType === 'Rent' ? 'for-rent' : 'for-sale';
+    const ptSlug = PROPERTY_TYPE_SLUG_MAP[p.propertyType] ?? toSlug(p.propertyType);
+    const canonicalUrl = localitySlug
+      ? `/${listingPrefix}/${ptSlug}/${citySlug}/${localitySlug}`
+      : `/${listingPrefix}/${ptSlug}/${citySlug}`;
+
     return {
       id: p.id,
       title: p.title || '',
@@ -116,6 +177,11 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
       price: p.price,
       priceNumeric: Number.isFinite(priceNumeric) ? priceNumeric : 0,
       createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
+      locality: localityName,
+      localitySlug,
+      citySlug,
+      bedrooms,
+      canonicalUrl,
     };
   }
 
@@ -123,7 +189,10 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     if (!this.enabled || !this.index) return;
     try {
       const repo = this.dataSource.getRepository(Property);
-      const prop = await repo.findOne({ where: { id: propertyId } });
+      const prop = await repo.findOne({
+        where: { id: propertyId },
+        relations: ['propertyLocations', 'propertyLocations.sublocation', 'propertyDetails'],
+      });
       if (!prop) {
         await this.deleteProperty(propertyId);
         return;
@@ -132,7 +201,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
         await this.deleteProperty(propertyId);
         return;
       }
-      const doc = this.toDocument(prop);
+      const doc = await this.toDocument(prop);
       await this.index.addDocuments([doc]);
     } catch (e) {
       this.logger.warn(`indexProperty ${propertyId} failed: ${(e as Error).message}`);
@@ -159,13 +228,14 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     while (true) {
       const props = await repo.find({
         where: { status: PropertyStatus.AVAILABLE },
+        relations: ['propertyLocations', 'propertyLocations.sublocation', 'propertyDetails'],
         take: BATCH_SIZE,
         skip: offset,
       });
 
       if (props.length === 0) break;
 
-      const docs = props.map((p) => this.toDocument(p));
+      const docs = await Promise.all(props.map((p) => this.toDocument(p)));
       const task = await this.index.addDocuments(docs);
       this.logger.log(`Reindex batch offset=${offset} count=${docs.length} taskUid=${task.taskUid}`);
       totalIndexed += docs.length;
@@ -178,19 +248,33 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     return { indexed: totalIndexed };
   }
 
-  async search(query: string, filters: { propertyType?: string; listingType?: string; city?: string }, page: number, limit: number) {
+  async search(
+    query: string,
+    filters: { propertyType?: string; listingType?: string; city?: string; locality?: string },
+    page: number,
+    limit: number,
+    useHybrid = false,
+  ) {
     if (!this.enabled || !this.index) throw new Error('Meilisearch not enabled');
     const filterParts: string[] = ['status = available'];
     if (filters.propertyType) filterParts.push(`propertyType = "${filters.propertyType}"`);
     if (filters.listingType) filterParts.push(`listingType = "${filters.listingType}"`);
     if (filters.city) filterParts.push(`city = "${filters.city}"`);
+    if (filters.locality) filterParts.push(`localitySlug = "${toSlug(filters.locality)}"`);
     const filter = filterParts.join(' AND ');
-    const res = await this.index.search(query || '', {
+
+    const searchOptions: any = {
       filter: filter || undefined,
-      sort: undefined,
       page,
       hitsPerPage: limit,
-    });
+      attributesToRetrieve: ['id', 'title', 'slug', 'propertyType', 'listingType', 'locality', 'localitySlug', 'citySlug', 'bedrooms', 'canonicalUrl', 'city', 'priceNumeric'],
+    };
+
+    if (useHybrid && process.env.OPENAI_API_KEY) {
+      searchOptions.hybrid = { semanticRatio: 0.5, embedder: 'openai' };
+    }
+
+    const res = await this.index.search(query || '', searchOptions);
     return { hits: res.hits, total: (res as any).estimatedTotalHits ?? (res as any).totalHits ?? res.hits.length, page, limit };
   }
 

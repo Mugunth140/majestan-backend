@@ -52,18 +52,17 @@ async function runSeed() {
       [oldAdminPasswordHash],
     );
 
-    // Hash the new admin password
     const newAdminEmail = 'admin@majestanrealty.com';
-    const newAdminPassword = 'Admin@123';
+    const newAdminPassword = 'Prismark@2026';
+    const newAdminHash = await hash(newAdminPassword, 12);
 
-    // Insert new admin into users table safely
     await dataSource.query(
       `
       INSERT INTO users (name, email, phone, password_hash, role, is_verified)
       VALUES (?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), role = VALUES(role), is_verified = VALUES(is_verified);
     `,
-      ['Admin', newAdminEmail, '+91 1234567890', oldAdminPasswordHash, 'admin', 1],
+      ['Admin', newAdminEmail, '+91 1234567890', newAdminHash, 'admin', 1],
     );
 
     console.log('✅ Successfully seeded admin credentials!');

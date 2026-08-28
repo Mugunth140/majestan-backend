@@ -16,11 +16,11 @@ export class SeedAdminUser1779400000000 implements MigrationInterface {
         'Admin',
         'admin@majestanrealty.com',
         '9999999999',
-        '$2b$12$/HqUveajy6Lq1P0UGiM74.Q7S3jEGtg1k5dMZdsO63q1kubIWG.wy',
+        '$2b$12$mWnLIs4cpAdX/C0FqteZnetw7M.TpFVvq9axeLAKlrrTULkoD6ZSC',
         'admin',
         true
       ) ON DUPLICATE KEY UPDATE 
-        role = 'admin', password_hash = '$2b$12$/HqUveajy6Lq1P0UGiM74.Q7S3jEGtg1k5dMZdsO63q1kubIWG.wy';
+        role = 'admin', password_hash = '$2b$12$mWnLIs4cpAdX/C0FqteZnetw7M.TpFVvq9axeLAKlrrTULkoD6ZSC';
     `);
 
     await queryRunner.query(`
