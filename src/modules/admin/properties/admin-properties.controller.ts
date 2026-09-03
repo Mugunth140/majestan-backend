@@ -23,6 +23,18 @@ export class AdminPropertiesController {
     private readonly adminPropertiesService: AdminPropertiesService,
   ) {}
 
+  // NOTE: listAll declared BEFORE ':propertyType' so 'all' isn't swallowed as a type
+  @Get('all')
+  async listAll(@Query() query: AdminPropertyQueryDto) {
+    return this.adminPropertiesService.listAll(query);
+  }
+
+  // NOTE: declared BEFORE ':propertyType/:id' for the same reason
+  @Get('by-id/:id')
+  async detailsById(@Param('id', ParseIntPipe) id: number) {
+    return this.adminPropertiesService.detailsById(id);
+  }
+
   @Get(':propertyType')
   async list(
     @Param('propertyType') propertyType: string,

@@ -60,7 +60,7 @@ export class PropertiesService {
   ) {}
 
   async getFormData() {
-    const amenities = await this.dataSource.query('SELECT id, name FROM amenities WHERE is_active = 1');
+    const amenities = await this.dataSource.query('SELECT id, name, category, icon_key AS iconKey FROM amenities WHERE is_active = 1');
     const cities = await this.dataSource.query(
       'SELECT id, city_name, state_name, country_name FROM cities WHERE is_active = 1 ORDER BY city_name ASC',
     );

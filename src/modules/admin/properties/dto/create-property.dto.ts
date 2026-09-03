@@ -61,6 +61,72 @@ class PropertyDetailsDto {
   // Floor Plans & Rooms
   @IsOptional() @IsArray() roomDimensions?: any[];
   @IsOptional() @IsArray() floorPlanImages?: any[];
+
+  // ── CRM-only operational fields ──
+  @IsOptional() @IsNumber() udsArea?: number;
+  @IsOptional() @IsString() unitNumber?: string;
+  @IsOptional() @IsString() unitType?: string;
+  @IsOptional() @IsNumber() numberOfFlats?: number;
+  @IsOptional() @IsNumber() towerNos?: number;
+  @IsOptional() @IsBoolean() poojaRoom?: boolean;
+  @IsOptional() @IsBoolean() studyRoom?: boolean;
+  @IsOptional() @IsString() architecturalStyle?: string;
+  @IsOptional() @IsString() availablePortion?: string;
+  @IsOptional() @IsString() amenities?: string;
+  @IsOptional() @IsNumber() plotNos?: number;
+  @IsOptional() @IsString() zoning?: string;
+  @IsOptional() @IsString() plotType?: string;
+  @IsOptional() @IsString() landType?: string;
+  @IsOptional() @IsString() topography?: string;
+  @IsOptional() @IsString() soilType?: string;
+  @IsOptional() @IsString() irrigation?: string;
+  @IsOptional() @IsString() fencing?: string;
+  @IsOptional() @IsString() cropSuitability?: string;
+  @IsOptional() @IsString() existingPlantation?: string;
+  @IsOptional() @IsBoolean() boreWell?: boolean;
+  @IsOptional() @IsBoolean() storageTank?: boolean;
+  @IsOptional() @IsString() waterSources?: string;
+  @IsOptional() @IsString() sfNumber?: string;
+  @IsOptional() @IsString() propertyUse?: string;
+  @IsOptional() @IsNumber() noOfLifts?: number;
+  @IsOptional() @IsString() dimension?: string;
+  @IsOptional() @IsString() frontage?: string;
+  @IsOptional() @IsBoolean() outsideParking?: boolean;
+  @IsOptional() @IsString() visitorsParking?: string;
+  @IsOptional() @IsBoolean() fireSafety?: boolean;
+  @IsOptional() @IsString() electricityConnection?: string;
+  @IsOptional() @IsNumber() conferenceRoom?: number;
+  @IsOptional() @IsNumber() seater?: number;
+  @IsOptional() @IsString() tenantMix?: string;
+  @IsOptional() @IsString() buildingType?: string;
+  @IsOptional() @IsNumber() numberOfBays?: number;
+  @IsOptional() @IsNumber() numberOfCabins?: number;
+  @IsOptional() @IsNumber() loadingBays?: number;
+  @IsOptional() @IsNumber() warehouseRacks?: number;
+  @IsOptional() @IsBoolean() truckTrailerAccess?: boolean;
+  @IsOptional() @IsBoolean() craneAvailable?: boolean;
+  @IsOptional() @IsString() workerFacilities?: string;
+  @IsOptional() @IsString() nearestHighway?: string;
+  @IsOptional() @IsString() nearestRailway?: string;
+  @IsOptional() @IsString() nearestPort?: string;
+  @IsOptional() @IsString() nearestAirport?: string;
+  @IsOptional() @IsString() labourAvailability?: string;
+  @IsOptional() @IsNumber() advanceRent?: number;
+  @IsOptional() @IsString() leaseTerm?: string;
+  @IsOptional() @IsString() incrementalRent?: string;
+  @IsOptional() @IsString() electricityCharges?: string;
+  @IsOptional() @IsBoolean() highSpeedWifi?: boolean;
+  @IsOptional() @IsBoolean() airConditioning?: boolean;
+  @IsOptional() @IsBoolean() cctvSurveillance?: boolean;
+  @IsOptional() @IsBoolean() elevatorAccess?: boolean;
+  @IsOptional() @IsBoolean() securityStaff?: boolean;
+  @IsOptional() @IsString() furnitureProvided?: string;
+  @IsOptional() @IsString() outdoorSpaces?: string;
+  @IsOptional() @IsString() utilitiesProvided?: string;
+  @IsOptional() @IsString() neighborhoodHighlights?: string;
+  @IsOptional() @IsString() communityFacilities?: string;
+  @IsOptional() @IsString() accessibility?: string;
+  @IsOptional() @IsString() furnishingStatus?: string;
 }
 
 class PropertyLocationDto {
@@ -97,8 +163,18 @@ class PropertyFileDto {
 
 class PropertyFaqDto {
   @IsString() question!: string;
-  @IsString() answer!: string;
+  @IsOptional() @IsString() answer!: string;
   @IsOptional() @IsString() section?: string;
+}
+
+class PropertyDocumentDto {
+  @IsString() fileKey!: string;
+  @IsOptional() @IsString() fileName?: string;
+  @IsOptional() @IsString() mimeType?: string;
+  @IsOptional() @IsNumber() fileSizeBytes?: number;
+  @IsOptional() @IsString() documentType?: string;
+  @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsBoolean() isPublic?: boolean;
 }
 
 export class CreatePropertyDto {
@@ -125,6 +201,49 @@ export class CreatePropertyDto {
   @IsOptional() @IsString() ownerName?: string;
   @IsOptional() @IsString() ownerEmail?: string;
   @IsOptional() @IsString() ownerPhone?: string;
+
+  // ── CRM-only operational fields ──
+  @IsOptional() @IsString() alternateName?: string;
+  @IsOptional() @IsString() alternatePhone?: string;
+  @IsOptional() @IsString() alternateEmail?: string;
+  @IsOptional() @IsString() transactionType?: string;
+  @IsOptional() @IsString() handoverDate?: string;
+  @IsOptional() @IsString() roadName?: string;
+  @IsOptional() @IsString() roadAccess?: string;
+  @IsOptional() @IsString() tenantOccupied?: string;
+  @IsOptional() @IsString() saleType?: string;
+  @IsOptional() @IsString() agentName?: string;
+  @IsOptional() @IsString() agencyName?: string;
+  @IsOptional() @IsString() commissionTerms?: string;
+  @IsOptional() @IsString() expectedSalePrice?: string;
+  @IsOptional() @IsString() monthlyRent?: string;
+  @IsOptional() @IsString() lockInPeriod?: string;
+  @IsOptional() @IsString() taxes?: string;
+  @IsOptional() @IsString() registrationCharge?: string;
+  @IsOptional() @IsString() modeOfPayment?: string;
+  @IsOptional() @IsString() timeForRegistration?: string;
+  @IsOptional() @IsString() remark?: string;
+  @IsOptional() @IsString() demandArea?: string;
+  @IsOptional() @IsString() rentalYield?: string;
+  @IsOptional() @IsString() comparativePrice?: string;
+  @IsOptional() @IsString() marketPrice?: string;
+  @IsOptional() @IsString() ownershipTitleVerified?: string;
+  @IsOptional() @IsString() encumbranceCertificate?: string;
+  @IsOptional() @IsString() rentalAgreementDraft?: string;
+  @IsOptional() @IsString() tslrFmb?: string;
+  @IsOptional() @IsString() taxReceipt?: string;
+  @IsOptional() @IsString() ebReceipt?: string;
+  @IsOptional() @IsString() pattaChitta?: string;
+  @IsOptional() @IsString() approvals?: string;
+  @IsOptional() @IsString() financeFacing?: string;
+  @IsOptional() @IsString() hypothecation?: string;
+  @IsOptional() @IsString() deviation?: string;
+  @IsOptional() @IsString() attachment1?: string;
+  @IsOptional() @IsString() attachment2?: string;
+  @IsOptional() @IsString() attachment3?: string;
+  @IsOptional() @IsString() attachment4?: string;
+  @IsOptional() @IsString() attachment5?: string;
+  @IsOptional() @IsString() attachment6?: string;
 
   @IsOptional() @IsBoolean() negotiable?: boolean;
   @IsOptional() @IsString() maintenanceCharges?: string;
@@ -184,4 +303,10 @@ export class CreatePropertyDto {
   @ValidateNested({ each: true })
   @Type(() => PropertyFaqDto)
   faqs?: PropertyFaqDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PropertyDocumentDto)
+  documents?: PropertyDocumentDto[];
 }

@@ -57,7 +57,7 @@ export class PropertiesController {
     if (!fileName || !fileType) {
       throw new BadRequestException('fileName and fileType are required');
     }
-    const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain'];
     if (!ALLOWED_MIME_TYPES.includes(fileType)) {
       throw new BadRequestException(`fileType must be one of: ${ALLOWED_MIME_TYPES.join(', ')}`);
     }

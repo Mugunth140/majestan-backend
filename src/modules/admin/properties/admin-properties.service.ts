@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
 
 /**
  * Run an async map with at most `concurrency` promises in-flight at once.
@@ -30,6 +30,8 @@ import { PropertyUnit } from '../../../database/entities/property-unit.entity';
 import { PropertyFile } from '../../../database/entities/property-file.entity';
 import { PropertyImage } from '../../../database/entities/property-image.entity';
 import { PropertyFaq } from '../../../database/entities/property-faq.entity';
+import { FileEntity, StorageProvider } from '../../../database/entities/file.entity';
+import { PropertyDocumentType } from '../../../database/entities/property-file.entity';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
 
@@ -87,6 +89,82 @@ export class AdminPropertiesService {
     return { items: mappedData, total, propertyType, page, limit };
   }
 
+  /**
+   * Cross-type list for CRM consumption. Supports status (incl. 'archived'
+   * = anything not available), free-text search, listing type and city.
+   */
+  async listAll(query: AdminPropertyQueryDto) {
+    const qb = this.dataSource.getRepository(Property).createQueryBuilder('p')
+      .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
+      .leftJoin('p.propertyLocations', 'pl')
+      .leftJoin('pl.sublocation', 'sl')
+      .leftJoin('sl.city', 'c')
+      .addSelect(['c.id', 'c.cityName', 'sl.id', 'sl.localityName']);
+
+    if (query.statusFilter === 'archived') {
+      qb.where(`p.status != 'available'`);
+    } else if (query.statusFilter) {
+      qb.where('p.status = :status', { status: query.statusFilter });
+    }
+
+    if (query.listingType) {
+      qb.andWhere('p.listingType = :listingType', { listingType: query.listingType });
+    }
+
+    if (query.propertyType) {
+      qb.andWhere('p.propertyType = :propertyType', { propertyType: query.propertyType });
+    }
+
+    if (query.cityId) {
+      qb.andWhere('c.id = :cityId', { cityId: query.cityId });
+    }
+
+    if (query.search) {
+      qb.andWhere(
+        '(p.title LIKE :search OR p.propertyCode LIKE :search OR p.city LIKE :search OR p.ownerName LIKE :search)',
+        { search: `%${query.search}%` },
+      );
+    }
+
+    const page = query.page || 1;
+    const limit = query.limit || 10;
+    qb.orderBy('p.createdAt', 'DESC').addOrderBy('p.id', 'DESC');
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+
+    const items = await Promise.all(data.map(async (p: any) => {
+      const images = await p.propertyImages || [];
+      const locations = await p.propertyLocations || [];
+      const firstLoc = locations[0] || null;
+      const sub = firstLoc ? await firstLoc.sublocation : null;
+      const city = sub ? await (sub as any).city : null;
+      return {
+        ...p,
+        propertyImages: this.storageService.resolveImageUrls(images),
+        cityId: city?.id ?? null,
+        cityName: city?.cityName ?? p.city,
+        sublocationId: sub?.id ?? null,
+        localityName: sub?.localityName ?? null,
+      };
+    }));
+
+    return { items, total, page, limit };
+  }
+
+  /**
+   * Type-agnostic lookup for CRM consumption (CRM knows only the numeric id).
+   */
+  async detailsById(id: number) {
+    const row = await this.dataSource
+      .getRepository(Property)
+      .findOne({ where: { id } });
+    if (!row) {
+      throw new NotFoundException(`Property with ID ${id} not found`);
+    }
+    return this.details(row.propertyType, id);
+  }
+
   async details(propertyType: string, id: number) {
     const record = await this.dataSource.getRepository(Property).findOne({
       where: { id, propertyType: propertyType as PropertyType },
@@ -131,6 +209,16 @@ export class AdminPropertiesService {
       })
     ) : [];
 
+    const propertyDocuments = propertyFiles ? await Promise.all(
+      propertyFiles.map(async (pf: any) => {
+        const file = await pf.file;
+        return {
+          ...pf,
+          file: file ? { ...file, fileUrl: this.storageService.generateReadUrl(file.fileUrl) } : null,
+        };
+      })
+    ) : [];
+
     if (propertyDetails?.floorPlanImages) {
       propertyDetails.floorPlanImages = this.storageService.resolveImageUrls(
         propertyDetails.floorPlanImages as any
@@ -143,7 +231,7 @@ export class AdminPropertiesService {
       propertyLocations,
       propertyAmenities,
       propertyUnits,
-      propertyFiles,
+      propertyFiles: propertyDocuments,
       propertyImages: this.storageService.resolveImageUrls(propertyImages || []),
       faqs,
     };
@@ -196,6 +284,48 @@ export class AdminPropertiesService {
         ownerName: payload.ownerName,
         ownerEmail: payload.ownerEmail,
         ownerPhone: payload.ownerPhone,
+        // ── CRM-only operational fields ──
+        alternateName: payload.alternateName,
+        alternatePhone: payload.alternatePhone,
+        alternateEmail: payload.alternateEmail,
+        transactionType: payload.transactionType,
+        handoverDate: payload.handoverDate,
+        roadName: payload.roadName,
+        roadAccess: payload.roadAccess,
+        tenantOccupied: payload.tenantOccupied,
+        saleType: payload.saleType,
+        agentName: payload.agentName,
+        agencyName: payload.agencyName,
+        commissionTerms: payload.commissionTerms,
+        expectedSalePrice: payload.expectedSalePrice,
+        monthlyRent: payload.monthlyRent,
+        lockInPeriod: payload.lockInPeriod,
+        taxes: payload.taxes,
+        registrationCharge: payload.registrationCharge,
+        modeOfPayment: payload.modeOfPayment,
+        timeForRegistration: payload.timeForRegistration,
+        remark: payload.remark,
+        demandArea: payload.demandArea,
+        rentalYield: payload.rentalYield,
+        comparativePrice: payload.comparativePrice,
+        marketPrice: payload.marketPrice,
+        ownershipTitleVerified: payload.ownershipTitleVerified,
+        encumbranceCertificate: payload.encumbranceCertificate,
+        rentalAgreementDraft: payload.rentalAgreementDraft,
+        tslrFmb: payload.tslrFmb,
+        taxReceipt: payload.taxReceipt,
+        ebReceipt: payload.ebReceipt,
+        pattaChitta: payload.pattaChitta,
+        approvals: payload.approvals,
+        financeFacing: payload.financeFacing,
+        hypothecation: payload.hypothecation,
+        deviation: payload.deviation,
+        attachment1: payload.attachment1,
+        attachment2: payload.attachment2,
+        attachment3: payload.attachment3,
+        attachment4: payload.attachment4,
+        attachment5: payload.attachment5,
+        attachment6: payload.attachment6,
       });
       let savedProperty = await queryRunner.manager.save(property);
       
@@ -269,6 +399,71 @@ export class AdminPropertiesService {
           guestParking: payload.details.guestParking,
           // Floor Plans & Rooms
           roomDimensions: payload.details.roomDimensions,
+          // ── CRM-only operational fields ──
+          udsArea: payload.details.udsArea,
+          unitNumber: payload.details.unitNumber,
+          unitType: payload.details.unitType,
+          numberOfFlats: payload.details.numberOfFlats,
+          towerNos: payload.details.towerNos,
+          poojaRoom: payload.details.poojaRoom,
+          studyRoom: payload.details.studyRoom,
+          architecturalStyle: payload.details.architecturalStyle,
+          availablePortion: payload.details.availablePortion,
+          amenities: payload.details.amenities,
+          plotNos: payload.details.plotNos,
+          zoning: payload.details.zoning,
+          plotType: payload.details.plotType,
+          landType: payload.details.landType,
+          topography: payload.details.topography,
+          soilType: payload.details.soilType,
+          irrigation: payload.details.irrigation,
+          fencing: payload.details.fencing,
+          cropSuitability: payload.details.cropSuitability,
+          existingPlantation: payload.details.existingPlantation,
+          boreWell: payload.details.boreWell,
+          storageTank: payload.details.storageTank,
+          waterSources: payload.details.waterSources,
+          sfNumber: payload.details.sfNumber,
+          propertyUse: payload.details.propertyUse,
+          noOfLifts: payload.details.noOfLifts,
+          dimension: payload.details.dimension,
+          frontage: payload.details.frontage,
+          outsideParking: payload.details.outsideParking,
+          visitorsParking: payload.details.visitorsParking,
+          fireSafety: payload.details.fireSafety,
+          electricityConnection: payload.details.electricityConnection,
+          conferenceRoom: payload.details.conferenceRoom,
+          seater: payload.details.seater,
+          tenantMix: payload.details.tenantMix,
+          buildingType: payload.details.buildingType,
+          numberOfBays: payload.details.numberOfBays,
+          numberOfCabins: payload.details.numberOfCabins,
+          loadingBays: payload.details.loadingBays,
+          warehouseRacks: payload.details.warehouseRacks,
+          truckTrailerAccess: payload.details.truckTrailerAccess,
+          craneAvailable: payload.details.craneAvailable,
+          workerFacilities: payload.details.workerFacilities,
+          nearestHighway: payload.details.nearestHighway,
+          nearestRailway: payload.details.nearestRailway,
+          nearestPort: payload.details.nearestPort,
+          nearestAirport: payload.details.nearestAirport,
+          labourAvailability: payload.details.labourAvailability,
+          advanceRent: payload.details.advanceRent,
+          leaseTerm: payload.details.leaseTerm,
+          incrementalRent: payload.details.incrementalRent,
+          electricityCharges: payload.details.electricityCharges,
+          highSpeedWifi: payload.details.highSpeedWifi,
+          airConditioning: payload.details.airConditioning,
+          cctvSurveillance: payload.details.cctvSurveillance,
+          elevatorAccess: payload.details.elevatorAccess,
+          securityStaff: payload.details.securityStaff,
+          furnitureProvided: payload.details.furnitureProvided,
+          outdoorSpaces: payload.details.outdoorSpaces,
+          utilitiesProvided: payload.details.utilitiesProvided,
+          neighborhoodHighlights: payload.details.neighborhoodHighlights,
+          communityFacilities: payload.details.communityFacilities,
+          accessibility: payload.details.accessibility,
+          furnishingStatus: payload.details.furnishingStatus,
         });
 
         if (payload.details.floorPlanImages && payload.details.floorPlanImages.length > 0) {
@@ -355,6 +550,11 @@ export class AdminPropertiesService {
         await queryRunner.manager.save(faqs);
       }
 
+      // 8. Create Documents (stored as-is under their R2 temp keys)
+      if (payload.documents && payload.documents.length > 0) {
+        await this.saveDocuments(queryRunner.manager, savedProperty.id, payload.documents);
+      }
+
       await queryRunner.commitTransaction();
       if (savedProperty.slug) {
         this.triggerFrontendRevalidation(savedProperty.slug);
@@ -422,6 +622,22 @@ export class AdminPropertiesService {
       if (payload.ownerName !== undefined) updateData.ownerName = payload.ownerName;
       if (payload.ownerEmail !== undefined) updateData.ownerEmail = payload.ownerEmail;
       if (payload.ownerPhone !== undefined) updateData.ownerPhone = payload.ownerPhone;
+      // ── CRM-only operational fields ──
+      const crmTopLevelKeys = [
+        'alternateName', 'alternatePhone', 'alternateEmail', 'transactionType',
+        'handoverDate', 'roadName', 'roadAccess', 'tenantOccupied', 'saleType',
+        'agentName', 'agencyName', 'commissionTerms', 'expectedSalePrice',
+        'monthlyRent', 'lockInPeriod', 'taxes', 'registrationCharge',
+        'modeOfPayment', 'timeForRegistration', 'remark', 'demandArea',
+        'rentalYield', 'comparativePrice', 'marketPrice', 'ownershipTitleVerified',
+        'encumbranceCertificate', 'rentalAgreementDraft', 'tslrFmb', 'taxReceipt',
+        'ebReceipt', 'pattaChitta', 'approvals', 'financeFacing', 'hypothecation',
+        'deviation', 'attachment1', 'attachment2', 'attachment3', 'attachment4',
+        'attachment5', 'attachment6',
+      ] as const;
+      for (const key of crmTopLevelKeys) {
+        if (payload[key] !== undefined) updateData[key] = payload[key];
+      }
 
       if (Object.keys(updateData).length > 0) {
         await queryRunner.manager.update(Property, { id }, updateData);
@@ -487,6 +703,71 @@ export class AdminPropertiesService {
           guestParking: payload.details.guestParking,
           // Floor Plans & Rooms
           roomDimensions: payload.details.roomDimensions,
+          // ── CRM-only operational fields ──
+          udsArea: payload.details.udsArea,
+          unitNumber: payload.details.unitNumber,
+          unitType: payload.details.unitType,
+          numberOfFlats: payload.details.numberOfFlats,
+          towerNos: payload.details.towerNos,
+          poojaRoom: payload.details.poojaRoom,
+          studyRoom: payload.details.studyRoom,
+          architecturalStyle: payload.details.architecturalStyle,
+          availablePortion: payload.details.availablePortion,
+          amenities: payload.details.amenities,
+          plotNos: payload.details.plotNos,
+          zoning: payload.details.zoning,
+          plotType: payload.details.plotType,
+          landType: payload.details.landType,
+          topography: payload.details.topography,
+          soilType: payload.details.soilType,
+          irrigation: payload.details.irrigation,
+          fencing: payload.details.fencing,
+          cropSuitability: payload.details.cropSuitability,
+          existingPlantation: payload.details.existingPlantation,
+          boreWell: payload.details.boreWell,
+          storageTank: payload.details.storageTank,
+          waterSources: payload.details.waterSources,
+          sfNumber: payload.details.sfNumber,
+          propertyUse: payload.details.propertyUse,
+          noOfLifts: payload.details.noOfLifts,
+          dimension: payload.details.dimension,
+          frontage: payload.details.frontage,
+          outsideParking: payload.details.outsideParking,
+          visitorsParking: payload.details.visitorsParking,
+          fireSafety: payload.details.fireSafety,
+          electricityConnection: payload.details.electricityConnection,
+          conferenceRoom: payload.details.conferenceRoom,
+          seater: payload.details.seater,
+          tenantMix: payload.details.tenantMix,
+          buildingType: payload.details.buildingType,
+          numberOfBays: payload.details.numberOfBays,
+          numberOfCabins: payload.details.numberOfCabins,
+          loadingBays: payload.details.loadingBays,
+          warehouseRacks: payload.details.warehouseRacks,
+          truckTrailerAccess: payload.details.truckTrailerAccess,
+          craneAvailable: payload.details.craneAvailable,
+          workerFacilities: payload.details.workerFacilities,
+          nearestHighway: payload.details.nearestHighway,
+          nearestRailway: payload.details.nearestRailway,
+          nearestPort: payload.details.nearestPort,
+          nearestAirport: payload.details.nearestAirport,
+          labourAvailability: payload.details.labourAvailability,
+          advanceRent: payload.details.advanceRent,
+          leaseTerm: payload.details.leaseTerm,
+          incrementalRent: payload.details.incrementalRent,
+          electricityCharges: payload.details.electricityCharges,
+          highSpeedWifi: payload.details.highSpeedWifi,
+          airConditioning: payload.details.airConditioning,
+          cctvSurveillance: payload.details.cctvSurveillance,
+          elevatorAccess: payload.details.elevatorAccess,
+          securityStaff: payload.details.securityStaff,
+          furnitureProvided: payload.details.furnitureProvided,
+          outdoorSpaces: payload.details.outdoorSpaces,
+          utilitiesProvided: payload.details.utilitiesProvided,
+          neighborhoodHighlights: payload.details.neighborhoodHighlights,
+          communityFacilities: payload.details.communityFacilities,
+          accessibility: payload.details.accessibility,
+          furnishingStatus: payload.details.furnishingStatus,
         });
 
         if (payload.details.floorPlanImages) {
@@ -621,6 +902,30 @@ export class AdminPropertiesService {
         }
       }
 
+      // 7. Update Documents (replace set when key present, cleanup orphans)
+      if (payload.documents !== undefined) {
+        const existingLinks = await queryRunner.manager.find(PropertyFile, { where: { propertyId: id } });
+        const existingFileIds = existingLinks.map(l => l.fileId);
+        const existingFiles = existingFileIds.length > 0
+          ? await queryRunner.manager.find(FileEntity, { where: { id: In(existingFileIds) } })
+          : [];
+        const orphanedKeys = existingFiles.map(f => f.fileKey).filter(Boolean) as string[];
+
+        await queryRunner.manager.delete(PropertyFile, { propertyId: id });
+        if (existingFileIds.length > 0) {
+          await queryRunner.manager.delete(FileEntity, { id: In(existingFileIds) });
+        }
+        if (payload.documents.length > 0) {
+          await this.saveDocuments(queryRunner.manager, id, payload.documents);
+        }
+
+        if (orphanedKeys.length > 0) {
+          this.storageService.deleteFiles(orphanedKeys).catch(err =>
+            console.error(`[AdminProperties] Failed to delete orphaned R2 documents`, err)
+          );
+        }
+      }
+
       await queryRunner.commitTransaction();
       const prop = await this.details(propertyType, id);
       if (prop.slug) {
@@ -653,17 +958,27 @@ export class AdminPropertiesService {
 
   async remove(propertyType: string, id: number) {
     // Gather all R2 keys before deleting from DB
-    const [images, units] = await Promise.all([
+    const [images, units, docLinks] = await Promise.all([
       this.dataSource.getRepository(PropertyImage).find({ where: { propertyId: id } }),
       this.dataSource.getRepository(PropertyUnit).find({ where: { propertyId: id } }),
+      this.dataSource.getRepository(PropertyFile).find({ where: { propertyId: id } }),
     ]);
     const imageKeys = images.map(img => img.imageKey).filter(Boolean) as string[];
     const unitKeys = units.map(u => u.floorPlanImageKey).filter(Boolean) as string[];
-    const allKeys = [...imageKeys, ...unitKeys];
+    const docFileIds = docLinks.map(l => l.fileId);
+    const docFiles = docFileIds.length > 0
+      ? await this.dataSource.getRepository(FileEntity).find({ where: { id: In(docFileIds) } })
+      : [];
+    const allKeys = [...imageKeys, ...unitKeys, ...docFiles.map(f => f.fileKey).filter(Boolean) as string[]];
 
     const result = await this.dataSource.getRepository(Property).delete({ id });
     if (!result.affected || result.affected === 0) {
       throw new NotFoundException(`Property with ID ${id} not found`);
+    }
+
+    // FileEntity rows are not cascade-deleted via the property (only the links are)
+    if (docFileIds.length > 0) {
+      await this.dataSource.getRepository(FileEntity).delete({ id: In(docFileIds) });
     }
 
     if (allKeys.length > 0) {
@@ -724,6 +1039,44 @@ export class AdminPropertiesService {
     }
 
     return { city, sublocation };
+  }
+
+  private async saveDocuments(
+    manager: EntityManager,
+    propertyId: number,
+    documents: { fileKey: string; fileName?: string; mimeType?: string; fileSizeBytes?: number; documentType?: string; title?: string; isPublic?: boolean }[],
+  ): Promise<void> {
+    const validTypes = new Set(Object.values(PropertyDocumentType));
+    let sortOrder = 0;
+    for (const doc of documents) {
+      if (!doc.fileKey) continue;
+      const ext = (doc.fileName?.split('.').pop() || '').slice(0, 20) || null;
+      const file = new FileEntity();
+      Object.assign(file, {
+        uploadedBy: null,
+        fileName: doc.fileName || doc.fileKey.split('/').pop() || 'document',
+        fileExtension: ext,
+        mimeType: doc.mimeType || 'application/octet-stream',
+        fileSizeBytes: String(doc.fileSizeBytes ?? 0),
+        fileUrl: doc.fileKey,
+        fileKey: doc.fileKey,
+        storageProvider: StorageProvider.R2,
+        checksumSha256: null,
+      });
+      const savedFile = await manager.save(file);
+      const link = new PropertyFile();
+      Object.assign(link, {
+        propertyId,
+        fileId: savedFile.id,
+        documentType: (doc.documentType && validTypes.has(doc.documentType as PropertyDocumentType)
+          ? doc.documentType
+          : PropertyDocumentType.OTHER) as PropertyDocumentType,
+        title: doc.title || doc.fileName || null,
+        isPublic: doc.isPublic ?? true,
+        sortOrder: sortOrder++,
+      });
+      await manager.save(link);
+    }
   }
 
   private triggerListingRevalidation(localitySlug: string) {
