@@ -59,8 +59,8 @@ class PropertyDetailsDto {
   @IsOptional() @IsBoolean() guestParking?: boolean;
 
   // Floor Plans & Rooms
-  @IsOptional() @IsArray() roomDimensions?: any[];
-  @IsOptional() @IsArray() floorPlanImages?: any[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => RoomDimensionDto) roomDimensions?: RoomDimensionDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => FloorPlanImageDto) floorPlanImages?: FloorPlanImageDto[];
 
   // ── CRM-only operational fields ──
   @IsOptional() @IsNumber() udsArea?: number;
@@ -127,6 +127,17 @@ class PropertyDetailsDto {
   @IsOptional() @IsString() communityFacilities?: string;
   @IsOptional() @IsString() accessibility?: string;
   @IsOptional() @IsString() furnishingStatus?: string;
+}
+
+class RoomDimensionDto {
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() dimensions?: string;
+}
+
+class FloorPlanImageDto {
+  @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsString() imageUrl?: string;
+  @IsOptional() @IsString() imageKey?: string;
 }
 
 class PropertyLocationDto {

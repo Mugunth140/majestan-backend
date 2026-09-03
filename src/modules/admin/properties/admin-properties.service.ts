@@ -476,7 +476,7 @@ export class AdminPropertiesService {
             }
             return img;
           });
-          details.floorPlanImages = processedImages;
+          details.floorPlanImages = processedImages as any;
         }
 
         details.propertyId = savedProperty.id;
@@ -780,7 +780,7 @@ export class AdminPropertiesService {
             }
             return img;
           });
-          details.floorPlanImages = processedImages;
+          details.floorPlanImages = processedImages as any;
         }
 
         details.propertyId = id;
