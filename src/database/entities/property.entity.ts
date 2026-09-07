@@ -48,6 +48,7 @@ export enum PropertyStatus {
 @Index('idx_properties_owner_id', ['ownerId'])
 @Index('idx_properties_property_code', ['propertyCode'], { unique: true })
 @Index('idx_properties_slug', ['slug'], { unique: true })
+@Index('idx_properties_project_id', ['projectId'])
 export class Property {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
@@ -129,6 +130,9 @@ export class Property {
 
   @Column({ name: 'project_name', type: 'varchar', length: 255, nullable: true })
   projectName!: string | null;
+
+  @Column({ name: 'project_id', type: 'int', unsigned: true, nullable: true })
+  projectId!: number | null;
 
   @Column({ name: 'negotiable', type: 'boolean', default: false })
   negotiable!: boolean;
