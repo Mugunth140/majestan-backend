@@ -34,10 +34,11 @@ export class AdminProjectsService {
     return { ...scalars, units };
   }
 
-  async list(page = 1, limit = 20, search?: string, status?: string) {
+  async list(page = 1, limit = 20, search?: string, status?: string, projectType?: string) {
     const qb = this.projectRepository.createQueryBuilder('p');
     if (search) qb.andWhere('(p.name LIKE :s OR p.builderName LIKE :s OR p.city LIKE :s)', { s: `%${search}%` });
     if (status) qb.andWhere('p.status = :status', { status });
+    if (projectType) qb.andWhere('p.projectType = :projectType', { projectType });
     const [projects, total] = await qb.orderBy('p.createdAt', 'DESC').skip((page - 1) * limit).take(limit).getManyAndCount();
     const items: any[] = [];
     for (const project of projects) {

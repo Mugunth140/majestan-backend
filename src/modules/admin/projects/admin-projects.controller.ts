@@ -12,8 +12,8 @@ export class AdminProjectsController {
   constructor(private readonly adminProjectsService: AdminProjectsService) {}
 
   @Get()
-  async list(@Query('page') page = 1, @Query('limit') limit = 20, @Query('search') search?: string, @Query('status') status?: string) {
-    return this.adminProjectsService.list(Number(page), Number(limit), search, status);
+  async list(@Query('page') page = 1, @Query('limit') limit = 20, @Query('search') search?: string, @Query('status') status?: string, @Query('projectType') projectType?: string) {
+    return this.adminProjectsService.list(Number(page), Number(limit), search, status, projectType);
   }
 
   @Get(':id')
