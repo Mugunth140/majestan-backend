@@ -10,6 +10,7 @@ import { AdminSublocationsModule } from './sublocations/admin-sublocations.modul
 import { AdminAmenitiesModule } from './amenities/admin-amenities.module';
 import { AdminSeoModule } from './seo/admin-seo.module';
 import { ListingPageSeoModule } from './listing-page-seo/listing-page-seo.module';
+import { AdminProjectsModule } from './projects/admin-projects.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ListingPageSeoModule } from './listing-page-seo/listing-page-seo.module
     AdminAmenitiesModule,
     AdminSeoModule,
     ListingPageSeoModule,
+    AdminProjectsModule,
   ],
 })
 export class AdminModule {}

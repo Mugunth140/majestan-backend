@@ -5,8 +5,7 @@ import { Project, ProjectStatus } from '../../database/entities/project.entity';
 import { ProjectSearchQueryDto } from './dto/project-search.dto';
 import { computeProjectRanges } from './utils/project-ranges.util';
 
-const toProjectListItem = (project: Project) => {
-  const units = ((project as any).units ?? []) as any[];
+const toProjectListItem = (project: Project, units: any[]) => {
   const { id, name, slug, canonicalSlug, projectType, builderName, reraNumber, possessionDate, possessionStatus, city, state, sublocation, coverImageUrl, status, createdAt, updatedAt } = project;
   return {
     id, name, slug, canonicalSlug, projectType, builderName, reraNumber,
@@ -42,30 +41,34 @@ export class ProjectsService {
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
-    return { items: projects.map(toProjectListItem), total, page, limit };
+    const items: any[] = [];
+    for (const project of projects) {
+      items.push(toProjectListItem(project, (await project.units) ?? []));
+    }
+    return { items, total, page, limit };
   }
 
   async detailsBySlug(slug: string) {
     const project = await this.projectRepository.findOne({
       where: [{ slug }, { canonicalSlug: slug }],
-      relations: { units: true, seo: true },
     });
     if (!project || project.status !== ProjectStatus.PUBLISHED) {
       throw new NotFoundException('Project not found');
     }
-    const units = ((project as any).units ?? []) as any[];
-    const availableFirst = [...units].sort((a, b) =>
+    const units = ((await project.units) ?? []) as any[];
+    const seo = await project.seo;
+    const availableFirst = [...units].sort((a: any, b: any) =>
       a.status === b.status ? 0 : a.status === 'available' ? -1 : 1,
     );
     return {
-      ...toProjectListItem(project),
+      ...toProjectListItem(project, units),
       description: project.description,
       address: project.address,
       towers: project.towers,
       totalUnits: project.totalUnits,
       galleryImageUrls: project.galleryImageUrls,
       units: availableFirst,
-      seo: (project as any).seo ?? null,
+      seo: seo ?? null,
     };
   }
 
