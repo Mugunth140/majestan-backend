@@ -6,6 +6,7 @@ import { ProjectUnit } from '../../../database/entities/project-unit.entity';
 import { ProjectSeo, ProjectSeoData } from '../../../database/entities/project-seo.entity';
 import { buildProjectCanonical, toProjectSlug } from '../../../modules/projects/utils/project-slug.util';
 import { CreateProjectDto, CreateProjectUnitDto, UpdateProjectDto } from './dto/create-project.dto';
+import { StorageService } from '../../storage/storage.service';
 
 const DECIMAL_KEYS = ['price', 'monthlyRent', 'securityDeposit', 'maintenanceFee', 'carpetAreaSqft', 'builtupAreaSqft', 'superBuiltupAreaSqft'] as const;
 
@@ -24,7 +25,13 @@ export class AdminProjectsService {
     @InjectRepository(ProjectUnit) private readonly unitRepository: Repository<ProjectUnit>,
     @InjectRepository(ProjectSeo) private readonly seoRepository: Repository<ProjectSeo>,
     private readonly dataSource: DataSource,
+    private readonly storageService: StorageService,
   ) {}
+
+  private async finalizeImage(key?: string): Promise<string | undefined> {
+    if (!key) return undefined;
+    return this.storageService.processAndUploadImage(key);
+  }
 
   private async findOrFail(id: number) {
     const project = await this.projectRepository.findOne({ where: { id } });
@@ -59,15 +66,21 @@ export class AdminProjectsService {
     await queryRunner.startTransaction();
     try {
       const slug = payload.slug ? toProjectSlug(payload.slug) : toProjectSlug(payload.name);
+      const coverImageUrl = await this.finalizeImage(payload.coverImageUrl);
       const project = queryRunner.manager.create(Project, {
         ...payload,
+        coverImageUrl,
         slug,
         canonicalSlug: buildProjectCanonical(payload.city, slug),
         units: undefined,
       });
       const saved = await queryRunner.manager.save(Project, project);
       if (payload.units?.length) {
-        const units = payload.units.map((u) => queryRunner.manager.create(ProjectUnit, toUnitRow(u, saved.id)));
+        const rows: Record<string, unknown>[] = [];
+        for (const u of payload.units) {
+          rows.push({ ...toUnitRow(u, saved.id), floorPlanImageUrl: await this.finalizeImage(u.floorPlanImageUrl) });
+        }
+        const units = rows.map((r) => queryRunner.manager.create(ProjectUnit, r));
         await queryRunner.manager.save(ProjectUnit, units);
       }
       await queryRunner.commitTransaction();
@@ -89,11 +102,16 @@ export class AdminProjectsService {
       const slug = payload.slug ? toProjectSlug(payload.slug) : payload.name ? toProjectSlug(payload.name) : existing.slug;
       const city = payload.city ?? existing.city;
       const { units, ...scalars } = payload;
-      await queryRunner.manager.update(Project, id, { ...scalars, slug, canonicalSlug: buildProjectCanonical(city, slug) });
+      const coverImageUrl = scalars.coverImageUrl ? await this.finalizeImage(scalars.coverImageUrl) : scalars.coverImageUrl;
+      await queryRunner.manager.update(Project, id, { ...scalars, coverImageUrl, slug, canonicalSlug: buildProjectCanonical(city, slug) });
       if (units) {
         await queryRunner.manager.delete(ProjectUnit, { projectId: id });
         if (units.length) {
-          await queryRunner.manager.save(ProjectUnit, units.map((u) => queryRunner.manager.create(ProjectUnit, toUnitRow(u, id))));
+          const rows: Record<string, unknown>[] = [];
+          for (const u of units) {
+            rows.push({ ...toUnitRow(u, id), floorPlanImageUrl: await this.finalizeImage(u.floorPlanImageUrl) });
+          }
+          await queryRunner.manager.save(ProjectUnit, rows.map((r) => queryRunner.manager.create(ProjectUnit, r)));
         }
       }
       await queryRunner.commitTransaction();

@@ -4,13 +4,15 @@ import { Repository } from 'typeorm';
 import { Project, ProjectStatus } from '../../database/entities/project.entity';
 import { ProjectSearchQueryDto } from './dto/project-search.dto';
 import { computeProjectRanges } from './utils/project-ranges.util';
+import { StorageService } from '../storage/storage.service';
 
-const toProjectListItem = (project: Project, units: any[]) => {
+const toProjectListItem = (project: Project, units: any[], readUrl: (key: string) => string) => {
   const { id, name, slug, canonicalSlug, projectType, builderName, reraNumber, possessionDate, possessionStatus, city, state, sublocation, coverImageUrl, status, createdAt, updatedAt } = project;
   return {
     id, name, slug, canonicalSlug, projectType, builderName, reraNumber,
     possessionDate, possessionStatus, city, state, sublocation,
-    coverImageUrl, status, createdAt, updatedAt,
+    coverImageUrl: coverImageUrl ? readUrl(coverImageUrl) : coverImageUrl,
+    status, createdAt, updatedAt,
     ranges: computeProjectRanges(units),
   };
 };
@@ -20,7 +22,17 @@ export class ProjectsService {
   constructor(
     @InjectRepository(Project)
     private readonly projectRepository: Repository<Project>,
+    private readonly storageService: StorageService,
   ) {}
+
+  private readUrl = (key: string): string => this.storageService.generateReadUrl(key);
+
+  private resolveUnitUrls(units: any[]): any[] {
+    return units.map((u) => ({
+      ...u,
+      floorPlanImageUrl: u.floorPlanImageUrl ? this.readUrl(u.floorPlanImageUrl) : u.floorPlanImageUrl,
+    }));
+  }
 
   async list(query: ProjectSearchQueryDto) {
     const page = query.page || 1;
@@ -43,7 +55,8 @@ export class ProjectsService {
       .getManyAndCount();
     const items: any[] = [];
     for (const project of projects) {
-      items.push(toProjectListItem(project, (await project.units) ?? []));
+      const units = this.resolveUnitUrls((await project.units) ?? []);
+      items.push(toProjectListItem(project, units, this.readUrl));
     }
     return { items, total, page, limit };
   }
@@ -55,18 +68,18 @@ export class ProjectsService {
     if (!project || project.status !== ProjectStatus.PUBLISHED) {
       throw new NotFoundException('Project not found');
     }
-    const units = ((await project.units) ?? []) as any[];
+    const units = this.resolveUnitUrls(((await project.units) ?? []) as any[]);
     const seo = await project.seo;
     const availableFirst = [...units].sort((a: any, b: any) =>
       a.status === b.status ? 0 : a.status === 'available' ? -1 : 1,
     );
     return {
-      ...toProjectListItem(project, units),
+      ...toProjectListItem(project, units, this.readUrl),
       description: project.description,
       address: project.address,
       towers: project.towers,
       totalUnits: project.totalUnits,
-      galleryImageUrls: project.galleryImageUrls,
+      galleryImageUrls: (project.galleryImageUrls ?? []).map((g) => this.readUrl(g)),
       units: availableFirst,
       seo: seo ?? null,
     };

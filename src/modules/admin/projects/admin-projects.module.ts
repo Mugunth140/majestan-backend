@@ -5,9 +5,10 @@ import { ProjectUnit } from '../../../database/entities/project-unit.entity';
 import { ProjectSeo } from '../../../database/entities/project-seo.entity';
 import { AdminProjectsController } from './admin-projects.controller';
 import { AdminProjectsService } from './admin-projects.service';
+import { StorageModule } from '../../storage/storage.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Project, ProjectUnit, ProjectSeo])],
+  imports: [TypeOrmModule.forFeature([Project, ProjectUnit, ProjectSeo]), StorageModule],
   controllers: [AdminProjectsController],
   providers: [AdminProjectsService],
   exports: [AdminProjectsService],
