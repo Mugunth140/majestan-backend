@@ -30,6 +30,7 @@ import { MetadataModule } from './modules/metadata/metadata.module';
 import { HomeModule } from './modules/home/home.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { SearchModule } from './modules/search/search.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 import { RootController } from './root.controller';
 
 @Module({
@@ -87,6 +88,7 @@ import { RootController } from './root.controller';
     AdminModule,
     StorageModule,
     SearchModule,
+    ProjectsModule,
   ],
   controllers: [RootController],
   providers: [
