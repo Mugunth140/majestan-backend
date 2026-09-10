@@ -46,6 +46,10 @@ export class Project {
   @Column({ name: 'canonical_slug', type: 'varchar', length: 512, nullable: false, unique: true })
   canonicalSlug!: string;
 
+  @Index('idx_projects_project_code', ['projectCode'], { unique: true })
+  @Column({ name: 'project_code', type: 'varchar', length: 20, nullable: true })
+  projectCode!: string | null;
+
   @Column({ name: 'project_type', type: 'enum', enum: ProjectType, nullable: false })
   projectType!: ProjectType;
 

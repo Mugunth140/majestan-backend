@@ -88,7 +88,7 @@ export class PropertiesService {
     if (this.searchService?.isEnabled() && query.propertyName && query.propertyName.trim().length >= 2) {
       try {
         const dbPropertyType = query.propertyType ? normalizePropertyType(query.propertyType as string) : undefined;
-        const meili = await this.searchService.search(query.propertyName, { propertyType: dbPropertyType, listingType: query.listingType, city: query.location || query.city }, query.page || 1, query.limit || 10);
+        const meili = await this.searchService.search(query.propertyName, { propertyType: dbPropertyType, listingType: query.listingType, location: query.location || query.city }, query.page || 1, query.limit || 10);
         if (meili.hits.length > 0) {
           const ids = meili.hits.map((h: any) => h.id);
           const props = await this.propertyRepository.createQueryBuilder('p')
@@ -132,7 +132,8 @@ export class PropertiesService {
     }
 
     if (query.location) {
-      qb.andWhere('p.city = :location', { location: query.location });
+      qb.leftJoin('locations.sublocation', 'subloc');
+      qb.andWhere('(p.city = :location OR subloc.localityName = :location)', { location: query.location });
     }
 
     // Parameterized price range filters (prevent SQL injection)
@@ -158,9 +159,9 @@ export class PropertiesService {
     }
 
     if (query.sort === PropertySortOption.PriceLowToHigh) {
-      qb.orderBy('CAST(p.price AS DECIMAL(12,2))', 'ASC');
+      qb.orderBy('p.price', 'ASC');
     } else if (query.sort === PropertySortOption.PriceHighToLow) {
-      qb.orderBy('CAST(p.price AS DECIMAL(12,2))', 'DESC');
+      qb.orderBy('p.price', 'DESC');
     } else {
       qb.orderBy('p.createdAt', 'DESC');
     }

@@ -8,6 +8,11 @@ import { UpdatePropertySeoSlugs1779300000000 } from './migrations/1779300000000-
 import { SeedAdminUser1779400000000 } from './migrations/1779400000000-SeedAdminUser';
 import { AddManagedCitiesAndSublocations1781020414000 } from './migrations/1781020414000-AddManagedCitiesAndSublocations';
 import { AddListingPageSeoTable1756540000000 } from './migrations/1756540000000-AddListingPageSeoTable';
+import { AddPropertySeoTable1781500000000 } from './migrations/1781500000000-AddPropertySeoTable';
+import { AddCrmOnlyPropertyFields1781600000000 } from './migrations/1781600000000-AddCrmOnlyPropertyFields';
+import { AddProjectCodeColumn1781700000000 } from './migrations/1781700000000-AddProjectCodeColumn';
+import { ProjectRootCustomSlug1781800000000 } from './migrations/1781800000000-ProjectRootCustomSlug';
+import { AddProjectCodeToCanonicalSlug1781900000000 } from './migrations/1781900000000-AddProjectCodeToCanonicalSlug';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -43,6 +48,11 @@ export default new DataSource({
     SeedAdminUser1779400000000,
     AddManagedCitiesAndSublocations1781020414000,
     AddListingPageSeoTable1756540000000,
+    AddPropertySeoTable1781500000000,
+    AddCrmOnlyPropertyFields1781600000000,
+    AddProjectCodeColumn1781700000000,
+    ProjectRootCustomSlug1781800000000,
+    AddProjectCodeToCanonicalSlug1781900000000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),

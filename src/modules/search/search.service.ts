@@ -250,7 +250,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
 
   async search(
     query: string,
-    filters: { propertyType?: string; listingType?: string; city?: string; locality?: string },
+    filters: { propertyType?: string; listingType?: string; city?: string; locality?: string; location?: string },
     page: number,
     limit: number,
     useHybrid = false,
@@ -261,6 +261,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     if (filters.listingType) filterParts.push(`listingType = "${filters.listingType}"`);
     if (filters.city) filterParts.push(`city = "${filters.city}"`);
     if (filters.locality) filterParts.push(`localitySlug = "${toSlug(filters.locality)}"`);
+    if (filters.location) filterParts.push(`(city = "${filters.location}" OR localitySlug = "${toSlug(filters.location)}")`);;
     const filter = filterParts.join(' AND ');
 
     const searchOptions: any = {

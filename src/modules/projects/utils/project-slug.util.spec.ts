@@ -5,9 +5,12 @@ describe('project slugs', () => {
     expect(toProjectSlug('Sunrise Villas & Resorts')).toBe('sunrise-villas-and-resorts');
   });
 
-  it('builds canonical paths', () => {
-    expect(buildProjectCanonical('Coimbatore', 'sunrise-villas')).toBe(
-      'projects/coimbatore/sunrise-villas',
-    );
+  it('builds canonical slug with project code', () => {
+    expect(buildProjectCanonical('sunrise-villas', 'PRV0001')).toBe('sunrise-villas-prv0001');
+  });
+
+  it('builds canonical slug without project code (fallback)', () => {
+    expect(buildProjectCanonical('sunrise-villas')).toBe('sunrise-villas');
+    expect(buildProjectCanonical('sunrise-villas', null)).toBe('sunrise-villas');
   });
 });

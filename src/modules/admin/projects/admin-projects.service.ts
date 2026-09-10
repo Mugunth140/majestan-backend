@@ -4,7 +4,8 @@ import { DataSource, Repository } from 'typeorm';
 import { Project } from '../../../database/entities/project.entity';
 import { ProjectUnit } from '../../../database/entities/project-unit.entity';
 import { ProjectSeo, ProjectSeoData } from '../../../database/entities/project-seo.entity';
-import { buildProjectCanonical, toProjectSlug } from '../../../modules/projects/utils/project-slug.util';
+import { toProjectSlug } from '../../../modules/projects/utils/project-slug.util';
+import { generateProjectCode } from '../../../modules/projects/utils/project-code.util';
 import { CreateProjectDto, CreateProjectUnitDto, UpdateProjectDto } from './dto/create-project.dto';
 import { StorageService } from '../../storage/storage.service';
 
@@ -71,7 +72,7 @@ export class AdminProjectsService {
         ...payload,
         coverImageUrl,
         slug,
-        canonicalSlug: buildProjectCanonical(payload.city, slug),
+        canonicalSlug: slug,
         units: undefined,
       });
       const saved = await queryRunner.manager.save(Project, project);
@@ -83,6 +84,12 @@ export class AdminProjectsService {
         const units = rows.map((r) => queryRunner.manager.create(ProjectUnit, r));
         await queryRunner.manager.save(ProjectUnit, units);
       }
+      // Assign project code using DB-generated ID (same pattern as property codes and asset display IDs)
+      const projectCode = generateProjectCode(saved.projectType, saved.id);
+      saved.projectCode = projectCode;
+      // canonicalSlug = slug-<projectcode-lowercase> for unique, SEO-friendly root URLs
+      saved.canonicalSlug = `${saved.slug}-${projectCode.toLowerCase()}`;
+      await queryRunner.manager.save(Project, saved);
       await queryRunner.commitTransaction();
       return this.findOrFail(saved.id);
     } catch (err) {
@@ -99,11 +106,20 @@ export class AdminProjectsService {
     await queryRunner.startTransaction();
     try {
       const existing = await this.findOrFail(id);
-      const slug = payload.slug ? toProjectSlug(payload.slug) : payload.name ? toProjectSlug(payload.name) : existing.slug;
-      const city = payload.city ?? existing.city;
+      let slugPatch: Partial<{ slug: string; canonicalSlug: string }> = {};
+      if (payload.slug) {
+        const newSlug = toProjectSlug(payload.slug);
+        // Keep canonicalSlug in sync: slug-<projectcode-lowercase>
+        // existing.projectCode is already set; use it to rebuild canonical
+        const existingCode = existing.projectCode as string | null;
+        slugPatch = {
+          slug: newSlug,
+          canonicalSlug: existingCode ? `${newSlug}-${existingCode.toLowerCase()}` : newSlug,
+        };
+      }
       const { units, ...scalars } = payload;
       const coverImageUrl = scalars.coverImageUrl ? await this.finalizeImage(scalars.coverImageUrl) : scalars.coverImageUrl;
-      await queryRunner.manager.update(Project, id, { ...scalars, coverImageUrl, slug, canonicalSlug: buildProjectCanonical(city, slug) });
+      await queryRunner.manager.update(Project, id, { ...scalars, coverImageUrl, ...slugPatch });
       if (units) {
         await queryRunner.manager.delete(ProjectUnit, { projectId: id });
         if (units.length) {

@@ -7,9 +7,9 @@ import { computeProjectRanges } from './utils/project-ranges.util';
 import { StorageService } from '../storage/storage.service';
 
 const toProjectListItem = (project: Project, units: any[], readUrl: (key: string) => string) => {
-  const { id, name, slug, canonicalSlug, projectType, builderName, reraNumber, possessionDate, possessionStatus, city, state, sublocation, coverImageUrl, status, createdAt, updatedAt } = project;
+  const { id, name, slug, canonicalSlug, projectCode, projectType, builderName, reraNumber, possessionDate, possessionStatus, city, state, sublocation, coverImageUrl, status, createdAt, updatedAt } = project;
   return {
-    id, name, slug, canonicalSlug, projectType, builderName, reraNumber,
+    id, name, slug, canonicalSlug, projectCode, projectType, builderName, reraNumber,
     possessionDate, possessionStatus, city, state, sublocation,
     coverImageUrl: coverImageUrl ? readUrl(coverImageUrl) : coverImageUrl,
     status, createdAt, updatedAt,
@@ -41,7 +41,7 @@ export class ProjectsService {
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.units', 'u', 'u.status = :unitStatus', { unitStatus: 'available' })
       .where('p.status = :status', { status: ProjectStatus.PUBLISHED });
-    if (query.city) qb.andWhere('p.city LIKE :city', { city: `%${query.city}%` });
+    if (query.city) qb.andWhere('(p.city LIKE :city OR p.sublocation LIKE :city)', { city: `%${query.city}%` });
     if (query.projectType) qb.andWhere('p.projectType = :projectType', { projectType: query.projectType });
     if (query.possession) qb.andWhere('p.possessionStatus = :possession', { possession: query.possession });
     if (query.rera) qb.andWhere("p.reraNumber IS NOT NULL AND p.reraNumber != ''");
