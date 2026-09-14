@@ -13,6 +13,7 @@ import { AddCrmOnlyPropertyFields1781600000000 } from './migrations/178160000000
 import { AddProjectCodeColumn1781700000000 } from './migrations/1781700000000-AddProjectCodeColumn';
 import { ProjectRootCustomSlug1781800000000 } from './migrations/1781800000000-ProjectRootCustomSlug';
 import { AddProjectCodeToCanonicalSlug1781900000000 } from './migrations/1781900000000-AddProjectCodeToCanonicalSlug';
+import { AddParkingTypeAndFloorFacing1782000000000 } from './migrations/1782000000000-AddParkingTypeAndFloorFacing';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -53,6 +54,7 @@ export default new DataSource({
     AddProjectCodeColumn1781700000000,
     ProjectRootCustomSlug1781800000000,
     AddProjectCodeToCanonicalSlug1781900000000,
+    AddParkingTypeAndFloorFacing1782000000000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),

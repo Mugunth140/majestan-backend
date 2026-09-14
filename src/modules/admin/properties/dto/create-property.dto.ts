@@ -6,9 +6,11 @@ class PropertyDetailsDto {
   @IsOptional() @IsNumber() bedrooms?: number;
   @IsOptional() @IsNumber() bathrooms?: number;
   @IsOptional() @IsNumber() parking?: number;
+  @IsOptional() @IsString() parkingType?: string;
   @IsOptional() @IsNumber() areaSqft?: number;
   @IsOptional() @IsBoolean() furnished?: boolean;
   @IsOptional() @IsString() facing?: string;
+  @IsOptional() @IsString() floorFacing?: string;
   @IsOptional() @IsNumber() buildUpArea?: number;
   @IsOptional() @IsNumber() carpetArea?: number;
   @IsOptional() @IsNumber() totalFloors?: number;

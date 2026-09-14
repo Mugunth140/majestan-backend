@@ -41,6 +41,9 @@ export class PropertyDetails {
   @Column({ name: 'parking', type: 'int', nullable: false })
   parking!: number;
 
+  @Column({ name: 'parking_type', type: 'varchar', length: 20, nullable: true })
+  parkingType!: string | null;
+
   @Column({ name: 'furnished', type: 'boolean', nullable: false })
   furnished!: boolean;
 
@@ -70,6 +73,9 @@ export class PropertyDetails {
 
   @Column({ name: 'property_facing', type: 'varchar', length: 50, nullable: true })
   propertyFacing!: string | null;
+
+  @Column({ name: 'floor_facing', type: 'varchar', length: 50, nullable: true })
+  floorFacing!: string | null;
 
   @Column({ name: 'property_age', type: 'varchar', length: 50, nullable: true })
   propertyAge!: string | null;
