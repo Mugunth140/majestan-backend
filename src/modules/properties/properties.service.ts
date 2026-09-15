@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { Property, PropertyType, PropertyStatus } from '../../database/entities/property.entity';
 import { PropertySearchQueryDto, PropertySortOption } from './dto/property-search.dto';
 
@@ -41,6 +41,19 @@ type SearchResult = {
   page: number;
   limit: number;
 };
+
+// Best-known built-up area across the details columns (stored as strings).
+const AREA_EXPR = `COALESCE(CAST(NULLIF(TRIM(details.superBuiltUpArea), '') AS DECIMAL(12,2)), CAST(NULLIF(TRIM(details.areaSqft), '') AS DECIMAL(12,2)), CAST(NULLIF(TRIM(details.carpetArea), '') AS DECIMAL(12,2)))`;
+
+function toStrList(v: unknown): string[] {
+  if (v === undefined || v === null) return [];
+  const arr = Array.isArray(v) ? v : [v];
+  return arr.map((x) => String(x).trim()).filter(Boolean);
+}
+
+function normFacing(v: string): string {
+  return v.trim().toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ');
+}
 
 import { AdminPropertiesService } from '../admin/properties/admin-properties.service';
 import { CreatePropertyDto } from '../admin/properties/dto/create-property.dto';
@@ -84,6 +97,75 @@ export class PropertiesService {
     return this.adminPropertiesService.create(propertyType, payload);
   }
 
+  /**
+   * Applies the listing-UI filters (price/area ranges, bedrooms, facing,
+   * furnishing, age) to any property query builder that already joins
+   * `propertyDetails` as `details`. Shared by the DB and Meilisearch paths
+   * so both honor the same filters.
+   */
+  private applyListingFilters(qb: SelectQueryBuilder<Property>, query: PropertySearchQueryDto): void {
+    const minP = parseFloat(String(query.minPrice ?? ''));
+    if (Number.isFinite(minP)) {
+      qb.andWhere('CAST(p.price AS DECIMAL(12,2)) >= :fMinPrice', { fMinPrice: minP });
+    }
+    const maxP = parseFloat(String(query.maxPrice ?? ''));
+    if (Number.isFinite(maxP)) {
+      qb.andWhere('CAST(p.price AS DECIMAL(12,2)) <= :fMaxPrice', { fMaxPrice: maxP });
+    }
+    const minA = parseFloat(String(query.minArea ?? ''));
+    if (Number.isFinite(minA)) {
+      qb.andWhere(`${AREA_EXPR} >= :fMinArea`, { fMinArea: minA });
+    }
+    const maxA = parseFloat(String(query.maxArea ?? ''));
+    if (Number.isFinite(maxA)) {
+      qb.andWhere(`${AREA_EXPR} <= :fMaxArea`, { fMaxArea: maxA });
+    }
+    if (query.bedrooms !== undefined && query.bedrooms !== null && String(query.bedrooms).trim() !== '') {
+      const b = String(query.bedrooms).trim();
+      if (b.endsWith('+')) {
+        const n = parseInt(b, 10);
+        if (Number.isFinite(n)) qb.andWhere('details.bedrooms >= :fBedrooms', { fBedrooms: n });
+      } else {
+        const n = parseInt(b, 10);
+        if (Number.isFinite(n)) qb.andWhere('details.bedrooms = :fBedrooms', { fBedrooms: n });
+      }
+    }
+    const facings = toStrList(query.facing).map(normFacing).filter(Boolean);
+    if (facings.length > 0) {
+      qb.andWhere(`LOWER(REPLACE(TRIM(details.propertyFacing), '-', ' ')) IN (:...fFacings)`, { fFacings: facings });
+    }
+    const furnishings = toStrList(query.furnishing).map((s) => s.toLowerCase());
+    if (furnishings.length > 0) {
+      const parts: string[] = [];
+      if (furnishings.includes('furnished')) parts.push('details.furnished = TRUE');
+      if (furnishings.includes('unfurnished')) parts.push('details.furnished = FALSE');
+      if (furnishings.includes('semi')) parts.push(`LOWER(details.furnishingStatus) LIKE '%semi%'`);
+      const uniq = [...new Set(parts)];
+      if (uniq.length > 0) qb.andWhere(`(${uniq.join(' OR ')})`);
+    }
+    const ages = [...toStrList((query as any).propertyAge), ...toStrList((query as any).age)].map((s) => s.toLowerCase());
+    if (ages.length > 0) {
+      const parts: string[] = [];
+      let i = 0;
+      for (const a of ages) {
+        if (a === 'new') {
+          parts.push(`LOWER(details.propertyAge) LIKE '%new%'`);
+        } else if (a === '1-5') {
+          parts.push(`CAST(details.propertyAge AS UNSIGNED) BETWEEN 1 AND 5`);
+        } else if (a === '5-10') {
+          parts.push(`CAST(details.propertyAge AS UNSIGNED) BETWEEN 5 AND 10`);
+        } else if (a === '10+') {
+          parts.push(`CAST(details.propertyAge AS UNSIGNED) >= 10`);
+        } else {
+          parts.push(`LOWER(details.propertyAge) LIKE :fAge${i}`);
+          qb.setParameter(`fAge${i}`, `%${a}%`);
+        }
+        i++;
+      }
+      if (parts.length > 0) qb.andWhere(`(${parts.join(' OR ')})`);
+    }
+  }
+
   async search(query: PropertySearchQueryDto): Promise<SearchResult> {
     if (this.searchService?.isEnabled() && query.propertyName && query.propertyName.trim().length >= 2) {
       try {
@@ -91,14 +173,15 @@ export class PropertiesService {
         const meili = await this.searchService.search(query.propertyName, { propertyType: dbPropertyType, listingType: query.listingType, location: query.location || query.city }, query.page || 1, query.limit || 10);
         if (meili.hits.length > 0) {
           const ids = meili.hits.map((h: any) => h.id);
-          const props = await this.propertyRepository.createQueryBuilder('p')
+          const meiliQb = this.propertyRepository.createQueryBuilder('p')
             .leftJoinAndSelect('p.propertyDetails', 'details')
             .leftJoinAndSelect('p.propertyLocations', 'locations')
             .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
             .leftJoinAndSelect('p.propertyUnits', 'units')
             .where('p.id IN (:...ids)', { ids })
-            .andWhere('p.status = :status', { status: PropertyStatus.AVAILABLE })
-            .getMany();
+            .andWhere('p.status = :status', { status: PropertyStatus.AVAILABLE });
+          this.applyListingFilters(meiliQb, query);
+          const props = await meiliQb.getMany();
           const byId = new Map(props.map((p) => [p.id, p]));
           const ordered = ids.map((id: number) => byId.get(id)).filter(Boolean) as Property[];
           const mappedItems = await Promise.all(ordered.map(async (p) => {
@@ -158,10 +241,19 @@ export class PropertiesService {
       }
     }
 
+    // Singular listing-UI filters (price/area bounds, bedrooms, facing,
+    // furnishing, age) shared with the Meilisearch path above.
+    this.applyListingFilters(qb, query);
+
     if (query.sort === PropertySortOption.PriceLowToHigh) {
       qb.orderBy('p.price', 'ASC');
     } else if (query.sort === PropertySortOption.PriceHighToLow) {
       qb.orderBy('p.price', 'DESC');
+    } else if (query.sort === PropertySortOption.AreaLowToHigh || query.sort === PropertySortOption.AreaHighToLow) {
+      // Computed expression can't go in orderBy directly (alias resolution),
+      // so select it under an alias first, then order by the alias.
+      qb.addSelect(AREA_EXPR, 'f_area_sort');
+      qb.orderBy('f_area_sort', query.sort === PropertySortOption.AreaLowToHigh ? 'ASC' : 'DESC');
     } else {
       qb.orderBy('p.createdAt', 'DESC');
     }
@@ -174,8 +266,11 @@ export class PropertiesService {
 
     const mappedItems = await Promise.all(items.map(async p => {
       const images = await p.propertyImages;
+      // Strip the internal area-sort helper select so it never leaks into the API response
+      const { f_area_sort: _areaSort, ...rest } = p as any;
+      void _areaSort;
       return {
-        ...p,
+        ...rest,
         propertyImages: this.storageService.resolveImageUrls(images || []),
         images: this.storageService.resolveImageUrls(images || []),
         canonicalSlug: p.slug ? p.slug : null

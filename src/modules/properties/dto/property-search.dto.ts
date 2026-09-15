@@ -94,4 +94,37 @@ export class PropertySearchQueryDto {
   @Transform(({ value }) => normalizeArray(value))
   @IsOptional()
   propertyUse?: string[];
+
+  // Singular filter params sent by the site listing UI (price/area ranges,
+  // bedroom count, property age bucket). Kept separate from the array-style
+  // params above so both API styles validate instead of 400ing.
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  minPrice?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  maxPrice?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  minArea?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  maxArea?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  bedrooms?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  propertyAge?: string;
 }
