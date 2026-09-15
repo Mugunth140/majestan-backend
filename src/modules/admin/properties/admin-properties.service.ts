@@ -564,6 +564,9 @@ export class AdminPropertiesService {
       this.searchService.indexProperty(savedProperty.id).catch(() => {});
       const localitySlug = toSlug(selectedLocation.sublocation.localityName);
       this.triggerListingRevalidation(localitySlug);
+      if (selectedLocation?.city?.cityName) {
+        this.triggerListingRevalidation(toSlug(selectedLocation.city.cityName));
+      }
       return this.details(propertyType, savedProperty.id);
 
     } catch (err) {
@@ -940,6 +943,13 @@ export class AdminPropertiesService {
         const localitySlug = toSlug(selectedLocation.sublocation.localityName);
         this.triggerListingRevalidation(localitySlug);
       }
+      // City-level listing pages are tagged by city slug too — bust that as
+      // well so city-only properties don't stay stale after edits.
+      if (selectedLocation?.city?.cityName) {
+        this.triggerListingRevalidation(toSlug(selectedLocation.city.cityName));
+      } else if ((prop as any).city) {
+        this.triggerListingRevalidation(toSlug(String((prop as any).city)));
+      }
       return prop;
 
     } catch (err) {
@@ -956,6 +966,18 @@ export class AdminPropertiesService {
     if (prop.slug) {
       this.triggerFrontendRevalidation(prop.slug);
     }
+    // Visibility toggles must also bust the listing-page caches (tagged by
+    // locality/city, 1h TTL) or toggled properties stay stale on the site.
+    const listingTags = new Set<string>();
+    const plocs: any[] = (prop as any).propertyLocations ?? [];
+    for (const pl of plocs) {
+      const loc = pl?.sublocation?.localityName;
+      if (loc && String(loc).trim()) listingTags.add(toSlug(String(loc)));
+    }
+    if ((prop as any).city && String((prop as any).city).trim()) {
+      listingTags.add(toSlug(String((prop as any).city)));
+    }
+    listingTags.forEach((tag) => this.triggerListingRevalidation(tag));
     this.searchService.indexProperty(id).catch(() => {});
     return prop;
   }
@@ -975,6 +997,9 @@ export class AdminPropertiesService {
       : [];
     const allKeys = [...imageKeys, ...unitKeys, ...docFiles.map(f => f.fileKey).filter(Boolean) as string[]];
 
+    // Capture slug + locations before deleting so caches can be busted after.
+    const doomed = await this.details(propertyType, id).catch(() => null);
+
     const result = await this.dataSource.getRepository(Property).delete({ id });
     if (!result.affected || result.affected === 0) {
       throw new NotFoundException(`Property with ID ${id} not found`);
@@ -992,6 +1017,20 @@ export class AdminPropertiesService {
     }
 
     this.searchService.deleteProperty(id).catch(() => {});
+    // Bust detail + listing caches so the deleted property disappears immediately.
+    if (doomed) {
+      if ((doomed as any).slug) this.triggerFrontendRevalidation((doomed as any).slug);
+      const tags = new Set<string>();
+      const dlocs: any[] = (doomed as any).propertyLocations ?? [];
+      for (const pl of dlocs) {
+        const loc = pl?.sublocation?.localityName;
+        if (loc && String(loc).trim()) tags.add(toSlug(String(loc)));
+      }
+      if ((doomed as any).city && String((doomed as any).city).trim()) {
+        tags.add(toSlug(String((doomed as any).city)));
+      }
+      tags.forEach((tag) => this.triggerListingRevalidation(tag));
+    }
     return { deleted: true, id };
   }
 
