@@ -11,6 +11,7 @@ type LocationRow = {
   city: string;
   state: string;
   postalCode: string | null;
+  description: string | null;
 };
 
 type UnitTypeRow = {
@@ -79,7 +80,9 @@ export class HomeService {
       return [];
     }
 
-    return this.dataSource
+    const hasDescription = await this.columnExists('sublocations', 'description');
+
+    const qb = this.dataSource
       .createQueryBuilder()
       .select('s.id', 'id')
       .addSelect('s.locality_name', 'sublocation')
@@ -87,7 +90,13 @@ export class HomeService {
       .addSelect('c.city_name', 'city')
       .addSelect('c.state_name', 'state')
       .addSelect('s.postal_code', 'postalCode')
-      .from('sublocations', 's')
+      .from('sublocations', 's');
+
+    if (hasDescription) {
+      qb.addSelect('s.description', 'description');
+    }
+
+    return qb
       .innerJoin('cities', 'c', 'c.id = s.city_id')
       .where('s.is_active = :active', { active: 1 })
       .andWhere('c.is_active = :active', { active: 1 })

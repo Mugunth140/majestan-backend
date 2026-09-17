@@ -15,6 +15,7 @@ export class MetadataService {
       .addSelect('c.city_name', 'city')
       .addSelect('c.state_name', 'state')
       .addSelect('s.postal_code', 'postalCode')
+      .addSelect('s.description', 'description')
       .from('sublocations', 's')
       .innerJoin('cities', 'c', 'c.id = s.city_id')
       .where('s.is_active = :active', { active: 1 })
@@ -28,6 +29,7 @@ export class MetadataService {
         city: string;
         state: string;
         postalCode: string | null;
+        description: string | null;
       }>();
   }
 

@@ -28,6 +28,7 @@ export class AdminSublocationsService {
         'sublocation.cityId AS city_id',
         'sublocation.localityName AS locality_name',
         'sublocation.postalCode AS postal_code',
+        'sublocation.description AS description',
         'sublocation.isActive AS is_active',
         'sublocation.createdAt AS created_at',
         'sublocation.updatedAt AS updated_at',
@@ -72,6 +73,7 @@ export class AdminSublocationsService {
         'sublocation.cityId AS city_id',
         'sublocation.localityName AS locality_name',
         'sublocation.postalCode AS postal_code',
+        'sublocation.description AS description',
         'sublocation.isActive AS is_active',
         'city.cityName AS city_name',
         'city.stateName AS state_name',
@@ -93,6 +95,7 @@ export class AdminSublocationsService {
         'sublocation.cityId AS city_id',
         'sublocation.localityName AS locality_name',
         'sublocation.postalCode AS postal_code',
+        'sublocation.description AS description',
         'sublocation.isActive AS is_active',
         'city.cityName AS city_name',
       ])
@@ -117,6 +120,7 @@ export class AdminSublocationsService {
       cityId: payload.data.city_id,
       localityName: payload.data.locality_name,
       postalCode: payload.data.postal_code,
+      description: payload.data.description ?? null,
       isActive: payload.data.is_active,
     });
     const saved = await this.sublocationRepository.save(sublocation);
@@ -135,6 +139,7 @@ export class AdminSublocationsService {
     sublocation.cityId = payload.data.city_id;
     sublocation.localityName = payload.data.locality_name;
     sublocation.postalCode = payload.data.postal_code;
+    sublocation.description = payload.data.description ?? null;
     sublocation.isActive = payload.data.is_active;
     await this.sublocationRepository.save(sublocation);
 

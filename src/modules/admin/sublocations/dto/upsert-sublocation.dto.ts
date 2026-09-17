@@ -31,6 +31,15 @@ export class SublocationDataDto {
   @MaxLength(20)
   postal_code!: string | null;
 
+  @Transform(({ value }) => {
+    const normalized = String(value ?? '').trim();
+    return normalized.length > 0 ? normalized : null;
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description!: string | null;
+
   @Transform(({ value }) => Number(value))
   @IsInt()
   @IsIn([0, 1])
