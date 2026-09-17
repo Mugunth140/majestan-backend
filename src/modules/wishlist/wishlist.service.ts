@@ -100,13 +100,16 @@ export class WishlistService {
           return null;
         }
 
+        // wishlist.property_id is VARCHAR while property PKs are numeric —
+        // normalize so the Map lookup actually hits.
+        const propertyId = Number(row.property_id);
         const property =
-          propertiesByTable.get(resolved.config.table)?.get(row.property_id) ??
+          propertiesByTable.get(resolved.config.table)?.get(propertyId) ??
           null;
 
         return {
           id: row.id,
-          propertyId: row.property_id,
+          propertyId,
           propertyType: resolved.propertyType,
           legacyPropertyType: row.property_type,
           property,
@@ -132,18 +135,20 @@ export class WishlistService {
       countQuery.andWhere('wishlist.status = :status', { status: 1 });
     }
 
-    const total = await countQuery.getCount();
+    // NB: getCount() crashes on a raw .from() builder (no entity metadata),
+    // so count explicitly instead.
+    const countRow = await countQuery
+      .select('COUNT(1)', 'cnt')
+      .getRawOne<{ cnt: string | number }>();
 
     return {
-      total,
+      total: Number(countRow?.cnt ?? 0),
     };
   }
 
   async toggle(payload: ToggleWishlistDto) {
     const propertyType = this.ensurePropertyType(payload.propertyType);
     const config = getPropertyConfig(propertyType);
-
-    await this.ensurePropertyExists(config.table, payload.propertyId);
 
     const columns = await this.getWishlistColumns();
 
@@ -166,6 +171,8 @@ export class WishlistService {
 
     const existing = await existingQuery.getRawOne<{ id: number }>();
 
+    // Removing an existing save always succeeds — even if the underlying
+    // property was deleted/unpublished since (stale rows must be removable).
     if (existing) {
       await this.dataSource
         .createQueryBuilder()
@@ -181,6 +188,8 @@ export class WishlistService {
         total: count.total,
       };
     }
+
+    await this.ensurePropertyExists(config.table, payload.propertyId);
 
     await this.insertWishlistRow(
       columns,
@@ -211,12 +220,15 @@ export class WishlistService {
     table: string,
     propertyId: number,
   ): Promise<void> {
+    const publishedStatus =
+      Object.values(PROPERTY_TABLE_CONFIG).find((c) => c.table === table)
+        ?.publishedStatus ?? 1;
     const row = await this.dataSource
       .createQueryBuilder()
       .select('p.id', 'id')
       .from(table, 'p')
       .where('p.id = :propertyId', { propertyId })
-      .andWhere('p.status = :status', { status: 1 })
+      .andWhere('p.status = :status', { status: publishedStatus })
       .limit(1)
       .getRawOne<{ id: number }>();
 

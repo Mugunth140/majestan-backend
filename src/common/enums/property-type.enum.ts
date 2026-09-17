@@ -7,4 +7,5 @@ export enum PropertyType {
   CommercialSpace = 'commercial-space',
   IndustrialSpace = 'industrial-space',
   Coworking = 'coworking',
+  Project = 'project',
 }

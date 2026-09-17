@@ -108,7 +108,7 @@ export class AdminDashboardService {
 
     const counts = await Promise.all(
       entries.map(([propertyType, config]) =>
-        this.fetchSimpleCount(config.table, 'status = 1').then(
+        this.fetchSimpleCount(config.table, config.countWhere ?? 'status = 1').then(
           (count) => [propertyType, count] as const,
         ),
       ),

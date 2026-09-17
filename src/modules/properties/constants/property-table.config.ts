@@ -14,6 +14,10 @@ export type PropertyTableConfig = {
   propertyUseColumn?: string;
   locationColumn: string;
   nameColumn: string;
+  /** Raw SQL predicate for admin counts (defaults to 'status = 1'). */
+  countWhere?: string;
+  /** Value used by WishlistService.ensurePropertyExists (defaults to numeric 1). */
+  publishedStatus?: string | number;
 };
 
 export const PROPERTY_TABLE_CONFIG: Record<PropertyType, PropertyTableConfig> =
@@ -120,6 +124,16 @@ export const PROPERTY_TABLE_CONFIG: Record<PropertyType, PropertyTableConfig> =
       locationColumn: 'sublocation',
       nameColumn: 'propertyname',
     },
+    [PropertyType.Project]: {
+      table: 'projects',
+      legacyWishlistType: 'Project',
+      sellPriceColumn: 'id',
+      areaColumn: 'id',
+      locationColumn: 'sublocation',
+      nameColumn: 'name',
+      countWhere: "status = 'published'",
+      publishedStatus: 'published',
+    },
   };
 
 const PROPERTY_TYPE_ALIASES: Record<string, PropertyType> = {
@@ -138,6 +152,8 @@ const PROPERTY_TYPE_ALIASES: Record<string, PropertyType> = {
   industrialspace: PropertyType.IndustrialSpace,
   coworking: PropertyType.Coworking,
   coworkers: PropertyType.Coworking,
+  project: PropertyType.Project,
+  projects: PropertyType.Project,
 };
 
 export const resolvePropertyType = (value: string): PropertyType | null => {
