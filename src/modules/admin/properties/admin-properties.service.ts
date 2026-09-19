@@ -961,7 +961,15 @@ export class AdminPropertiesService {
   }
 
   async updateStatus(propertyType: string, id: number, status: string) {
-    await this.dataSource.getRepository(Property).update({ id }, { status: status as PropertyStatus });
+    // Publishing is the single go-live action: going available also approves
+    // the property, so one toggle satisfies the public visibility gate
+    // (available AND approved). Unpublishing keeps the approval untouched so
+    // re-publishing stays one click.
+    const update: Record<string, unknown> = { status: status as PropertyStatus };
+    if (status === PropertyStatus.AVAILABLE) {
+      update.approvalStatus = 'Approved';
+    }
+    await this.dataSource.getRepository(Property).update({ id }, update);
     const prop = await this.details(propertyType, id);
     if (prop.slug) {
       this.triggerFrontendRevalidation(prop.slug);
