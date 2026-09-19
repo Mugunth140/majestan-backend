@@ -14,6 +14,7 @@ export type PropertyDocument = {
   propertyType: string;
   listingType: string;
   status: string;
+  approvalStatus: string;
   city: string;
   state: string;
   country: string;
@@ -24,6 +25,7 @@ export type PropertyDocument = {
   localitySlug: string;
   citySlug: string;
   bedrooms: number | null;
+  areaNumeric: number | null;
   canonicalUrl: string;
 };
 
@@ -100,8 +102,8 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
 
       const baseSettings: any = {
         searchableAttributes: ['title', 'description', 'city', 'locality', 'state', 'propertyCode', 'slug', 'propertyType'],
-        filterableAttributes: ['propertyType', 'listingType', 'city', 'citySlug', 'state', 'status', 'priceNumeric', 'localitySlug', 'bedrooms'],
-        sortableAttributes: ['priceNumeric', 'createdAt'],
+      filterableAttributes: ['propertyType', 'listingType', 'city', 'citySlug', 'state', 'status', 'approvalStatus', 'priceNumeric', 'localitySlug', 'bedrooms', 'areaNumeric'],
+      sortableAttributes: ['priceNumeric', 'areaNumeric', 'createdAt'],
         rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness'],
         typoTolerance: { enabled: true, minWordSizeForTypos: { oneTypo: 4, twoTypos: 8 } },
       };
@@ -154,6 +156,10 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     const localitySlug = localityName ? toSlug(localityName) : '';
     const citySlug = p.city ? toSlug(p.city) : '';
     const bedrooms: number | null = details?.bedrooms != null ? Number(details.bedrooms) : null;
+    // Best-known built-up area (mirrors the DB AREA_EXPR coalescing).
+    const areaRaw = details?.superBuiltUpArea ?? details?.areaSqft ?? details?.carpetArea;
+    const areaNum = areaRaw != null && String(areaRaw).trim() !== '' ? Number(String(areaRaw).replace(/,/g, '')) : NaN;
+    const areaNumeric: number | null = Number.isFinite(areaNum) ? areaNum : null;
 
     // Build canonical URL
     const listingPrefix = p.listingType === 'Rent' ? 'for-rent' : 'for-sale';
@@ -171,6 +177,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
       propertyType: p.propertyType,
       listingType: p.listingType,
       status: p.status,
+      approvalStatus: (p as any).approvalStatus || 'Pending',
       city: p.city || '',
       state: p.state || '',
       country: p.country || '',
@@ -181,6 +188,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
       localitySlug,
       citySlug,
       bedrooms,
+      areaNumeric,
       canonicalUrl,
     };
   }
@@ -197,7 +205,8 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
         await this.deleteProperty(propertyId);
         return;
       }
-      if (prop.status !== PropertyStatus.AVAILABLE) {
+      // Only live AND approved properties belong in the public index.
+      if (prop.status !== PropertyStatus.AVAILABLE || (prop as any).approvalStatus !== 'Approved') {
         await this.deleteProperty(propertyId);
         return;
       }
@@ -227,7 +236,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
 
     while (true) {
       const props = await repo.find({
-        where: { status: PropertyStatus.AVAILABLE },
+        where: { status: PropertyStatus.AVAILABLE, approvalStatus: 'Approved' },
         relations: ['propertyLocations', 'propertyLocations.sublocation', 'propertyDetails'],
         take: BATCH_SIZE,
         skip: offset,
@@ -250,18 +259,37 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
 
   async search(
     query: string,
-    filters: { propertyType?: string; listingType?: string; city?: string; locality?: string; location?: string },
+    filters: {
+      propertyType?: string;
+      listingType?: string;
+      city?: string;
+      locality?: string;
+      location?: string;
+      minPrice?: number;
+      maxPrice?: number;
+      bedrooms?: string;
+      sort?: string[];
+    },
     page: number,
     limit: number,
     useHybrid = false,
   ) {
     if (!this.enabled || !this.index) throw new Error('Meilisearch not enabled');
-    const filterParts: string[] = ['status = available'];
+    // Public visibility gate (mirrors the DB path): live AND approved.
+    const filterParts: string[] = ['status = available', 'approvalStatus = Approved'];
     if (filters.propertyType) filterParts.push(`propertyType = "${filters.propertyType}"`);
     if (filters.listingType) filterParts.push(`listingType = "${filters.listingType}"`);
-    if (filters.city) filterParts.push(`city = "${filters.city}"`);
+    // Slug-based place matching — case-proof on both sides.
+    if (filters.city) filterParts.push(`citySlug = "${toSlug(filters.city)}"`);
     if (filters.locality) filterParts.push(`localitySlug = "${toSlug(filters.locality)}"`);
-    if (filters.location) filterParts.push(`(city = "${filters.location}" OR localitySlug = "${toSlug(filters.location)}")`);;
+    if (filters.location) filterParts.push(`(citySlug = "${toSlug(filters.location)}" OR localitySlug = "${toSlug(filters.location)}")`);
+    if (Number.isFinite(filters.minPrice)) filterParts.push(`priceNumeric >= ${filters.minPrice}`);
+    if (Number.isFinite(filters.maxPrice)) filterParts.push(`priceNumeric <= ${filters.maxPrice}`);
+    if (filters.bedrooms !== undefined && filters.bedrooms !== null && String(filters.bedrooms).trim() !== '') {
+      const b = String(filters.bedrooms).trim();
+      const n = parseInt(b, 10);
+      if (Number.isFinite(n)) filterParts.push(b.endsWith('+') ? `bedrooms >= ${n}` : `bedrooms = ${n}`);
+    }
     const filter = filterParts.join(' AND ');
 
     const searchOptions: any = {
@@ -270,6 +298,11 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
       hitsPerPage: limit,
       attributesToRetrieve: ['id', 'title', 'slug', 'propertyType', 'listingType', 'locality', 'localitySlug', 'citySlug', 'bedrooms', 'canonicalUrl', 'city', 'priceNumeric'],
     };
+
+    // Only allow known sort clauses (values are built server-side, never raw user input).
+    const allowedSorts = ['priceNumeric:asc', 'priceNumeric:desc', 'areaNumeric:asc', 'areaNumeric:desc', 'createdAt:asc', 'createdAt:desc'];
+    const sort = (filters.sort || []).filter((s) => allowedSorts.includes(s));
+    if (sort.length > 0) searchOptions.sort = sort;
 
     if (useHybrid && process.env.OPENAI_API_KEY) {
       searchOptions.hybrid = { semanticRatio: 0.5, embedder: 'openai' };

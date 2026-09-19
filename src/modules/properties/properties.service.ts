@@ -35,6 +35,43 @@ function normalizePropertyType(value: string): string {
   return map[value.toLowerCase()] ?? value;
 }
 
+/**
+ * Wash a place name so slugs, casing, hyphens and extra spaces all match
+ * the same stored value ("RS-Puram" == "rs puram" == "RS Puram").
+ */
+function normPlace(value: string): string {
+  return value.toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** DB-side expression matching normPlace(): lowercase, hyphens→spaces, trim. */
+const PLACE_EXPR = (col: string) =>
+  `LOWER(REPLACE(REPLACE(TRIM(${col}), '-', ' '), '  ', ' '))`;
+
+/** Public-listing visibility gate: a property must be live AND approved. */
+const APPROVAL_GATE = 'Approved';
+
+/** Finite number or undefined (for Meilisearch numeric filters). */
+function numOrUndef(value: unknown): number | undefined {
+  const n = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Map listing sort options to Meilisearch sort clauses. */
+function meiliSort(sort: PropertySortOption | undefined): string[] | undefined {
+  switch (sort) {
+    case PropertySortOption.PriceLowToHigh:
+      return ['priceNumeric:asc'];
+    case PropertySortOption.PriceHighToLow:
+      return ['priceNumeric:desc'];
+    case PropertySortOption.AreaLowToHigh:
+      return ['areaNumeric:asc'];
+    case PropertySortOption.AreaHighToLow:
+      return ['areaNumeric:desc'];
+    default:
+      return undefined;
+  }
+}
+
 type SearchResult = {
   items: Property[];
   total: number;
@@ -166,11 +203,40 @@ export class PropertiesService {
     }
   }
 
+  /**
+   * Applies the place filters (`location` and `city`) with washed comparison
+   * so URL slugs and display names match the same stored values. Requires the
+   * builder to already join `propertyLocations` as `locations` (both search
+   * paths do); adds the `subloc` join itself when `location` is present.
+   * Shared by the DB and Meilisearch paths.
+   */
+  private applyPlaceFilters(qb: SelectQueryBuilder<Property>, query: PropertySearchQueryDto): void {
+    if (query.location) {
+      qb.leftJoin('locations.sublocation', 'subloc');
+      qb.andWhere(
+        `(${PLACE_EXPR('p.city')} = :placeLocation OR ${PLACE_EXPR('subloc.localityName')} = :placeLocation)`,
+        { placeLocation: normPlace(query.location) },
+      );
+    }
+    if (query.city) {
+      qb.andWhere(`${PLACE_EXPR('p.city')} = :placeCity`, { placeCity: normPlace(query.city) });
+    }
+  }
+
   async search(query: PropertySearchQueryDto): Promise<SearchResult> {
     if (this.searchService?.isEnabled() && query.propertyName && query.propertyName.trim().length >= 2) {
       try {
         const dbPropertyType = query.propertyType ? normalizePropertyType(query.propertyType as string) : undefined;
-        const meili = await this.searchService.search(query.propertyName, { propertyType: dbPropertyType, listingType: query.listingType, location: query.location || query.city }, query.page || 1, query.limit || 10);
+        const meili = await this.searchService.search(query.propertyName, {
+          propertyType: dbPropertyType,
+          listingType: query.listingType,
+          location: query.location,
+          city: query.city,
+          minPrice: numOrUndef(query.minPrice),
+          maxPrice: numOrUndef(query.maxPrice),
+          bedrooms: query.bedrooms,
+          sort: meiliSort(query.sort),
+        }, query.page || 1, query.limit || 14);
         if (meili.hits.length > 0) {
           const ids = meili.hits.map((h: any) => h.id);
           const meiliQb = this.propertyRepository.createQueryBuilder('p')
@@ -179,7 +245,9 @@ export class PropertiesService {
             .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
             .leftJoinAndSelect('p.propertyUnits', 'units')
             .where('p.id IN (:...ids)', { ids })
-            .andWhere('p.status = :status', { status: PropertyStatus.AVAILABLE });
+            .andWhere('p.status = :status', { status: PropertyStatus.AVAILABLE })
+            .andWhere('p.approvalStatus = :approvalStatus', { approvalStatus: APPROVAL_GATE });
+          this.applyPlaceFilters(meiliQb, query);
           this.applyListingFilters(meiliQb, query);
           const props = await meiliQb.getMany();
           const byId = new Map(props.map((p) => [p.id, p]));
@@ -188,9 +256,10 @@ export class PropertiesService {
             const images = await p.propertyImages;
             return { ...p, propertyImages: this.storageService.resolveImageUrls(images || []), images: this.storageService.resolveImageUrls(images || []), canonicalSlug: p.slug ? p.slug : null };
           }));
-          return { items: mappedItems as any, total: meili.total, page: query.page || 1, limit: query.limit || 10 };
+          return { items: mappedItems as any, total: meili.total, page: query.page || 1, limit: query.limit || 14 };
         }
-        if (meili.total === 0) return { items: [], total: 0, page: query.page || 1, limit: query.limit || 10 };
+        // No Meili hits (e.g. stale or not-yet-built index) — fall through to
+        // the DB search below instead of returning an empty page.
       } catch {}
     }
 
@@ -199,7 +268,8 @@ export class PropertiesService {
       .leftJoinAndSelect('p.propertyLocations', 'locations')
       .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
       .leftJoinAndSelect('p.propertyUnits', 'units')
-      .where('p.status = :status', { status: PropertyStatus.AVAILABLE });
+      .where('p.status = :status', { status: PropertyStatus.AVAILABLE })
+      .andWhere('p.approvalStatus = :approvalStatus', { approvalStatus: APPROVAL_GATE });
 
     if (query.propertyType) {
       const dbPropertyType = normalizePropertyType(query.propertyType as string);
@@ -214,10 +284,8 @@ export class PropertiesService {
       qb.andWhere('(p.title LIKE :search OR p.propertyCode LIKE :search OR p.city LIKE :search)', { search: `%${query.propertyName}%` });
     }
 
-    if (query.location) {
-      qb.leftJoin('locations.sublocation', 'subloc');
-      qb.andWhere('(p.city = :location OR subloc.localityName = :location)', { location: query.location });
-    }
+    // Washed place matching (slugs, case, hyphens) — shared with Meili path.
+    this.applyPlaceFilters(qb, query);
 
     // Parameterized price range filters (prevent SQL injection)
     if (query.priceRanges && query.priceRanges.length > 0) {
@@ -259,7 +327,7 @@ export class PropertiesService {
     }
 
     const page = query.page || 1;
-    const limit = query.limit || 10;
+    const limit = query.limit || 14;
     qb.skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
@@ -282,7 +350,7 @@ export class PropertiesService {
 
   async details(propertyType: string, id: number): Promise<Record<string, unknown>> {
     const property = await this.propertyRepository.findOne({
-      where: { id, propertyType: propertyType as PropertyType, status: PropertyStatus.AVAILABLE },
+      where: { id, propertyType: normalizePropertyType(propertyType) as PropertyType, status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE },
       relations: [
         'propertyDetails',
         'propertyLocations',
@@ -342,8 +410,8 @@ export class PropertiesService {
   async detailsBySlug(slug: string): Promise<Record<string, unknown>> {
     let property = await this.propertyRepository.findOne({
       where: [
-        { slug, status: PropertyStatus.AVAILABLE },
-        { propertyCode: slug, status: PropertyStatus.AVAILABLE }
+        { slug, status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE },
+        { propertyCode: slug, status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE }
       ],
       relations: [
         'propertyDetails',
@@ -364,7 +432,7 @@ export class PropertiesService {
       if (match) {
         const id = parseInt(match[2], 10);
         property = await this.propertyRepository.findOne({
-          where: { id, status: PropertyStatus.AVAILABLE },
+          where: { id, status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE },
           relations: [
             'propertyDetails',
             'propertyLocations',
@@ -441,7 +509,7 @@ export class PropertiesService {
 
   async getAllSlugs(): Promise<string[]> {
     const properties = await this.propertyRepository.find({
-      where: { status: PropertyStatus.AVAILABLE },
+      where: { status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE },
       select: ['slug', 'propertyCode']
     });
     return properties.map(p => p.slug || p.propertyCode).filter(Boolean) as string[];
