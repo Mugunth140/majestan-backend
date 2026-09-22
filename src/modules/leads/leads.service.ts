@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
@@ -31,11 +35,6 @@ export class LeadsService {
       contextLine = `[whatsapp_popup] ${payload.pageUrl ?? ''} | ${detail}`;
     }
 
-    const requirementValue = (
-      [contextLine, payload.message].filter(Boolean).join('\n') ||
-      '(no message)'
-    ).slice(0, 255);
-
     const rawPhone = payload.phone ?? '';
     const digitsOnlyForInsert = rawPhone.replace(/\D/g, '');
     let normalizedMobile = digitsOnlyForInsert;
@@ -54,18 +53,35 @@ export class LeadsService {
       normalizedMobile = normalizedMobile.slice(-10);
     }
 
+    const propertyRow = await this.dataSource
+      .createQueryBuilder()
+      .from('properties', 'p')
+      .select('p.id', 'id')
+      .orderBy('p.id', 'ASC')
+      .limit(1)
+      .getRawOne();
+    if (!propertyRow) {
+      throw new ServiceUnavailableException(
+        'No properties available to link the enquiry',
+      );
+    }
+
     const result = await this.dataSource
       .createQueryBuilder()
       .insert()
-      .into('enquiry')
+      .into('leads')
       .values({
-        date: new Date().toISOString().slice(0, 10),
-        name: (payload.name ?? '').trim().slice(0, 100),
-        mobileno: normalizedMobile,
-        email: (payload.email ?? '').slice(0, 100),
-        requirement: requirementValue,
-        propertytype: payload.propertyType ?? null,
-        status: 1,
+        // Unified schema requires a property link; the true enquiry context
+        // lives in message (and the structured copy in CRM).
+        property_id: propertyRow.id,
+        user_id: null,
+        name: (payload.name ?? '').trim().slice(0, 255),
+        email: (payload.email ?? '').slice(0, 255),
+        phone: normalizedMobile,
+        message:
+          [contextLine, payload.message].filter(Boolean).join('\n') ||
+          '(no message)',
+        status: 'new',
       })
       .execute();
 
