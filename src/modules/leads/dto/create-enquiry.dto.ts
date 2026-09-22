@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEmail,
   IsOptional,
   IsString,
@@ -47,4 +48,23 @@ export class CreateEnquiryDto {
   @IsString()
   @MaxLength(2000)
   message?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  source?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  pageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  location?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  whatsappOptIn?: boolean;
 }
