@@ -3,7 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
 import { CreatePropertySubmissionDto } from './dto/create-property-submission.dto';
-import { CrmForwardingService } from './crm-forwarding.service';
+import { CrmForwardingService, propertyLabelFromPageUrl } from './crm-forwarding.service';
 
 @Injectable()
 export class LeadsService {
@@ -91,7 +91,7 @@ export class LeadsService {
           mobile,
           email: payload.email,
           source: 'Website – WhatsApp popup',
-          propertyType: payload.propertyType,
+          propertyType: payload.propertyType ?? propertyLabelFromPageUrl(payload.pageUrl) ?? undefined,
           preferences: {
             pageUrl: payload.pageUrl,
             listingType: payload.listingType,

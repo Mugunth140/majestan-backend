@@ -1,4 +1,4 @@
-import { CrmForwardingService } from './crm-forwarding.service';
+import { CrmForwardingService, propertyLabelFromPageUrl } from './crm-forwarding.service';
 
 describe('CrmForwardingService', () => {
   const OLD_ENV = { ...process.env };
@@ -39,6 +39,24 @@ describe('CrmForwardingService', () => {
       name: 'Test Buyer',
       mobile: '9876543210',
       whatsapp: '9876543210',
+    });
+  });
+
+  describe('propertyLabelFromPageUrl', () => {
+    it.each([
+      ['/apartments-for-sale-in-coimbatore', 'Apartments'],
+      ['/2-bhk-villas-for-rent-in-rs-puram-coimbatore', 'Villas'],
+      ['/properties-for-sale-in-coimbatore', 'Properties'],
+    ])('maps %s to %s', (pageUrl, expected) => {
+      expect(propertyLabelFromPageUrl(pageUrl)).toBe(expected);
+    });
+
+    it('returns undefined for non-PSEO path', () => {
+      expect(propertyLabelFromPageUrl('/some/random')).toBeUndefined();
+    });
+
+    it('returns undefined for undefined', () => {
+      expect(propertyLabelFromPageUrl(undefined)).toBeUndefined();
     });
   });
 });

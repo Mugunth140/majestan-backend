@@ -16,6 +16,45 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export function propertyLabelFromPageUrl(pageUrl?: string): string | undefined {
+  if (!pageUrl) {
+    return undefined;
+  }
+  try {
+    const lower = String(pageUrl).toLowerCase();
+    if (lower.includes('independent-houses')) {
+      return 'Individual Houses';
+    }
+    if (lower.includes('commercial-spaces')) {
+      return 'Commercial Spaces';
+    }
+    if (lower.includes('industrial-spaces')) {
+      return 'Industrial Spaces';
+    }
+    if (lower.includes('apartments')) {
+      return 'Apartments';
+    }
+    if (lower.includes('villas')) {
+      return 'Villas';
+    }
+    if (lower.includes('plots')) {
+      return 'Plots';
+    }
+    if (lower.includes('farmlands')) {
+      return 'Farmlands';
+    }
+    if (lower.includes('coworking')) {
+      return 'Coworking';
+    }
+    if (lower.includes('properties')) {
+      return 'Properties';
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 @Injectable()
 export class CrmForwardingService {
   private readonly logger = new Logger(CrmForwardingService.name);
