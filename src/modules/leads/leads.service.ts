@@ -71,10 +71,12 @@ export class LeadsService {
       .insert()
       .into('leads')
       .values({
-        // Unified schema requires a property link; the true enquiry context
-        // lives in message (and the structured copy in CRM).
-        property_id: propertyRow.id,
-        user_id: null,
+        // NOTE: keys must be entity property names (camelCase), not column
+        // names — the Lead entity maps propertyId/userId to property_id/user_id.
+        // The unified schema requires a property link; the true enquiry
+        // context lives in message (and the structured copy in CRM).
+        propertyId: propertyRow.id,
+        userId: null,
         name: (payload.name ?? '').trim().slice(0, 255),
         email: (payload.email ?? '').slice(0, 255),
         phone: normalizedMobile,
