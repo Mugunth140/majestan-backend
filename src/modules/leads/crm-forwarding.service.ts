@@ -7,6 +7,8 @@ export interface ForwardEnquiryArgs {
   city?: string;
   source?: string;
   propertyType?: string;
+  listingType?: string;
+  location?: string;
   preferences?: Record<string, unknown>;
   pageUrl?: string;
   [key: string]: unknown;

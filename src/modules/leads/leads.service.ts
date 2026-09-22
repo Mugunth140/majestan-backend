@@ -92,11 +92,14 @@ export class LeadsService {
           email: payload.email,
           source: 'Website – WhatsApp popup',
           propertyType: payload.propertyType ?? propertyLabelFromPageUrl(payload.pageUrl) ?? undefined,
+          listingType: payload.listingType,
+          location: payload.location,
           preferences: {
             pageUrl: payload.pageUrl,
             listingType: payload.listingType,
             location: payload.location,
             source: 'whatsapp_popup',
+            whatsappOptIn: payload.whatsappOptIn ?? true,
           },
         })
         .catch(() => undefined);
