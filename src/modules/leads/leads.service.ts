@@ -23,14 +23,35 @@ export class LeadsService {
       }
     }
 
-    let messageValue: string | null = payload.message ?? null;
+    let contextLine: string | null = null;
     if (payload.source === 'whatsapp_popup') {
       const detail = [payload.listingType, payload.propertyType, payload.location]
         .filter(Boolean)
         .join(' / ');
-      const contextLine = `[whatsapp_popup] ${payload.pageUrl ?? ''} | ${detail}`;
-      messageValue =
-        [contextLine, payload.message].filter(Boolean).join('\n') || null;
+      contextLine = `[whatsapp_popup] ${payload.pageUrl ?? ''} | ${detail}`;
+    }
+
+    const requirementValue = (
+      [contextLine, payload.message].filter(Boolean).join('\n') ||
+      '(no message)'
+    ).slice(0, 255);
+
+    const rawPhone = payload.phone ?? '';
+    const digitsOnlyForInsert = rawPhone.replace(/\D/g, '');
+    let normalizedMobile = digitsOnlyForInsert;
+    if (
+      normalizedMobile.length === 12 &&
+      normalizedMobile.startsWith('91')
+    ) {
+      normalizedMobile = normalizedMobile.slice(2);
+    } else if (
+      normalizedMobile.length === 11 &&
+      normalizedMobile.startsWith('0')
+    ) {
+      normalizedMobile = normalizedMobile.slice(1);
+    }
+    if (normalizedMobile.length > 10) {
+      normalizedMobile = normalizedMobile.slice(-10);
     }
 
     const result = await this.dataSource
@@ -38,14 +59,12 @@ export class LeadsService {
       .insert()
       .into('enquiry')
       .values({
-        name: payload.name ?? null,
-        email: payload.email ?? null,
-        phone: payload.phone ?? null,
-        property_type: payload.propertyType ?? null,
-        purchase_type: payload.purchaseType ?? null,
-        listing_type: payload.listingType ?? null,
-        budget: payload.budget ?? null,
-        message: messageValue,
+        date: new Date().toISOString().slice(0, 10),
+        name: (payload.name ?? '').trim().slice(0, 100),
+        mobileno: normalizedMobile,
+        email: (payload.email ?? '').slice(0, 100),
+        requirement: requirementValue,
+        propertytype: payload.propertyType ?? null,
         status: 1,
       })
       .execute();
