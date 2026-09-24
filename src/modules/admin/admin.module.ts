@@ -11,6 +11,7 @@ import { AdminAmenitiesModule } from './amenities/admin-amenities.module';
 import { AdminSeoModule } from './seo/admin-seo.module';
 import { ListingPageSeoModule } from './listing-page-seo/listing-page-seo.module';
 import { AdminProjectsModule } from './projects/admin-projects.module';
+import { AdminAdsModule } from './ads/admin-ads.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AdminProjectsModule } from './projects/admin-projects.module';
     AdminSeoModule,
     ListingPageSeoModule,
     AdminProjectsModule,
+    AdminAdsModule,
   ],
 })
 export class AdminModule {}
