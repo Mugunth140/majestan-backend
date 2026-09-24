@@ -28,6 +28,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { MetadataModule } from './modules/metadata/metadata.module';
 import { HomeModule } from './modules/home/home.module';
+import { AdsModule } from './modules/ads/ads.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { SearchModule } from './modules/search/search.module';
 import { ProjectsModule } from './modules/projects/projects.module';
@@ -85,6 +86,7 @@ import { RootController } from './root.controller';
     LeadsModule,
     MetadataModule,
     HomeModule,
+    AdsModule,
     AdminModule,
     StorageModule,
     SearchModule,
