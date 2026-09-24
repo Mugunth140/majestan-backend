@@ -10,6 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { ApiQuery } from '@nestjs/swagger';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { AppRole } from '../../../common/enums/app-role.enum';
 import { AdPlacement } from '../../../database/entities/ad.entity';
@@ -36,6 +37,7 @@ export class AdminAdsController {
   }
 
   @Get()
+  @ApiQuery({ name: 'placement', enum: AdPlacement, required: false })
   list(@Query('placement') placement?: AdPlacement) {
     return this.adminAdsService.list(placement || AdPlacement.Hero);
   }

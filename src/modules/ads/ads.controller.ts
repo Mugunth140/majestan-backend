@@ -1,4 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { ApiQuery } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { AdPlacement } from '../../database/entities/ad.entity';
 import { AdsService } from './ads.service';
@@ -9,6 +10,7 @@ export class AdsController {
   constructor(private readonly adsService: AdsService) {}
 
   @Get()
+  @ApiQuery({ name: 'placement', enum: AdPlacement, required: false })
   list(@Query('placement') placement?: AdPlacement) {
     const value = Object.values(AdPlacement).includes(placement as AdPlacement)
       ? (placement as AdPlacement)
