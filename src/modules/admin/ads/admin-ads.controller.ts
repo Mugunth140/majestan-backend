@@ -38,8 +38,8 @@ export class AdminAdsController {
 
   @Get()
   @ApiQuery({ name: 'placement', enum: AdPlacement, required: false })
-  list(@Query('placement') placement?: AdPlacement) {
-    return this.adminAdsService.list(placement || AdPlacement.Hero);
+  list(@Query('placement') placement?: string) {
+    return this.adminAdsService.list((placement as AdPlacement) || AdPlacement.Hero);
   }
 
   @Get(':id')

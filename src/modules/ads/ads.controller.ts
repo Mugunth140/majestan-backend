@@ -11,7 +11,7 @@ export class AdsController {
 
   @Get()
   @ApiQuery({ name: 'placement', enum: AdPlacement, required: false })
-  list(@Query('placement') placement?: AdPlacement) {
+  list(@Query('placement') placement?: string) {
     const value = Object.values(AdPlacement).includes(placement as AdPlacement)
       ? (placement as AdPlacement)
       : AdPlacement.Hero;
