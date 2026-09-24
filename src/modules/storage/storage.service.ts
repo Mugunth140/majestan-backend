@@ -101,9 +101,11 @@ export class StorageService {
     const baseUrl = publicUrl.endsWith('/') ? publicUrl.slice(0, -1) : publicUrl;
     const fileUrl = `${baseUrl}/${originalKey}`;
 
-    // Compress, webp, and watermark. 
-    // Watermark uses 1 opacity since SVG has its own opacity, centered (ce), scale 0.8 to make it large
-    const processingString = 'rs:fit:1920:1080:0/q:85/wm:1:ce:0:0:0.8/format:webp';
+    // Compress, webp, and watermark.
+    // Watermark is barely-visible by design: the SVG itself is solid black
+    // (no built-in opacity), so imgproxy opacity stays low (~0.15), centered
+    // (ce), scale 0.8 to make it large
+    const processingString = 'rs:fit:1920:1080:0/q:85/wm:0.15:ce:0:0:0.8/format:webp';
     const imgproxyUrl = `http://imgproxy:8080/insecure/${processingString}/plain/${fileUrl}`;
 
     try {
