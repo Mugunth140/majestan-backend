@@ -37,11 +37,19 @@ export class AdminAdsService {
     }
   }
 
-  private async finalize(key: string | undefined, slot: 'desktop' | 'mobile'): Promise<string> {
+  private async finalize(key: string | undefined, slot: 'desktop' | 'mobile', skipRatioCheck = false): Promise<string> {
     if (!key) throw new BadRequestException(`${slot} image is required`);
     if (!key.includes('uploads/temp/')) return key; // already finalized (edit without re-upload)
-    await this.assertRatio(key, slot);
+    if (!skipRatioCheck) await this.assertRatio(key, slot);
     return this.storageService.processAdImage(key, slot);
+  }
+
+  private toAdminView(ad: Ad) {
+    return {
+      ...ad,
+      desktopImage: ad.desktopImageKey ? this.storageService.generateReadUrl(ad.desktopImageKey) : null,
+      mobileImage: ad.mobileImageKey ? this.storageService.generateReadUrl(ad.mobileImageKey) : null,
+    };
   }
 
   async list(placement: AdPlacement = AdPlacement.Hero) {
@@ -49,21 +57,62 @@ export class AdminAdsService {
       where: { placement },
       order: { sortOrder: 'ASC', id: 'DESC' },
     });
-    return { items, total };
+    return { items: items.map((ad) => this.toAdminView(ad)), total };
   }
 
   async details(id: number) {
     const ad = await this.adRepository.findOne({ where: { id } });
     if (!ad) throw new NotFoundException(`Ad #${id} not found`);
+    return this.toAdminView(ad);
+  }
+
+  private async findEntity(id: number): Promise<Ad> {
+    const ad = await this.adRepository.findOne({ where: { id } });
+    if (!ad) throw new NotFoundException(`Ad #${id} not found`);
     return ad;
   }
 
+  private isTempKey(key: string | undefined): boolean {
+    return !!key && key.includes('uploads/temp/');
+  }
+
+  private async cleanupTempKeys(keys: Array<string | undefined>): Promise<void> {
+    for (const key of keys) {
+      if (this.isTempKey(key)) {
+        try {
+          await this.storageService.deleteFile(key as string);
+        } catch {
+          // best-effort: temp cleanup must never mask the validation error
+        }
+      }
+    }
+  }
+
+  private async deleteFinalKey(key: string | null | undefined): Promise<void> {
+    if (!key) return;
+    try {
+      await this.storageService.deleteFile(key);
+    } catch {
+      // best-effort: R2 cleanup must never fail the admin operation
+    }
+  }
+
   async create(dto: CreateAdDto, createdBy?: string) {
+    // Validate BOTH ratios BEFORE finalizing either image, so a mobile-ratio
+    // failure cannot strand an already-finalized desktop object (and vice versa).
+    // On ratio failure the freshly-PUT temp objects are deleted best-effort.
+    try {
+      if (this.isTempKey(dto.desktopImageKey)) await this.assertRatio(dto.desktopImageKey as string, 'desktop');
+      if (this.isTempKey(dto.mobileImageKey)) await this.assertRatio(dto.mobileImageKey as string, 'mobile');
+    } catch (err) {
+      await this.cleanupTempKeys([dto.desktopImageKey, dto.mobileImageKey]);
+      throw err;
+    }
     const record = this.adRepository.create({
       placement: dto.placement ?? AdPlacement.Hero,
       title: dto.title,
-      desktopImageKey: await this.finalize(dto.desktopImageKey, 'desktop'),
-      mobileImageKey: await this.finalize(dto.mobileImageKey, 'mobile'),
+      desktopImageKey: await this.finalize(dto.desktopImageKey, 'desktop', true),
+      mobileImageKey: await this.finalize(dto.mobileImageKey, 'mobile', true),
       linkType: dto.linkType ?? AdLinkType.Preset,
       linkPreset: dto.linkPreset ?? null,
       linkCustom: dto.linkCustom ?? null,
@@ -75,12 +124,31 @@ export class AdminAdsService {
   }
 
   async update(id: number, dto: UpdateAdDto) {
-    const ad = await this.details(id);
+    const ad = await this.findEntity(id);
+    // Validate both ratios before finalizing either, mirroring create().
+    // On failure the freshly-PUT temp objects are deleted best-effort.
+    try {
+      if (this.isTempKey(dto.desktopImageKey)) await this.assertRatio(dto.desktopImageKey as string, 'desktop');
+      if (this.isTempKey(dto.mobileImageKey)) await this.assertRatio(dto.mobileImageKey as string, 'mobile');
+    } catch (err) {
+      await this.cleanupTempKeys([dto.desktopImageKey, dto.mobileImageKey]);
+      throw err;
+    }
     if (dto.desktopImageKey !== undefined) {
-      ad.desktopImageKey = await this.finalize(dto.desktopImageKey, 'desktop');
+      const finalized = await this.finalize(dto.desktopImageKey, 'desktop', true);
+      if (finalized !== ad.desktopImageKey) {
+        const oldKey = ad.desktopImageKey;
+        ad.desktopImageKey = finalized;
+        if (this.isTempKey(dto.desktopImageKey)) await this.deleteFinalKey(oldKey);
+      }
     }
     if (dto.mobileImageKey !== undefined) {
-      ad.mobileImageKey = await this.finalize(dto.mobileImageKey, 'mobile');
+      const finalized = await this.finalize(dto.mobileImageKey, 'mobile', true);
+      if (finalized !== ad.mobileImageKey) {
+        const oldKey = ad.mobileImageKey;
+        ad.mobileImageKey = finalized;
+        if (this.isTempKey(dto.mobileImageKey)) await this.deleteFinalKey(oldKey);
+      }
     }
     if (dto.title !== undefined) ad.title = dto.title;
     if (dto.linkType !== undefined) ad.linkType = dto.linkType;
@@ -93,14 +161,16 @@ export class AdminAdsService {
   }
 
   async updateStatus(id: number, isActive: boolean) {
-    const ad = await this.details(id);
+    const ad = await this.findEntity(id);
     ad.isActive = isActive;
     return this.adRepository.save(ad);
   }
 
   async remove(id: number) {
-    const ad = await this.details(id);
+    const ad = await this.findEntity(id);
     await this.adRepository.delete(id);
+    await this.deleteFinalKey(ad.desktopImageKey);
+    await this.deleteFinalKey(ad.mobileImageKey);
     return { id: ad.id, deleted: true };
   }
 

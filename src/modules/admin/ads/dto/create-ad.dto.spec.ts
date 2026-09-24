@@ -32,6 +32,28 @@ describe('CreateAdDto', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
+  it('rejects a protocol-relative custom link', async () => {
+    const errors = await errorsFor({
+      title: 'X',
+      desktopImageKey: 'uploads/temp/1-a.png',
+      mobileImageKey: 'uploads/temp/1-b.png',
+      linkType: 'custom',
+      linkCustom: '//evil.example/phish',
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('accepts an internal custom path', async () => {
+    const errors = await errorsFor({
+      title: 'X',
+      desktopImageKey: 'uploads/temp/1-a.png',
+      mobileImageKey: 'uploads/temp/1-b.png',
+      linkType: 'custom',
+      linkCustom: '/rent',
+    });
+    expect(errors).toEqual([]);
+  });
+
   it('rejects preset type without a preset key', async () => {
     const errors = await errorsFor({
       title: 'X',

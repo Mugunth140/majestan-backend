@@ -46,7 +46,7 @@ export class CreateAdDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(500)
-  @Matches(/^\/\S*$/, { message: 'linkCustom must be an internal path starting with /' })
+  @Matches(/^\/[^\/\s].*$/, { message: 'linkCustom must be an internal path starting with /' })
   linkCustom?: string;
 
   @IsInt()

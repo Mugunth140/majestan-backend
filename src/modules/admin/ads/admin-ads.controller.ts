@@ -16,6 +16,7 @@ import { AdPlacement } from '../../../database/entities/ad.entity';
 import { AdminAdsService } from './admin-ads.service';
 import { CreateAdDto } from './dto/create-ad.dto';
 import { UpdateAdDto } from './dto/update-ad.dto';
+import { UpdateAdStatusDto } from './dto/update-ad-status.dto';
 import { ReorderAdsDto } from './dto/reorder-ads.dto';
 
 @Roles(AppRole.Admin, AppRole.Staff)
@@ -55,8 +56,8 @@ export class AdminAdsController {
   }
 
   @Patch(':id/status')
-  updateStatus(@Param('id', ParseIntPipe) id: number, @Body() body: { isActive: boolean }) {
-    return this.adminAdsService.updateStatus(id, body.isActive === true);
+  updateStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateAdStatusDto) {
+    return this.adminAdsService.updateStatus(id, dto.isActive);
   }
 
   @Delete(':id')

@@ -27,6 +27,7 @@ function makeService(overrides: any = {}) {
     generatePresignedUrl: jest.fn(async () => ({ url: 'u', key: 'k' })),
     generateReadUrl: jest.fn((k: string) => `https://cdn.example/${k}`),
     processAdImage: jest.fn(async (k: string) => k.replace('uploads/temp/', 'uploads/ads/').replace(/\.[^/.]+$/, '.webp')),
+    deleteFile: jest.fn(async () => undefined),
     getImageDimensions: jest.fn(async (url: string) =>
       String(url).includes('/m.png') ? { width: 800, height: 1000 } : { width: 3200, height: 900 },
     ),
@@ -68,6 +69,56 @@ describe('AdminAdsService', () => {
       storage: { getImageDimensions: jest.fn(async () => ({ width: 1000, height: 1000 })) },
     });
     await expect(service.create(validCreate() as any, 'admin')).rejects.toThrow(/32:9/i);
+  });
+
+  it('performs zero processAdImage calls when the mobile ratio fails', async () => {
+    const { service, storage } = makeService({
+      storage: {
+        getImageDimensions: jest.fn(async (url: string) =>
+          String(url).includes('/m.png') ? { width: 1000, height: 1000 } : { width: 3200, height: 900 },
+        ),
+      },
+    });
+    await expect(service.create(validCreate() as any, 'admin')).rejects.toThrow(/4:5/i);
+    expect(storage.processAdImage).not.toHaveBeenCalled();
+    expect(storage.deleteFile).toHaveBeenCalledWith('uploads/temp/d.png');
+    expect(storage.deleteFile).toHaveBeenCalledWith('uploads/temp/m.png');
+  });
+
+  it('list maps records to absolute desktopImage/mobileImage urls', async () => {
+    const ad = { id: 1, desktopImageKey: 'uploads/ads/d.webp', mobileImageKey: 'uploads/ads/m.webp' };
+    const { service } = makeService({ repo: { findAndCount: jest.fn(async () => [[ad], 1]) } });
+    const out = await service.list('hero' as any);
+    expect(out.total).toBe(1);
+    expect(out.items[0]).toMatchObject({
+      desktopImageKey: 'uploads/ads/d.webp',
+      desktopImage: 'https://cdn.example/uploads/ads/d.webp',
+      mobileImage: 'https://cdn.example/uploads/ads/m.webp',
+    });
+  });
+
+  it('details returns absolute desktopImage/mobileImage urls', async () => {
+    const ad = { id: 2, desktopImageKey: 'uploads/ads/d.webp', mobileImageKey: 'uploads/ads/m.webp' };
+    const { service } = makeService({ repo: { findOne: jest.fn(async () => ad) } });
+    const out: any = await service.details(2);
+    expect(out.desktopImage).toBe('https://cdn.example/uploads/ads/d.webp');
+    expect(out.mobileImage).toBe('https://cdn.example/uploads/ads/m.webp');
+  });
+
+  it('remove deletes both final R2 keys best-effort', async () => {
+    const ad = { id: 5, desktopImageKey: 'uploads/ads/d.webp', mobileImageKey: 'uploads/ads/m.webp' };
+    const { service, storage } = makeService({ repo: { findOne: jest.fn(async () => ({ ...ad })) } });
+    const out = await service.remove(5);
+    expect(out).toEqual({ id: 5, deleted: true });
+    expect(storage.deleteFile).toHaveBeenCalledWith('uploads/ads/d.webp');
+    expect(storage.deleteFile).toHaveBeenCalledWith('uploads/ads/m.webp');
+  });
+
+  it('update deletes the old final key when the image is replaced', async () => {
+    const ad = { id: 6, desktopImageKey: 'uploads/ads/old.webp', mobileImageKey: 'uploads/ads/m.webp' };
+    const { service, storage } = makeService({ repo: { findOne: jest.fn(async () => ({ ...ad })) } });
+    await service.update(6, { desktopImageKey: 'uploads/temp/new.png' } as any);
+    expect(storage.deleteFile).toHaveBeenCalledWith('uploads/ads/old.webp');
   });
 
   it('reorder assigns sort_order by position', async () => {
