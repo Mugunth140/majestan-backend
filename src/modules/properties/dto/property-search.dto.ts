@@ -8,6 +8,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { ListingType } from '../../../common/enums/listing-type.enum';
 import { normalizeArray } from '../../../common/utils/normalize-array.util';
 
@@ -29,6 +30,7 @@ export class PropertySearchQueryDto {
   @MaxLength(64)
   propertyType?: string;
 
+  @ApiProperty({ enum: ListingType, enumName: 'ListingType', required: false })
   @IsOptional()
   @IsEnum(ListingType)
   listingType?: ListingType;
@@ -48,6 +50,7 @@ export class PropertySearchQueryDto {
   @MaxLength(120)
   propertyName?: string;
 
+  @ApiProperty({ enum: PropertySortOption, enumName: 'PropertySortOption', required: false })
   @IsOptional()
   @IsEnum(PropertySortOption)
   sort?: PropertySortOption;

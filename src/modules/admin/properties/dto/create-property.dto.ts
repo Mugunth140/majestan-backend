@@ -1,5 +1,6 @@
 import { IsString, IsNumber, IsOptional, IsObject, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min, IsNotEmpty, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
 import { PropertyType, PropertyStatus } from '../../../../database/entities/property.entity';
 
 class PropertyDetailsDto {
@@ -268,9 +269,11 @@ export class CreatePropertyDto {
   @IsOptional() @IsString() verificationStatus?: string;
   @IsOptional() @IsString() approvalStatus?: string;
 
+  @ApiProperty({ enum: PropertyType, enumName: 'PropertyType' })
   @IsEnum(PropertyType)
   propertyType!: PropertyType;
   
+  @ApiProperty({ enum: PropertyStatus, enumName: 'PropertyStatus' })
   @IsEnum(PropertyStatus)
   status!: PropertyStatus;
   

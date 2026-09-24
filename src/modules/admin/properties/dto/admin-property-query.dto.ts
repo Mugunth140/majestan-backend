@@ -1,9 +1,11 @@
 import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
 import { ListingType } from '../../../../common/enums/listing-type.enum';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class AdminPropertyQueryDto extends PaginationQueryDto {
+  @ApiProperty({ enum: ListingType, enumName: 'ListingType', required: false })
   @IsOptional()
   @IsEnum(ListingType)
   listingType?: ListingType;
