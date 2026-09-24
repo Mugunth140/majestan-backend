@@ -138,6 +138,53 @@ export class StorageService {
     }
   }
 
+  private imgproxyBase(): string {
+    return process.env.IMGPROXY_URL || 'http://imgproxy:8080';
+  }
+
+  /**
+   * Ad-creative finalize: imgproxy fit-bounds + webp, deliberately WITHOUT
+   * any watermark param. Bounds cap the long edge; fit never crops, so the
+   * 32:9 (desktop) / 4:5 (mobile) compositions uploaded from CRM survive.
+   */
+  async processAdImage(originalKey: string, slot: 'desktop' | 'mobile'): Promise<string> {
+    if (!originalKey.includes('uploads/temp/')) return originalKey;
+
+    const publicUrl = process.env.R2_PUBLIC_URL || this.configService.get<string>('R2_PUBLIC_URL');
+    if (!publicUrl) {
+      console.warn('[StorageService] R2_PUBLIC_URL missing. Skipping ad finalize.');
+      return originalKey;
+    }
+
+    const baseUrl = publicUrl.endsWith('/') ? publicUrl.slice(0, -1) : publicUrl;
+    const fileUrl = `${baseUrl}/${originalKey}`;
+    const bounds = slot === 'desktop' ? 'rs:fit:1920:540:0' : 'rs:fit:1080:1350:0';
+    const imgproxyUrl = `${this.imgproxyBase()}/insecure/${bounds}/q:82/format:webp/plain/${fileUrl}`;
+
+    const response = await fetch(imgproxyUrl);
+    if (!response.ok) {
+      throw new Error(`Imgproxy ad finalize failed: ${response.status}`);
+    }
+    const filename = originalKey.split('/').pop() || Date.now().toString();
+    const finalKey = `uploads/ads/${filename.replace(/\.[^/.]+$/, '')}.webp`;
+    const blob = await response.blob();
+    await this.s3Client.write(finalKey, blob, { type: 'image/webp' });
+    this.deleteFile(originalKey).catch(console.error);
+    return finalKey;
+  }
+
+  async getImageDimensions(fileUrl: string): Promise<{ width: number; height: number }> {
+    const response = await fetch(`${this.imgproxyBase()}/insecure/info/plain/${fileUrl}`);
+    if (!response.ok) {
+      throw new Error(`Imgproxy info failed: ${response.status}`);
+    }
+    const info = (await response.json()) as { width?: number; height?: number };
+    if (!info.width || !info.height) {
+      throw new Error('Imgproxy info missing width/height');
+    }
+    return { width: info.width, height: info.height };
+  }
+
   /**
    * Transforms an array of image objects by resolving their keys to signed read URLs.
    */
