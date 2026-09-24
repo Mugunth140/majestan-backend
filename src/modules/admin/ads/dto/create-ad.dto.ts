@@ -10,9 +10,11 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { AdLinkType, AdPlacement } from '../../../../database/entities/ad.entity';
 
 export class CreateAdDto {
+  @ApiProperty({ enum: AdPlacement, enumName: 'AdPlacement', default: AdPlacement.Hero, required: false })
   @IsEnum(AdPlacement)
   @IsOptional()
   placement?: AdPlacement = AdPlacement.Hero;
@@ -32,6 +34,7 @@ export class CreateAdDto {
   @MaxLength(500)
   mobileImageKey!: string;
 
+  @ApiProperty({ enum: AdLinkType, enumName: 'AdLinkType', default: AdLinkType.Preset, required: false })
   @IsEnum(AdLinkType)
   @IsOptional()
   linkType?: AdLinkType = AdLinkType.Preset;
