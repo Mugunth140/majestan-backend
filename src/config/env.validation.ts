@@ -51,4 +51,9 @@ export const envValidationSchema = Joi.object({
   MEILI_HOST: Joi.string().uri().allow('').default('http://meilisearch:7700'),
   MEILI_MASTER_KEY: Joi.string().allow('').default(''),
   MEILI_API_KEY: Joi.string().allow('').default(''),
+
+  STORAGE_DRIVER: Joi.string().valid('r2', 'local').default('r2'),
+  LOCAL_UPLOAD_DIR: Joi.string().default('./uploads'),
+  LOCAL_UPLOAD_BASE_URL: Joi.string().uri().allow('').default(''),
+  R2_PUBLIC_URL: Joi.string().uri().allow('').default(''),
 });

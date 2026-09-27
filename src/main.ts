@@ -1,14 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import { mkdirSync } from 'fs';
+import { resolveLocalUploadDir } from './modules/storage/storage.service';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   const configService = app.get(ConfigService);
 
@@ -114,6 +117,23 @@ async function bootstrap() {
   }
 
   app.enableShutdownHooks();
+
+  // Local storage driver: serve the upload dir so files saved by
+  // PUT /admin/media/upload-temp are publicly readable at /<key>.
+  // Shares resolveLocalUploadDir with StorageService so the served dir and
+  // the read/write dir can never diverge again.
+  // Banner images are embedded cross-origin (site on :3000/:3001, files on
+  // :5001), so they must carry Cross-Origin-Resource-Policy: cross-origin —
+  // helmet's default same-origin would make browsers refuse to render them.
+  if ((process.env.STORAGE_DRIVER || '').toLowerCase() === 'local') {
+    const uploadDir = resolveLocalUploadDir(process.env.LOCAL_UPLOAD_DIR, process.cwd());
+    mkdirSync(uploadDir, { recursive: true });
+    app.useStaticAssets(uploadDir, {
+      setHeaders: (res) => {
+        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+      },
+    });
+  }
 
   const port = configService.getOrThrow<number>('app.port');
   await app.listen(port);

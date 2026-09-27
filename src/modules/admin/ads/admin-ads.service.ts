@@ -11,6 +11,10 @@ const DESKTOP_RATIO = 32 / 9;
 const MOBILE_RATIO = 4 / 5;
 const RATIO_TOLERANCE = 0.02; // ±2%
 
+// Mirror of the CRM AdForm accept list — bad files fail fast here with a
+// clear 400 instead of dying later at upload/finalize time.
+const ALLOWED_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
 @Injectable()
 export class AdminAdsService {
   constructor(
@@ -39,7 +43,7 @@ export class AdminAdsService {
 
   private async finalize(key: string | undefined, slot: 'desktop' | 'mobile', skipRatioCheck = false): Promise<string> {
     if (!key) throw new BadRequestException(`${slot} image is required`);
-    if (!key.includes('uploads/temp/')) return key; // already finalized (edit without re-upload)
+    if (!this.isTempKey(key)) return key; // already finalized (edit without re-upload)
     if (!skipRatioCheck) await this.assertRatio(key, slot);
     return this.storageService.processAdImage(key, slot);
   }
@@ -73,7 +77,7 @@ export class AdminAdsService {
   }
 
   private isTempKey(key: string | undefined): boolean {
-    return !!key && key.includes('uploads/temp/');
+    return !!key && (key.includes('uploads/temp/') || key.includes('local/temp/'));
   }
 
   private async cleanupTempKeys(keys: Array<string | undefined>): Promise<void> {
@@ -189,6 +193,14 @@ export class AdminAdsService {
   }
 
   presignedUrl(fileName: string, fileType: string) {
+    if (!fileName?.trim() || !fileType?.trim()) {
+      throw new BadRequestException('fileName and fileType are required');
+    }
+    if (!ALLOWED_UPLOAD_MIME_TYPES.has(fileType)) {
+      throw new BadRequestException(
+        `fileType must be one of: ${[...ALLOWED_UPLOAD_MIME_TYPES].join(', ')}`,
+      );
+    }
     return this.storageService.generatePresignedUrl(fileName, fileType);
   }
 }

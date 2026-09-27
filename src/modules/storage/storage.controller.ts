@@ -1,6 +1,7 @@
-import { Controller, Get, Query, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Put, Query, Req, UnauthorizedException } from '@nestjs/common';
 import { StorageService } from './storage.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { AppRole } from '../../common/enums/app-role.enum';
 
 @Controller('admin/media')
@@ -17,5 +18,16 @@ export class StorageController {
       throw new Error('fileName and fileType are required');
     }
     return this.storageService.generatePresignedUrl(fileName, fileType);
+  }
+
+  /**
+   * Local-driver upload target. Public by necessity (browser PUTs carry no
+   * JWT, like R2 presigned URLs) — the temp key minted by generatePresignedUrl
+   * is the capability, constrained to uploads/temp/ with a size cap.
+   */
+  @Public()
+  @Put('upload-temp')
+  async uploadTemp(@Query('key') key: string, @Req() req: any) {
+    return this.storageService.writeLocalTempFile(key, req);
   }
 }

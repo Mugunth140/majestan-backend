@@ -129,3 +129,23 @@ describe('AdminAdsService', () => {
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 3, sortOrder: 1 }));
   });
 });
+
+describe('AdminAdsService.presignedUrl', () => {
+  it('rejects missing fileName/fileType', () => {
+    const { service, storage } = makeService();
+    expect(() => service.presignedUrl('', '')).toThrow(/fileName and fileType are required/i);
+    expect(storage.generatePresignedUrl).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported mime types', () => {
+    const { service, storage } = makeService();
+    expect(() => service.presignedUrl('doc.pdf', 'application/pdf')).toThrow(/must be one of/i);
+    expect(storage.generatePresignedUrl).not.toHaveBeenCalled();
+  });
+
+  it('delegates valid image uploads to storage', async () => {
+    const { service, storage } = makeService();
+    await expect(service.presignedUrl('a.png', 'image/png')).resolves.toEqual({ url: 'u', key: 'k' });
+    expect(storage.generatePresignedUrl).toHaveBeenCalledWith('a.png', 'image/png');
+  });
+});
