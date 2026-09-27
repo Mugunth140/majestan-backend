@@ -24,7 +24,8 @@ export class AdminAdsService {
 
   private async publicTempUrl(key: string): Promise<string> {
     // Temp keys were just minted by generatePresignedUrl, so they are readable
-    // at the public base during finalize.
+ Properties for Sale in
+Coimbatore   // at the public base during finalize.
     return this.storageService.generateReadUrl(key);
   }
 
