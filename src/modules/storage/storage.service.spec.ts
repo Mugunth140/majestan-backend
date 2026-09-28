@@ -48,20 +48,33 @@ describe('StorageService.processAdImage', () => {
     const url = (global.fetch as unknown as jest.Mock).mock.calls[0][0] as string;
     expect(url).toContain('rs:fit:1920:540:0');
     expect(url).toContain('/format:webp');
+    expect(url.endsWith('@webp')).toBe(true);
     expect(url).not.toContain('wm:');
     expect(url).not.toContain('watermark');
     expect(write).toHaveBeenCalledWith('uploads/ads/123-a.webp', webp, { type: 'image/webp' });
   });
 
-  it('reads dimensions from the imgproxy info endpoint', async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ width: 3200, height: 900 }) } as any) as any;
+  it('reads R2-hosted image dimensions by downloading bytes and probing with sharp (no imgproxy info endpoint)', async () => {
+    const sharp = require('sharp');
+    const png = await sharp({
+      create: { width: 3200, height: 900, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    })
+      .png()
+      .toBuffer();
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength),
+    } as any) as any;
     const svc = new StorageService({ get: () => undefined } as any);
     await expect(svc.getImageDimensions('https://cdn.example/x.png')).resolves.toEqual({
       width: 3200,
       height: 900,
     });
     const url = (global.fetch as unknown as jest.Mock).mock.calls[0][0] as string;
-    expect(url).toContain('/info/plain/https://cdn.example/x.png');
+    // Regression: /insecure/info/... parses `info` as a format option on
+    // imgproxy v4 and always 404s ("Multiple formats are specified"),
+    // which the CRM proxy mapped to a 502 on ad image upload.
+    expect(url).toBe('https://cdn.example/x.png');
   });
 });
 

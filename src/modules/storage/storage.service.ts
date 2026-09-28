@@ -288,7 +288,10 @@ export class StorageService {
     const baseUrl = publicUrl.endsWith('/') ? publicUrl.slice(0, -1) : publicUrl;
     const fileUrl = `${baseUrl}/${originalKey}`;
     const bounds = slot === 'desktop' ? 'rs:fit:1920:540:0' : 'rs:fit:1080:1350:0';
-    const imgproxyUrl = `${this.imgproxyBase()}/insecure/${bounds}/q:82/format:webp/plain/${fileUrl}`;
+    // NOTE (imgproxy v4): keep the explicit `@webp` extension suffix so the
+    // result format is unambiguous (IMGPROXY_ENFORCE_WEBP=true still rejects
+    // ambiguous format negotiation on this stack).
+    const imgproxyUrl = `${this.imgproxyBase()}/insecure/${bounds}/q:82/format:webp/plain/${fileUrl}@webp`;
 
     const response = await fetch(imgproxyUrl);
     if (!response.ok) {
@@ -314,15 +317,21 @@ export class StorageService {
       return { width: meta.width, height: meta.height };
     }
 
-    const response = await fetch(`${this.imgproxyBase()}/insecure/info/plain/${fileUrl}`);
+    // R2-hosted temp uploads: download the bytes and probe with sharp.
+    // (imgproxy v4 on this stack has no JSON info endpoint for OSS — `/info`
+    // is a top-level path that returns the IMAGE bytes, and
+    // `/insecure/info/...` parses `info` as a format option and always 404s
+    // ("Multiple formats are specified"), which used to surface to the CRM
+    // as a 502 on ad image upload.)
+    const response = await fetch(fileUrl, { signal: AbortSignal.timeout(30000) });
     if (!response.ok) {
-      throw new Error(`Imgproxy info failed: ${response.status}`);
+      throw new Error(`Image download failed: ${response.status}`);
     }
-    const info = (await response.json()) as { width?: number; height?: number };
-    if (!info.width || !info.height) {
-      throw new Error('Imgproxy info missing width/height');
+    const meta = await sharp(Buffer.from(await response.arrayBuffer())).metadata();
+    if (!meta.width || !meta.height) {
+      throw new Error('Image info missing width/height');
     }
-    return { width: info.width, height: info.height };
+    return { width: meta.width, height: meta.height };
   }
 
   /**
