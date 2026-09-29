@@ -216,6 +216,18 @@ export class HomeService {
       const bedrooms =
         typeof d?.bedrooms === "number" && d.bedrooms > 0 ? d.bedrooms : null;
 
+      // Price per sq.ft for the card's pricing row. Only apartments and villas
+      // reach this mapper, so area is always genuine built-up sq.ft.
+      const priceNumber = Number(p.price);
+      const areaNumber = Number(areaSqft);
+      const pricePerSqft =
+        Number.isFinite(priceNumber) &&
+        priceNumber > 0 &&
+        Number.isFinite(areaNumber) &&
+        areaNumber > 0
+          ? Math.round(priceNumber / areaNumber)
+          : null;
+
       return {
         id: p.id,
         propertyType,
@@ -226,7 +238,7 @@ export class HomeService {
         postType: p.listingType,
         expectedSalePrice: p.price,
         monthlyRent: p.price,
-        pricePerSqft: null,
+        pricePerSqft,
         bedrooms,
         areaSqft,
         possession: d?.possessionStatus?.trim() || null,
