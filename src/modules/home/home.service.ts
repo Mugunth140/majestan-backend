@@ -35,6 +35,9 @@ type FeaturedPropertyRow = {
   expectedSalePrice: string | number | null;
   monthlyRent: string | number | null;
   pricePerSqft: string | number | null;
+  bedrooms: number | null;
+  areaSqft: string | null;
+  possession: string | null;
 };
 
 type FeaturedProperty = FeaturedPropertyRow & {
@@ -196,6 +199,21 @@ export class HomeService {
         formattedLocation = `${loc.sublocation.localityName}, ${p.city}`;
       }
 
+      const details = await p.propertyDetails;
+      const d = Array.isArray(details) ? details[0] : details;
+      // `area_sqft` is the canonical column; the others are type-specific
+      // fallbacks that are frequently null.
+      const areaSqft =
+        d?.areaSqft?.trim() ||
+        d?.carpetArea?.trim() ||
+        d?.builtUpArea?.trim() ||
+        d?.superBuiltUpArea?.trim() ||
+        d?.plotArea?.trim() ||
+        null;
+
+      const bedrooms =
+        typeof d?.bedrooms === "number" && d.bedrooms > 0 ? d.bedrooms : null;
+
       return {
         id: p.id,
         propertyType,
@@ -207,6 +225,9 @@ export class HomeService {
         expectedSalePrice: p.price,
         monthlyRent: p.price,
         pricePerSqft: null,
+        bedrooms,
+        areaSqft,
+        possession: d?.possessionStatus?.trim() || null,
         detailPath: `/${slug}-${suffix}${p.id}`,
       } as any;
     }));
