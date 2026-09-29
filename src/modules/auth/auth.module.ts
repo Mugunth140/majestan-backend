@@ -6,10 +6,13 @@ import type { StringValue } from 'ms';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { SmsModule } from '../sms/sms.module';
+import { OtpService } from './otp.service';
 
 @Module({
   imports: [
     ConfigModule,
+    SmsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -28,7 +31,7 @@ import { JwtStrategy } from './jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, OtpService, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

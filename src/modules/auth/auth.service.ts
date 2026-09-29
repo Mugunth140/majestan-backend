@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { compare, hash } from 'bcrypt';
-import { timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { AppRole } from '../../common/enums/app-role.enum';
 import { JwtPayload } from '../../common/types/jwt-payload.type';
@@ -38,6 +38,8 @@ type AppUserRow = {
   role: AppRole;
   is_verified: boolean | number;
 };
+
+const cryptoRandomSuffix = () => randomBytes(16).toString('hex');
 
 @Injectable()
 export class AuthService {
@@ -255,6 +257,31 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+
+  async findAppUserByPhone(phone: string) {
+    return this.getAppUserByPhone(phone.trim());
+  }
+
+  async registerUserWithPhone(args: { name: string; email: string; phone: string }) {
+    const email = args.email.trim().toLowerCase();
+    const byEmail = await this.getAppUserByEmail(email);
+    if (byEmail) throw new ConflictException('An account already exists for this email');
+    const byPhone = await this.getAppUserByPhone(args.phone);
+    if (byPhone) throw new ConflictException('Phone already registered. Please login.');
+    const rounds = this.configService.getOrThrow<number>('auth.saltRounds');
+    const dummyPassword = await hash(cryptoRandomSuffix(), rounds);
+    const result = await this.dataSource.createQueryBuilder().insert().into(User)
+      .values({ name: args.name.trim(), email, phone: args.phone, passwordHash: dummyPassword, role: AppRole.User as never, isVerified: true })
+      .execute();
+    const id = Number(result.identifiers[0]?.id) || Number((result.raw as { insertId?: number }).insertId);
+    return this.buildUserAuthResponse(await this.getAppUserById(id));
+  }
+
+  async loginUserWithPhone(canonical: string) {
+    const user = await this.getAppUserByPhone(canonical);
+    if (!user) throw new NotFoundException('Phone not registered. Please register first.');
+    return this.buildUserAuthResponse(user);
   }
 
   private async getAppUserByPhone(phone: string): Promise<AppUserRow | null> {
