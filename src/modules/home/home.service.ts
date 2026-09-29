@@ -38,6 +38,7 @@ type FeaturedPropertyRow = {
   bedrooms: number | null;
   areaSqft: string | null;
   possession: string | null;
+  facing: string | null;
 };
 
 type FeaturedProperty = FeaturedPropertyRow & {
@@ -228,6 +229,7 @@ export class HomeService {
         bedrooms,
         areaSqft,
         possession: d?.possessionStatus?.trim() || null,
+        facing: d?.propertyFacing?.trim() || null,
         detailPath: `/${slug}-${suffix}${p.id}`,
       } as any;
     }));
