@@ -154,14 +154,14 @@ export class AuthController {
 
   private mapOtpError(error: unknown): never {
     if (error instanceof OtpHttpError) {
-      if (error.status === 404) throw new NotFoundException(error.message);
+      if (error.status === 404) throw new NotFoundException(error.code);
       if (error.status === 401) throw new UnauthorizedException('Invalid OTP');
       if (error.status === 410) throw new GoneException(error.code);
       if (error.status === 429) throw new HttpException(error.code, 429);
     }
     if (error instanceof OtpSendError) {
       if (error.code === 'OTP_DLT_CONFIGURATION_ERROR') throw new HttpException('OTP_DLT_CONFIGURATION_ERROR', 502);
-      if (error.code === 'OTP_DESTINATION_INVALID') throw new BadRequestException(error.message);
+      if (error.code === 'OTP_DESTINATION_INVALID') throw new BadRequestException(error.code);
       if (error.code === 'OTP_RATE_LIMITED') throw new HttpException('OTP_RATE_LIMITED', 429);
       throw new HttpException(error.code, 502);
     }
