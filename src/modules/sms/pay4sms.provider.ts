@@ -1,5 +1,5 @@
 // site/majestan-backend/src/modules/sms/pay4sms.provider.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OtpPurpose } from '../auth/otp-purpose.enum';
 import { maskPhone } from '../../common/utils/phone.util';
@@ -22,6 +22,7 @@ export class Pay4SmsProvider {
 
   constructor(
     private readonly configService: ConfigService,
+    @Optional() @Inject('PAY4SMS_FETCH')
     private readonly fetchImpl: FetchLike = fetch as unknown as FetchLike,
   ) {}
 
