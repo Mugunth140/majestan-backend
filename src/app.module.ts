@@ -12,6 +12,7 @@ import appConfig from './config/app.config';
 import authConfig from './config/auth.config';
 import databaseConfig from './config/database.config';
 import meilisearchConfig from './config/meilisearch.config';
+import smsConfig from './config/sms.config';
 import { envValidationSchema } from './config/env.validation';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -39,7 +40,7 @@ import { RootController } from './root.controller';
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      load: [appConfig, authConfig, databaseConfig, meilisearchConfig],
+      load: [appConfig, authConfig, databaseConfig, meilisearchConfig, smsConfig],
       validationSchema: envValidationSchema,
     }),
     ThrottlerModule.forRootAsync({

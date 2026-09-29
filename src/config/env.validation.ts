@@ -45,6 +45,12 @@ export const envValidationSchema = Joi.object({
     .falsy('false', '0')
     .default(false),
 
+  PAY4SMS_API_URL: Joi.string().uri().default('http://pay4sms.in/sendsms/'),
+  PAY4SMS_TOKEN: Joi.string().allow('').default(''),
+  PAY4SMS_SENDER_ID: Joi.string().default('PRSMRK'),
+  PAY4SMS_REGISTER_TEMPLATE_ID: Joi.string().default('1777179023885095379'),
+  PAY4SMS_LOGIN_TEMPLATE_ID: Joi.string().default('1777179016683380342'),
+
   THROTTLE_TTL_MS: Joi.number().integer().min(1000).default(60000),
   THROTTLE_LIMIT: Joi.number().integer().min(1).default(120),
 
