@@ -69,7 +69,7 @@ export class OtpService {
       .getRawOne<PhoneOtp & { id: number }>();
     if (!row) throw new OtpHttpError(404, 'OTP_NOT_FOUND', 'No OTP request found');
     if (row.usedAt) throw new OtpHttpError(410, 'OTP_EXPIRED', 'OTP already used');
-    if (row.expiresAt.getTime() < Date.now()) throw new OtpHttpError(410, 'OTP_EXPIRED', 'OTP expired');
+    if (new Date(row.expiresAt).getTime() < Date.now()) throw new OtpHttpError(410, 'OTP_EXPIRED', 'OTP expired');
     if (Number(row.attempts) >= MAX_VERIFY_ATTEMPTS) throw new OtpHttpError(410, 'OTP_LOCKED', 'Too many attempts');
     const ok = await compare(args.otp, row.otpHash);
     if (!ok) {

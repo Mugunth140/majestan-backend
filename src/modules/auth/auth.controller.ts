@@ -66,6 +66,7 @@ export class AuthController {
       return { otpSent: true, expiresInSeconds: res.expiresInSeconds };
     } catch (error) {
       this.mapOtpError(error);
+      throw error;
     }
   }
 
@@ -81,6 +82,7 @@ export class AuthController {
       return { otpSent: true, expiresInSeconds: res.expiresInSeconds };
     } catch (error) {
       this.mapOtpError(error);
+      throw error;
     }
   }
 
@@ -93,6 +95,7 @@ export class AuthController {
       await this.otpService.verifyOtp({ canonical, purpose: OtpPurpose.REGISTER, otp: dto.otp });
     } catch (error) {
       this.mapOtpError(error);
+      throw error;
     }
     return this.authService.registerUserWithPhone({ name: dto.name, email: dto.email, phone: canonical });
   }
@@ -106,6 +109,7 @@ export class AuthController {
       await this.otpService.verifyOtp({ canonical, purpose: OtpPurpose.LOGIN, otp: dto.otp });
     } catch (error) {
       this.mapOtpError(error);
+      throw error;
     }
     return this.authService.loginUserWithPhone(canonical);
   }
