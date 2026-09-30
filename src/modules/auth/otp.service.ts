@@ -60,13 +60,17 @@ export class OtpService {
   }
 
   async verifyOtp(args: { canonical: string; purpose: OtpPurpose; otp: string }): Promise<{ otpId: number }> {
-    const row = await this.dataSource.createQueryBuilder()
-      .select('otp.*').from(PhoneOtp, 'otp')
+    // `getOne()` rather than `getRawOne()`: a raw row is keyed by the database
+    // column name (`otp_hash`, `expires_at`, `used_at`), so reading camelCase
+    // properties off it yields undefined — which silently skipped the used, the
+    // expiry and the resend-cooldown checks, and crashed on the bcrypt compare.
+    // `getOne()` hydrates the entity, so the row matches the PhoneOtp type.
+    const row = await this.dataSource.createQueryBuilder(PhoneOtp, 'otp')
       .where('otp.phone = :phone', { phone: args.canonical })
       .andWhere('otp.purpose = :purpose', { purpose: args.purpose })
       .andWhere('otp.supersededAt IS NULL')
-      .orderBy('otp.createdAt', 'DESC').limit(1)
-      .getRawOne<PhoneOtp & { id: number }>();
+      .orderBy('otp.createdAt', 'DESC')
+      .getOne();
     if (!row) throw new OtpHttpError(404, 'OTP_NOT_FOUND', 'No OTP request found');
     if (row.usedAt) throw new OtpHttpError(410, 'OTP_EXPIRED', 'OTP already used');
     if (new Date(row.expiresAt).getTime() < Date.now()) throw new OtpHttpError(410, 'OTP_EXPIRED', 'OTP expired');
@@ -86,12 +90,14 @@ export class OtpService {
   }
 
   private async enforceResendLimits(canonical: string, purpose: OtpPurpose): Promise<void> {
-    const latest = await this.dataSource.createQueryBuilder()
-      .select('otp.*').from(PhoneOtp, 'otp')
+    // Hydrated, for the same reason as verifyOtp: `createdAt` is `created_at`
+    // in the database, so a raw row made this cooldown compare against NaN and
+    // never fire.
+    const latest = await this.dataSource.createQueryBuilder(PhoneOtp, 'otp')
       .where('otp.phone = :phone', { phone: canonical })
       .andWhere('otp.purpose = :purpose', { purpose })
-      .orderBy('otp.createdAt', 'DESC').limit(1)
-      .getRawOne<PhoneOtp>();
+      .orderBy('otp.createdAt', 'DESC')
+      .getOne();
     if (latest && Date.now() - new Date(latest.createdAt).getTime() < RESEND_MIN_SECONDS * 1000) {
       throw new OtpHttpError(429, 'OTP_RATE_LIMITED', 'Please wait before requesting another OTP');
     }
