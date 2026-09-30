@@ -96,6 +96,7 @@ import { AdminPropertiesService } from '../admin/properties/admin-properties.ser
 import { CreatePropertyDto } from '../admin/properties/dto/create-property.dto';
 import { DataSource } from 'typeorm';
 import { StorageService } from '../storage/storage.service';
+import { mapFloorPlanFiles } from './floor-plan-files';
 import { SearchService } from '../search/search.service';
 
 @Injectable()
@@ -490,6 +491,28 @@ export class PropertiesService {
       );
     }
 
+    // Floor-plan uploads from the CRM sidebar (property_files) carry no URL —
+    // only a file_id — so resolve them here. The gallery shows every source.
+    const floorPlanFilesWithBlobs = (propertyFiles || []).filter(
+      (pf: any) => pf?.documentType === 'floor_plan' && pf?.isPublic,
+    );
+    const floorPlanFileInputs = await Promise.all(
+      floorPlanFilesWithBlobs.map(async (pf: any) => {
+        const file = await pf.file?.catch(() => null);
+        return {
+          documentType: pf.documentType,
+          isPublic: pf.isPublic,
+          sortOrder: Number(pf.sortOrder) || 0,
+          title: pf.title ?? null,
+          fileKey: file?.fileKey || file?.fileUrl || '',
+        };
+      }),
+    );
+    const propertyFloorPlanFiles = mapFloorPlanFiles(
+      floorPlanFileInputs,
+      (key) => this.storageService.generateReadUrl(key),
+    );
+
     return {
       ...property,
       propertyDetails,
@@ -497,6 +520,7 @@ export class PropertiesService {
       propertyAmenities,
       propertyUnits,
       propertyFiles,
+      propertyFloorPlanFiles,
       faqs,
       seo,
       propertyImages: resolvedImages,
