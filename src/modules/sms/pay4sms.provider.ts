@@ -16,6 +16,57 @@ type FetchLike = (url: string, init: RequestInit) => Promise<{ ok: boolean; stat
 
 export const PAY4SMS_TIMEOUT_MS = 10_000;
 
+export type Pay4SmsSendResult =
+  | { accepted: true; messageId: string }
+  | { accepted: false; providerCode: string | null };
+
+/**
+ * Pay4SMS answers /sendsms/ in one of two shapes:
+ *
+ *   accepted: [["6384761234","310955552_0","Sent",1]]
+ *   rejected: 184 : Insufficient Credits
+ *
+ * The accepted form is a JSON array of per-recipient tuples
+ * [mobile, msgid, status, credits] — there is no "msgid=" text to grep for, so
+ * a text-only parser silently reports a delivered send as a failure and the
+ * OTP is never persisted. Parse the array first, then fall back to text.
+ */
+export function parseSendResponse(body: string): Pay4SmsSendResult {
+  const trimmed = body.trim();
+
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const entries: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+
+      for (const entry of entries) {
+        if (!Array.isArray(entry)) continue;
+        const messageId = entry[1];
+        if (typeof messageId === 'string' && messageId.trim().length > 0) {
+          return { accepted: true, messageId: messageId.trim() };
+        }
+      }
+    } catch {
+      // Not valid JSON after all — fall through to the text form.
+    }
+  }
+
+  // Textual rejection: "184 : Insufficient Credits" / "021 : Invalid Credit Type".
+  // Pay4SMS zero-pads to three digits, but classifyPay4SmsCode's sets use the
+  // bare number ("4" is rate-limited), so strip the padding.
+  const codeMatch = trimmed.match(/^\s*(\d{1,4})\s*[:=]/);
+  if (codeMatch) {
+    const bare = codeMatch[1].replace(/^0+(?=\d)/, '');
+    return { accepted: false, providerCode: bare };
+  }
+
+  // Some accounts answer "msgid=..." on success.
+  const msgMatch = trimmed.match(/msgid\s*[:=]\s*([A-Za-z0-9_-]+)/i);
+  if (msgMatch) return { accepted: true, messageId: msgMatch[1] };
+
+  return { accepted: false, providerCode: null };
+}
+
 @Injectable()
 export class Pay4SmsProvider {
   private readonly logger = new Logger(Pay4SmsProvider.name);
@@ -57,12 +108,13 @@ export class Pay4SmsProvider {
     try {
       const res = await this.fetchImpl(url, { method: 'GET', signal: controller.signal });
       const body = await res.text();
-      const msgMatch = body.match(/msgid\s*[:=]\s*([A-Za-z0-9_-]+)/i);
-      if (res.ok && msgMatch) {
-        return { messageId: msgMatch[1] };
+      const parsed = parseSendResponse(body);
+
+      if (res.ok && parsed.accepted) {
+        return { messageId: parsed.messageId };
       }
-      const errMatch = body.match(/(?:error|err|code)\s*[:=]\s*(\d{1,4})/i) ?? body.match(/\b(\d{2,3})\b/);
-      const providerCode = errMatch ? errMatch[1] : null;
+
+      const providerCode = parsed.accepted ? null : parsed.providerCode;
       const code = providerCode ? classifyPay4SmsCode(providerCode) : 'OTP_SEND_FAILED';
       this.logger.warn(`SMS OTP provider failure provider=pay4sms purpose=${args.purpose} errorCode=${providerCode ?? 'unknown'} phone=${masked}`);
       throw new OtpSendError(code, providerCode, `Pay4SMS rejected OTP send (${providerCode ?? 'unknown'})`);

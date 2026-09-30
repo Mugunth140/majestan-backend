@@ -1,5 +1,46 @@
 // site/majestan-backend/src/modules/sms/pay4sms.provider.spec.ts
-import { Pay4SmsProvider, buildRegisterMessage, buildLoginMessage } from './pay4sms.provider';
+import { Pay4SmsProvider, buildRegisterMessage, buildLoginMessage, parseSendResponse } from './pay4sms.provider';
+
+describe('parseSendResponse', () => {
+  it('accepts the real Pay4SMS JSON tuple response', () => {
+    // Captured live from pay4sms.in on 2026-09-30.
+    expect(parseSendResponse('[["6384761234","310955552_0","Sent",1]]')).toEqual({
+      accepted: true,
+      messageId: '310955552_0',
+    });
+  });
+
+  it('accepts a multi-recipient response using the first message id', () => {
+    expect(
+      parseSendResponse('[["6384761234","A_1","Sent",1],["6384761235","B_2","Sent",1]]'),
+    ).toEqual({ accepted: true, messageId: 'A_1' });
+  });
+
+  it('rejects the textual insufficient-credits response with its code', () => {
+    expect(parseSendResponse('184 : Insufficient Credits')).toEqual({
+      accepted: false,
+      providerCode: '184',
+    });
+  });
+
+  it('rejects a zero-padded textual code', () => {
+    expect(parseSendResponse('021 : Invalid Credit Type')).toEqual({
+      accepted: false,
+      providerCode: '21',
+    });
+  });
+
+  it('still accepts a msgid= text response', () => {
+    expect(parseSendResponse('msgid=ABC123')).toEqual({ accepted: true, messageId: 'ABC123' });
+  });
+
+  it('reports an unparseable body with no provider code', () => {
+    expect(parseSendResponse('<html>gateway timeout</html>')).toEqual({
+      accepted: false,
+      providerCode: null,
+    });
+  });
+});
 
 describe('DLT message builders', () => {
   it('register text is byte-exact', () => {
@@ -76,12 +117,28 @@ describe('Pay4SmsProvider.sendOtp', () => {
     expect(new URL(captured).searchParams.get('templateid')).toBe('1777179016683380342');
   });
 
-  it('maps provider error code 429 to DLT configuration error and never logs token', async () => {
-    const fakeFetch = async () => ({ ok: true, status: 200, text: async () => 'error=429' }) as never;
+  it('treats a live-shaped accepted response as success, not failure', async () => {
+    const fakeFetch = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => '[["6384761234","310955552_0","Sent",1]]',
+    }) as never;
     const provider = makeProvider(fakeFetch);
     await expect(
-      provider.sendOtp({ providerNumber: '919876543210', purpose: 'REGISTER' as never, otp: '482913' }),
-    ).rejects.toMatchObject({ code: 'OTP_DLT_CONFIGURATION_ERROR' });
+      provider.sendOtp({ providerNumber: '919876543210', purpose: 'LOGIN' as never, otp: '071824' }),
+    ).resolves.toEqual({ messageId: '310955552_0' });
+  });
+
+  it('maps the textual insufficient-credits response to a classified error', async () => {
+    const fakeFetch = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => '184 : Insufficient Credits',
+    }) as never;
+    const provider = makeProvider(fakeFetch);
+    await expect(
+      provider.sendOtp({ providerNumber: '919876543210', purpose: 'LOGIN' as never, otp: '071824' }),
+    ).rejects.toMatchObject({ code: 'OTP_SEND_FAILED', providerCode: '184' });
   });
 
   it('times out after 10s as temporary error', async () => {
