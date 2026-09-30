@@ -141,16 +141,54 @@ describe('Pay4SmsProvider.sendOtp', () => {
     ).rejects.toMatchObject({ code: 'OTP_SEND_FAILED', providerCode: '184' });
   });
 
-  it('times out after 10s as temporary error', async () => {
-    const fakeFetch = async (_url: string, init: RequestInit) => {
-      await new Promise((_, reject) => {
-        init.signal?.addEventListener('abort', () => reject(new Error('aborted')));
-      });
-      throw new Error('unreachable');
-    };
-    const provider = makeProvider(fakeFetch);
-    await expect(
-      provider.sendOtp({ providerNumber: '919876543210', purpose: 'LOGIN' as never, otp: '071824' }),
-    ).rejects.toMatchObject({ code: 'OTP_PROVIDER_TEMPORARY_ERROR' });
-  }, 15000);
+  it('times out after 30s as temporary error', async () => {
+    jest.useFakeTimers();
+    try {
+      const fakeFetch = async (_url: string, init: RequestInit) => {
+        await new Promise((_, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+        throw new Error('unreachable');
+      };
+      const provider = makeProvider(fakeFetch);
+      const pending = provider.sendOtp({ providerNumber: '919876543210', purpose: 'LOGIN' as never, otp: '071824' });
+      // Attach the handler before advancing: otherwise the rejection fires with
+      // no handler attached while the timers drain, and jest reports it as an
+      // unhandled rejection instead of routing it to the assertion.
+      const assertion = expect(pending).rejects.toMatchObject({ code: 'OTP_PROVIDER_TEMPORARY_ERROR' });
+      await jest.advanceTimersByTimeAsync(30_000);
+      await assertion;
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('accepts a slow provider response instead of aborting at the old 10s limit', async () => {
+    // Production case from 2026-09-30: the gateway took over ten seconds to
+    // answer. The client aborted at 10s and reported a temporary error, but
+    // the SMS was delivered anyway — with no OTP row persisted, so the code
+    // the user received could never be verified.
+    jest.useFakeTimers();
+    try {
+      const fakeFetch = (_url: string, init: RequestInit) =>
+        new Promise((resolve, reject) => {
+          const delivered = setTimeout(
+            () => resolve({ ok: true, status: 200, text: async () => 'msgid=SLOW123' }),
+            20_000,
+          );
+          init.signal?.addEventListener('abort', () => {
+            clearTimeout(delivered);
+            reject(new Error('aborted'));
+          });
+        });
+      const provider = makeProvider(fakeFetch);
+      const pending = provider.sendOtp({ providerNumber: '919876543210', purpose: 'LOGIN' as never, otp: '071824' });
+      // Handler first, for the same unhandled-rejection reason as above.
+      const assertion = expect(pending).resolves.toEqual({ messageId: 'SLOW123' });
+      await jest.advanceTimersByTimeAsync(20_000);
+      await assertion;
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });

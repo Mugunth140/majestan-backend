@@ -14,7 +14,12 @@ export const buildLoginMessage = (otp: string): string =>
 
 type FetchLike = (url: string, init: RequestInit) => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>;
 
-export const PAY4SMS_TIMEOUT_MS = 10_000;
+// The gateway answers slowly under load — on 2026-09-30 a login send took
+// over ten seconds to answer, and the old 10s abort turned a delivered SMS
+// into a reported failure (with no OTP row persisted, so the delivered code
+// could never be verified). Thirty seconds keeps slow successes alive without
+// letting a hung gateway hold a request thread indefinitely.
+export const PAY4SMS_TIMEOUT_MS = 30_000;
 
 export type Pay4SmsSendResult =
   | { accepted: true; messageId: string }
