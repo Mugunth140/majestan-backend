@@ -28,4 +28,20 @@ describe('smsConfig', () => {
     expect(cfg.pay4sms.registerTemplateId).toBe('1777179023885095379');
     expect(cfg.pay4sms.loginTemplateId).toBe('1777179016683380342');
   });
+
+  it('reads the credit type from env', () => {
+    process.env.PAY4SMS_CREDIT = '2';
+    expect(smsConfig().pay4sms.credit).toBe('2');
+
+    process.env.PAY4SMS_CREDIT = '4';
+    expect(smsConfig().pay4sms.credit).toBe('4');
+  });
+
+  it('defaults to the transactional credit type (2) and rejects nonsense', () => {
+    delete process.env.PAY4SMS_CREDIT;
+    expect(smsConfig().pay4sms.credit).toBe('2');
+
+    process.env.PAY4SMS_CREDIT = 'four';
+    expect(smsConfig().pay4sms.credit).toBe('2');
+  });
 });

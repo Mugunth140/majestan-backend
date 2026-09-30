@@ -48,6 +48,8 @@ export const envValidationSchema = Joi.object({
   PAY4SMS_API_URL: Joi.string().uri().default('http://pay4sms.in/sendsms/'),
   PAY4SMS_TOKEN: Joi.string().allow('').default(''),
   PAY4SMS_SENDER_ID: Joi.string().default('PRSMRK'),
+  // 2 = transactional route (current vendor instruction), 4 = OTP route.
+  PAY4SMS_CREDIT: Joi.string().valid('2', '4').default('2'),
   PAY4SMS_REGISTER_TEMPLATE_ID: Joi.string().default('1777179023885095379'),
   PAY4SMS_LOGIN_TEMPLATE_ID: Joi.string().default('1777179016683380342'),
 

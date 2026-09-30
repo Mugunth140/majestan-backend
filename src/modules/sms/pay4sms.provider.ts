@@ -30,6 +30,7 @@ export class Pay4SmsProvider {
     const apiUrl = this.configService.getOrThrow<string>('sms.pay4sms.apiUrl');
     const token = this.configService.getOrThrow<string>('sms.pay4sms.token');
     const sender = this.configService.getOrThrow<string>('sms.pay4sms.senderId');
+    const credit = this.configService.getOrThrow<string>('sms.pay4sms.credit');
     const registerTemplateId = this.configService.getOrThrow<string>('sms.pay4sms.registerTemplateId');
     const loginTemplateId = this.configService.getOrThrow<string>('sms.pay4sms.loginTemplateId');
 
@@ -41,7 +42,7 @@ export class Pay4SmsProvider {
     const templateid = args.purpose === OtpPurpose.REGISTER ? registerTemplateId : loginTemplateId;
     const params = new URLSearchParams({
       token,
-      credit: '4',
+      credit,
       sender,
       message,
       number: args.providerNumber,
