@@ -100,6 +100,25 @@ describe('createPropertyEnquiry', () => {
     ).rejects.toThrow('Invalid visit date');
   });
 
+  it('drops visit fields on a plain enquiry', async () => {
+    // The site's own @IsDateString() accepts a full ISO datetime, and this
+    // forward is fire-and-forget — a MySQL DATE-column rejection on the CRM
+    // side would only ever be logged, silently losing the lead. Visit fields
+    // are meaningful only for a visit intent, so an enquiry never forwards
+    // them, whatever the client sent.
+    const { service, crmForwarding } = makeService({ propertyRow: RESOLVED_ROW });
+    await service.createPropertyEnquiry(
+      { ...ENQUIRY, intent: 'enquiry', visitDate: `${VALID_VISIT_DATE}T10:00:00Z`, visitSlot: '11:00' },
+      42,
+    );
+
+    const forwarded = crmForwarding.forwardEnquiry.mock.calls[0][0];
+    expect(forwarded).not.toHaveProperty('visitDate');
+    expect(forwarded).not.toHaveProperty('visitSlot');
+    // The enquiry itself still forwards — only the meaningless visit data goes.
+    expect(forwarded).toEqual(expect.objectContaining({ intent: 'enquiry', propertyId: RESOLVED_ID }));
+  });
+
   it('forwards the resolved id and canonical code/slug, ignoring spoofed ones', async () => {
     const { service, crmForwarding } = makeService({ propertyRow: RESOLVED_ROW });
     await service.createPropertyEnquiry(

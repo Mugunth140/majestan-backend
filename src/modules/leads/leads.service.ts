@@ -227,8 +227,15 @@ export class LeadsService {
         source: 'Website – Property page',
         propertyType: propertyRow.propertyType ?? undefined,
         intent: payload.intent,
-        visitDate: payload.visitDate,
-        visitSlot: payload.visitSlot,
+        // Visit fields are meaningful only for a visit intent, and the guard
+        // above is what makes them trustworthy (exact YYYY-MM-DD). A stray
+        // visitDate on an enquiry is meaningless data: the DTO's
+        // @IsDateString() lets a full ISO datetime through, which MySQL strict
+        // mode rejects for the CRM's DATE column — and since this forward is
+        // fire-and-forget, that error is only ever logged and the lead is lost.
+        ...(payload.intent === 'site_visit'
+          ? { visitDate: payload.visitDate, visitSlot: payload.visitSlot }
+          : {}),
         propertyId: propertyRow.id,
         propertyCode: propertyRow.propertyCode ?? undefined,
         propertySlug: propertyRow.slug ?? undefined,
