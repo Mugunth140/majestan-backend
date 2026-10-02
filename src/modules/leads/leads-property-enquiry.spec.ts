@@ -20,33 +20,54 @@ function makeService(db: { propertyRow: any }) {
   };
   const dataSource = { createQueryBuilder: jest.fn().mockReturnValue(qb) } as any;
   const crmForwarding = { forwardEnquiry: jest.fn().mockResolvedValue(undefined) } as any;
-  return { service: new LeadsService(dataSource, crmForwarding), queries, crmForwarding };
+  return { service: new LeadsService(dataSource, crmForwarding), queries, qb, crmForwarding };
 }
 
-const ENQUIRY = { propertyId: 18, name: 'Rahul', phone: '9876543210', intent: 'enquiry' } as any;
+/**
+ * The id the client asks for. The DB row deliberately resolves to a DIFFERENT
+ * id (RESOLVED_ID below) so every assertion about the insert / CRM forward
+ * proves those use the resolved row rather than echoing the client's value.
+ */
+const CLIENT_PROPERTY_ID = 18;
+const RESOLVED_ID = 7;
+
+const ENQUIRY = {
+  propertyId: CLIENT_PROPERTY_ID,
+  name: 'Rahul',
+  phone: '9876543210',
+  intent: 'enquiry',
+} as any;
+
+const RESOLVED_ROW = { id: RESOLVED_ID, propertyCode: 'AP018', slug: 'some-villa-ap018' };
 
 /**
- * A calendar date `daysAhead` from now, formatted exactly like the
- * service's `toLocaleDateString('en-CA')` baseline. Computed rather than
- * hardcoded so these cases never expire into the past-date branch.
+ * A calendar date `daysAhead` from now, in the exact 'YYYY-MM-DD' form the
+ * service's own date helper produces (and the only form it accepts). Computed
+ * rather than hardcoded so these cases never expire into the past-date branch,
+ * and assembled from date parts so it does not inherit an ICU dependency.
  */
 function dateAhead(daysAhead: number): string {
   const d = new Date();
   d.setDate(d.getDate() + daysAhead);
-  return d.toLocaleDateString('en-CA');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 const VALID_VISIT_DATE = dateAhead(7);
 
 describe('createPropertyEnquiry', () => {
-  it('inserts against the validated property with the JWT user id', async () => {
-    const { service, queries } = makeService({
-      propertyRow: { id: 18, propertyCode: 'AP018', slug: 'some-villa-ap018' },
-    });
+  it('inserts with the DB-resolved property id, looked up by the client id', async () => {
+    const { service, queries, qb } = makeService({ propertyRow: RESOLVED_ROW });
     await expect(service.createPropertyEnquiry(ENQUIRY, 42)).resolves.toEqual({ id: 77, submitted: true });
+    // The client's id drives the lookup…
+    expect(qb.where).toHaveBeenCalledWith('p.id = :id', { id: CLIENT_PROPERTY_ID });
+    // …and the DB row's id drives the insert. If these two ever collapse, the
+    // "insert and forward use the resolved id" constraint is no longer covered.
     expect(queries[0]).toEqual(
-      expect.objectContaining({ propertyId: 18, userId: 42, name: 'Rahul', phone: '9876543210' }),
+      expect.objectContaining({ propertyId: RESOLVED_ID, userId: 42, name: 'Rahul', phone: '9876543210' }),
     );
+    expect(queries[0].propertyId).not.toBe(CLIENT_PROPERTY_ID);
   });
 
   it('400s when the property does not exist', async () => {
@@ -55,7 +76,7 @@ describe('createPropertyEnquiry', () => {
   });
 
   it('requires date and slot for a visit, and rejects past dates', async () => {
-    const { service } = makeService({ propertyRow: { id: 18, propertyCode: 'AP018', slug: 's' } });
+    const { service } = makeService({ propertyRow: RESOLVED_ROW });
     await expect(
       service.createPropertyEnquiry({ ...ENQUIRY, intent: 'site_visit' }, 42),
     ).rejects.toThrow('Visit date and time slot are required');
@@ -70,7 +91,7 @@ describe('createPropertyEnquiry', () => {
   it('rejects a visit date that is not exactly YYYY-MM-DD', async () => {
     // @IsDateString() also accepts the compact-ISO form, and a raw string
     // comparison silently lets it through the past-date check.
-    const { service } = makeService({ propertyRow: { id: 18, propertyCode: 'AP018', slug: 's' } });
+    const { service } = makeService({ propertyRow: RESOLVED_ROW });
     await expect(
       service.createPropertyEnquiry(
         { ...ENQUIRY, intent: 'site_visit', visitDate: VALID_VISIT_DATE.replace(/-/g, ''), visitSlot: '11:00' },
@@ -79,18 +100,24 @@ describe('createPropertyEnquiry', () => {
     ).rejects.toThrow('Invalid visit date');
   });
 
-  it('forwards canonical code/slug and visit fields to the CRM in the background', async () => {
-    const { service, crmForwarding } = makeService({
-      propertyRow: { id: 18, propertyCode: 'AP018', slug: 'some-villa-ap018' },
-    });
+  it('forwards the resolved id and canonical code/slug, ignoring spoofed ones', async () => {
+    const { service, crmForwarding } = makeService({ propertyRow: RESOLVED_ROW });
     await service.createPropertyEnquiry(
-      { ...ENQUIRY, intent: 'site_visit', visitDate: VALID_VISIT_DATE, visitSlot: '11:00', propertyCode: 'SPOOFED', message: 'hi' },
+      {
+        ...ENQUIRY,
+        intent: 'site_visit',
+        visitDate: VALID_VISIT_DATE,
+        visitSlot: '11:00',
+        propertyCode: 'SPOOFED',
+        slug: 'SPOOFED-SLUG',
+        message: 'hi',
+      },
       42,
     );
     expect(crmForwarding.forwardEnquiry).toHaveBeenCalledWith(
       expect.objectContaining({
         source: 'Website – Property page',
-        propertyId: 18,
+        propertyId: RESOLVED_ID,
         propertyCode: 'AP018',
         propertySlug: 'some-villa-ap018',
         intent: 'site_visit',
@@ -98,7 +125,24 @@ describe('createPropertyEnquiry', () => {
         visitSlot: '11:00',
       }),
     );
-    // DB-canonical values win over client-sent ones:
-    expect(crmForwarding.forwardEnquiry).not.toHaveBeenCalledWith(expect.objectContaining({ propertyCode: 'SPOOFED' }));
+    // DB-canonical values win over client-sent ones, and the client's own
+    // propertyId is never echoed back.
+    expect(crmForwarding.forwardEnquiry).not.toHaveBeenCalledWith(
+      expect.objectContaining({ propertyId: CLIENT_PROPERTY_ID }),
+    );
+    expect(crmForwarding.forwardEnquiry).not.toHaveBeenCalledWith(
+      expect.objectContaining({ propertyCode: 'SPOOFED' }),
+    );
+    expect(crmForwarding.forwardEnquiry).not.toHaveBeenCalledWith(
+      expect.objectContaining({ propertySlug: 'SPOOFED-SLUG' }),
+    );
+  });
+
+  it('still reports success when the CRM forward rejects', async () => {
+    // Fire-and-forget: a CRM outage must not turn into a failed submission.
+    const { service, crmForwarding } = makeService({ propertyRow: RESOLVED_ROW });
+    crmForwarding.forwardEnquiry.mockRejectedValue(new Error('CRM gateway down'));
+    await expect(service.createPropertyEnquiry(ENQUIRY, 42)).resolves.toEqual({ id: 77, submitted: true });
+    expect(crmForwarding.forwardEnquiry).toHaveBeenCalledTimes(1);
   });
 });

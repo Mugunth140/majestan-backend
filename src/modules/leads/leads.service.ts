@@ -15,6 +15,20 @@ const VISIT_DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
 
 const ORPHAN_PROPERTY_ID = 999; // 'Legacy Unmapped Property' — designated fallback, see migration 1779100000000.
 
+/**
+ * Today as 'YYYY-MM-DD' in the runtime's local timezone — exactly the form
+ * VISIT_DATE_FORMAT accepts, so the lexicographic past-date compare against it
+ * is sound. Assembled from the date parts instead of
+ * `toLocaleDateString('en-CA')`, which silently degrades to 'M/D/YYYY' on a
+ * Node build shipped without full ICU data and would corrupt that compare.
+ */
+function todayAsCalendarDate(): string {
+  const now = new Date();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${mm}-${dd}`;
+}
+
 @Injectable()
 export class LeadsService {
   constructor(
@@ -152,7 +166,7 @@ export class LeadsService {
       if (!VISIT_DATE_FORMAT.test(payload.visitDate)) {
         throw new BadRequestException('Invalid visit date');
       }
-      if (payload.visitDate < new Date().toLocaleDateString('en-CA')) {
+      if (payload.visitDate < todayAsCalendarDate()) {
         throw new BadRequestException('Visit date cannot be in the past');
       }
       if (!(VISIT_SLOTS as readonly string[]).includes(payload.visitSlot)) {
