@@ -1,4 +1,6 @@
+import { Reflector } from '@nestjs/core';
 import { PropertyEnquiryController } from './property-enquiry.controller';
+import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 import { CreatePropertyEnquiryDto } from './dto/create-property-enquiry.dto';
 
 describe('PropertyEnquiryController', () => {
@@ -19,5 +21,12 @@ describe('PropertyEnquiryController', () => {
     const dto = { propertyId: 18, name: 'R', phone: '9876543210', intent: 'enquiry' } as CreatePropertyEnquiryDto;
     await controller.create(dto, undefined);
     expect(createPropertyEnquiry).toHaveBeenCalledWith(dto, null);
+  });
+
+  it('is never marked @Public', () => {
+    const reflector = new Reflector();
+    for (const t of [PropertyEnquiryController, PropertyEnquiryController.prototype.create]) {
+      expect(reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [t])).toBeFalsy();
+    }
   });
 });
