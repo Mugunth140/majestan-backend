@@ -12,6 +12,8 @@ import {
 
 /** Hourly visit start-times (IST wall-clock). Mirrored in site frontend src/lib/visit-slots.ts. */
 export const VISIT_SLOTS = [
+  '08:00',
+  '09:00',
   '10:00',
   '11:00',
   '12:00',
@@ -20,6 +22,8 @@ export const VISIT_SLOTS = [
   '15:00',
   '16:00',
   '17:00',
+  '18:00',
+  '19:00',
 ] as const;
 
 export const PROPERTY_ENQUIRY_INTENTS = ['enquiry', 'site_visit'] as const;
