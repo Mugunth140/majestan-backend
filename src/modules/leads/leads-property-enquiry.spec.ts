@@ -86,6 +86,9 @@ describe('createPropertyEnquiry', () => {
     await expect(
       service.createPropertyEnquiry({ ...ENQUIRY, intent: 'site_visit', visitDate: VALID_VISIT_DATE, visitSlot: '09:30' }, 42),
     ).rejects.toThrow('Invalid visit slot');
+    await expect(
+      service.createPropertyEnquiry({ ...ENQUIRY, intent: 'site_visit', visitDate: '2999-01-01', visitSlot: '11:00' }, 42),
+    ).rejects.toThrow('Visit date cannot be more than 3 months ahead');
   });
 
   it('rejects a visit date that is not exactly YYYY-MM-DD', async () => {

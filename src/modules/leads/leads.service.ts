@@ -29,6 +29,18 @@ function todayAsCalendarDate(): string {
   return `${now.getFullYear()}-${mm}-${dd}`;
 }
 
+/**
+ * Latest bookable visit date: 3 calendar months from today, 'YYYY-MM-DD'.
+ * Mirrors site frontend maxVisitDate() in src/lib/visit-slots.ts.
+ */
+function maxVisitDate(): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 3);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 @Injectable()
 export class LeadsService {
   constructor(
@@ -168,6 +180,9 @@ export class LeadsService {
       }
       if (payload.visitDate < todayAsCalendarDate()) {
         throw new BadRequestException('Visit date cannot be in the past');
+      }
+      if (payload.visitDate > maxVisitDate()) {
+        throw new BadRequestException('Visit date cannot be more than 3 months ahead');
       }
       if (!(VISIT_SLOTS as readonly string[]).includes(payload.visitSlot)) {
         throw new BadRequestException('Invalid visit slot');
