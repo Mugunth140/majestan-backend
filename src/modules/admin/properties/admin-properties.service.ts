@@ -352,7 +352,7 @@ export class AdminPropertiesService {
           areaSqft: payload.details.areaSqft ?? 0,
           parking: payload.details.parking ?? 0,
           parkingType: payload.details.parkingType,
-          furnished: payload.details.furnished ?? false,
+          furnished: payload.details.furnished ?? null,
           balconies: payload.details.balconies ?? 0,
           floorNumber: payload.details.floorNumber,
           totalFloors: payload.details.totalFloors ?? 0,
@@ -661,7 +661,7 @@ export class AdminPropertiesService {
           areaSqft: payload.details.areaSqft ?? 0,
           parking: payload.details.parking ?? 0,
           parkingType: payload.details.parkingType,
-          furnished: payload.details.furnished ?? false,
+          furnished: payload.details.furnished ?? null,
           balconies: payload.details.balconies ?? 0,
           floorNumber: payload.details.floorNumber,
           totalFloors: payload.details.totalFloors ?? 0,
@@ -774,7 +774,9 @@ export class AdminPropertiesService {
           neighborhoodHighlights: payload.details.neighborhoodHighlights,
           communityFacilities: payload.details.communityFacilities,
           accessibility: payload.details.accessibility,
-          furnishingStatus: payload.details.furnishingStatus,
+          // Preserve CRM-set status when the payload omits it (site wizard
+          // sends it now, but older clients don't — never wipe silently).
+          furnishingStatus: payload.details.furnishingStatus ?? existingDetails?.furnishingStatus ?? null,
         });
 
         if (payload.details.floorPlanImages) {

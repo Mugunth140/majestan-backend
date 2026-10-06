@@ -44,8 +44,10 @@ export class PropertyDetails {
   @Column({ name: 'parking_type', type: 'varchar', length: 20, nullable: true })
   parkingType!: string | null;
 
-  @Column({ name: 'furnished', type: 'boolean', nullable: false })
-  furnished!: boolean;
+  // Nullable: NULL means "never specified" (row hides); TRUE/FALSE are
+  // explicit Furnished/Unfurnished choices from the wizard or CRM.
+  @Column({ name: 'furnished', type: 'boolean', nullable: true })
+  furnished!: boolean | null;
 
   @Column({ name: 'balconies', type: 'int', default: 0 })
   balconies!: number;
