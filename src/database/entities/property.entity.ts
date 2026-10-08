@@ -17,6 +17,7 @@ import { User } from './user.entity';
 import { Wishlist } from './wishlist.entity';
 import { PropertyLocation } from './property-location.entity';
 import { PropertyAmenity } from './property-amenity.entity';
+import { PropertyFurnishing } from './property-furnishing.entity';
 import { PropertyUnit } from './property-unit.entity';
 import { PropertyFile } from './property-file.entity';
 import { PropertyFaq } from './property-faq.entity';
@@ -345,6 +346,9 @@ export class Property {
 
   @OneToMany('PropertyAmenity', (propertyAmenity: any) => propertyAmenity.property, { lazy: true })
   propertyAmenities!: Promise<PropertyAmenity[]>;
+
+  @OneToMany('PropertyFurnishing', (propertyFurnishing: any) => propertyFurnishing.property, { lazy: true })
+  propertyFurnishings!: Promise<PropertyFurnishing[]>;
 
   @OneToMany('PropertyUnit', (propertyUnit: any) => propertyUnit.property, { lazy: true })
   propertyUnits!: Promise<PropertyUnit[]>;

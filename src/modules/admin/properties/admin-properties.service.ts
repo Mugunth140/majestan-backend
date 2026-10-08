@@ -26,6 +26,7 @@ import { Property, PropertyStatus, PropertyType } from '../../../database/entiti
 import { PropertyDetails } from '../../../database/entities/property-details.entity';
 import { PropertyLocation } from '../../../database/entities/property-location.entity';
 import { PropertyAmenity } from '../../../database/entities/property-amenity.entity';
+import { PropertyFurnishing } from '../../../database/entities/property-furnishing.entity';
 import { PropertyUnit } from '../../../database/entities/property-unit.entity';
 import { PropertyFile } from '../../../database/entities/property-file.entity';
 import { PropertyImage } from '../../../database/entities/property-image.entity';
@@ -505,6 +506,17 @@ export class AdminPropertiesService {
         await queryRunner.manager.save(amenities);
       }
 
+      // 4b. Create Furnishing Items
+      if (payload.furnishingItems && payload.furnishingItems.length > 0) {
+        const furnishings = payload.furnishingItems.map(f => {
+          const pf = new PropertyFurnishing();
+          Object.assign(pf, f);
+          pf.propertyId = savedProperty.id;
+          return pf;
+        });
+        await queryRunner.manager.save(furnishings);
+      }
+
       // 5. Create Units
       if (payload.units && payload.units.length > 0) {
         const units = await mapWithConcurrency(payload.units, 3, async u => {
@@ -661,7 +673,7 @@ export class AdminPropertiesService {
           areaSqft: payload.details.areaSqft ?? 0,
           parking: payload.details.parking ?? 0,
           parkingType: payload.details.parkingType,
-          furnished: payload.details.furnished ?? null,
+          furnished: payload.details.furnished ?? existingDetails?.furnished ?? null,
           balconies: payload.details.balconies ?? 0,
           floorNumber: payload.details.floorNumber,
           totalFloors: payload.details.totalFloors ?? 0,
@@ -827,6 +839,20 @@ export class AdminPropertiesService {
             return pa;
           });
           await queryRunner.manager.save(amenities);
+        }
+      }
+
+      // 4b. Update Furnishing Items
+      if (payload.furnishingItems !== undefined) {
+        await queryRunner.manager.delete(PropertyFurnishing, { propertyId: id });
+        if (payload.furnishingItems.length > 0) {
+          const furnishings = payload.furnishingItems.map(f => {
+            const pf = new PropertyFurnishing();
+            Object.assign(pf, f);
+            pf.propertyId = id;
+            return pf;
+          });
+          await queryRunner.manager.save(furnishings);
         }
       }
 

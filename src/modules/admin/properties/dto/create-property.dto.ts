@@ -159,6 +159,10 @@ class PropertyAmenityDto {
   @IsOptional() @IsString() details?: string;
 }
 
+class PropertyFurnishingItemDto {
+  @IsNumber() furnishingItemId!: number;
+}
+
 class PropertyUnitDto {
   @IsString() unitType!: string; // 1BHK, 2BHK, etc.
   @IsString() title!: string;
@@ -301,6 +305,12 @@ export class CreatePropertyDto {
   @ValidateNested({ each: true })
   @Type(() => PropertyAmenityDto)
   amenities?: PropertyAmenityDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PropertyFurnishingItemDto)
+  furnishingItems?: PropertyFurnishingItemDto[];
 
   @IsOptional()
   @IsArray()

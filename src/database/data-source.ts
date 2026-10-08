@@ -15,6 +15,7 @@ import { ProjectRootCustomSlug1781800000000 } from './migrations/1781800000000-P
 import { AddProjectCodeToCanonicalSlug1781900000000 } from './migrations/1781900000000-AddProjectCodeToCanonicalSlug';
 import { AddParkingTypeAndFloorFacing1782000000000 } from './migrations/1782000000000-AddParkingTypeAndFloorFacing';
 import { MakeFurnishedNullable1782200000000 } from './migrations/1782200000000-MakeFurnishedNullable';
+import { CreateFurnishingItems1782300000000 } from './migrations/1782300000000-CreateFurnishingItems';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -57,6 +58,7 @@ export default new DataSource({
     AddProjectCodeToCanonicalSlug1781900000000,
     AddParkingTypeAndFloorFacing1782000000000,
     MakeFurnishedNullable1782200000000,
+    CreateFurnishingItems1782300000000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),

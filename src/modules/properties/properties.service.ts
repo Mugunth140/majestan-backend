@@ -112,6 +112,13 @@ export class PropertiesService {
 
   async getFormData() {
     const amenities = await this.dataSource.query('SELECT id, name, category, icon_key AS iconKey FROM amenities WHERE is_active = 1');
+    // Degrades to [] when the furnishing_items migration hasn't run yet.
+    let furnishings: unknown[] = [];
+    try {
+      furnishings = await this.dataSource.query('SELECT id, name, icon FROM furnishing_items WHERE is_active = 1 ORDER BY name ASC');
+    } catch {
+      furnishings = [];
+    }
     const cities = await this.dataSource.query(
       'SELECT id, city_name, state_name, country_name FROM cities WHERE is_active = 1 ORDER BY city_name ASC',
     );
@@ -124,6 +131,7 @@ export class PropertiesService {
     );
     return {
       amenities,
+      furnishings,
       cities,
       sublocations,
     };
@@ -357,6 +365,8 @@ export class PropertiesService {
         'propertyLocations',
         'propertyAmenities',
         'propertyAmenities.amenity',
+        'propertyFurnishings',
+        'propertyFurnishings.furnishingItem',
         'propertyUnits',
         'propertyFiles',
         'propertyImages',
@@ -372,6 +382,7 @@ export class PropertiesService {
       propertyDetails,
       propertyLocations,
       propertyAmenitiesRaw,
+      propertyFurnishingsRaw,
       propertyUnits,
       propertyFiles,
       propertyImages,
@@ -380,6 +391,7 @@ export class PropertiesService {
       property.propertyDetails,
       property.propertyLocations,
       property.propertyAmenities,
+      property.propertyFurnishings,
       property.propertyUnits,
       property.propertyFiles,
       property.propertyImages,
@@ -393,6 +405,13 @@ export class PropertiesService {
       })
     ) : [];
 
+    const propertyFurnishings = propertyFurnishingsRaw ? await Promise.all(
+      propertyFurnishingsRaw.map(async (pf) => {
+        const furnishingItem = await pf.furnishingItem;
+        return { ...pf, furnishingItem };
+      })
+    ) : [];
+
     const resolvedImages = this.storageService.resolveImageUrls(propertyImages || []);
 
     return {
@@ -400,6 +419,7 @@ export class PropertiesService {
       propertyDetails,
       propertyLocations,
       propertyAmenities,
+      propertyFurnishings,
       propertyUnits,
       propertyFiles,
       propertyImages: resolvedImages,
@@ -419,6 +439,8 @@ export class PropertiesService {
         'propertyLocations',
         'propertyAmenities',
         'propertyAmenities.amenity',
+        'propertyFurnishings',
+        'propertyFurnishings.furnishingItem',
         'propertyUnits',
         'propertyFiles',
         'propertyImages',
@@ -464,6 +486,7 @@ export class PropertiesService {
       propertyDetails,
       propertyLocations,
       propertyAmenitiesRaw,
+      propertyFurnishingsRaw,
       propertyUnits,
       propertyFiles,
       faqs,
@@ -472,6 +495,7 @@ export class PropertiesService {
       property.propertyDetails,
       property.propertyLocations,
       property.propertyAmenities,
+      property.propertyFurnishings,
       property.propertyUnits,
       property.propertyFiles,
       property.faqs,
@@ -482,6 +506,13 @@ export class PropertiesService {
       propertyAmenitiesRaw.map(async (pa) => {
         const amenity = await pa.amenity;
         return { ...pa, amenity };
+      })
+    ) : [];
+
+    const propertyFurnishings = propertyFurnishingsRaw ? await Promise.all(
+      propertyFurnishingsRaw.map(async (pf) => {
+        const furnishingItem = await pf.furnishingItem;
+        return { ...pf, furnishingItem };
       })
     ) : [];
 
@@ -518,6 +549,7 @@ export class PropertiesService {
       propertyDetails,
       propertyLocations,
       propertyAmenities,
+      propertyFurnishings,
       propertyUnits,
       propertyFiles,
       propertyFloorPlanFiles,
