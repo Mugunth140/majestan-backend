@@ -9,6 +9,7 @@ import { AdminCitiesModule } from './cities/admin-cities.module';
 import { AdminSublocationsModule } from './sublocations/admin-sublocations.module';
 import { AdminAmenitiesModule } from './amenities/admin-amenities.module';
 import { AdminFurnishingItemsModule } from './furnishing-items/admin-furnishing-items.module';
+import { AdminUtilitiesModule } from './utilities/admin-utilities.module';
 import { AdminSeoModule } from './seo/admin-seo.module';
 import { ListingPageSeoModule } from './listing-page-seo/listing-page-seo.module';
 import { AdminProjectsModule } from './projects/admin-projects.module';
@@ -26,6 +27,7 @@ import { AdminAdsModule } from './ads/admin-ads.module';
     AdminSublocationsModule,
     AdminAmenitiesModule,
     AdminFurnishingItemsModule,
+    AdminUtilitiesModule,
     AdminSeoModule,
     ListingPageSeoModule,
     AdminProjectsModule,

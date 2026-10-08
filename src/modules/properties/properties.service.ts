@@ -132,9 +132,20 @@ export class PropertiesService {
     return {
       amenities,
       furnishings,
+      utilities: await this.getUtilitiesList(),
       cities,
       sublocations,
     };
+  }
+
+  async getUtilitiesList() {
+    try {
+      return await this.dataSource.query(
+        'SELECT id, name, icon FROM `utilities` WHERE is_active = 1 ORDER BY name ASC',
+      );
+    } catch {
+      return [];
+    }
   }
 
   async submit(propertyType: string, payload: CreatePropertyDto) {
