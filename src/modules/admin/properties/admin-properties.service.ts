@@ -136,10 +136,15 @@ export class AdminPropertiesService {
 
     const items = await Promise.all(data.map(async (p: any) => {
       const images = await p.propertyImages || [];
-      const locations = await p.propertyLocations || [];
-      const firstLoc = locations[0] || null;
-      const sub = firstLoc ? await firstLoc.sublocation : null;
-      const city = sub ? await (sub as any).city : null;
+      // NOTE: the list query joins pl/sl/c without selecting them, so
+      // p.propertyLocations is never populated — fetch the first location
+      // explicitly or localityName/cityName silently degrade to null.
+      const firstLoc = await this.dataSource.getRepository(PropertyLocation).findOne({
+        where: { propertyId: p.id },
+        relations: { sublocation: { city: true } },
+      });
+      const sub = firstLoc?.sublocation ?? null;
+      const city = sub?.city ?? null;
       return {
         ...p,
         propertyImages: this.storageService.resolveImageUrls(images),
