@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { PropertyAmenity } from './property-amenity.entity';
+import { ProjectAmenity } from './project-amenity.entity';
 
 export enum AmenityCategory {
   SECURITY = 'security',
@@ -86,4 +87,13 @@ export class Amenity {
     },
   )
   propertyAmenities!: Promise<PropertyAmenity[]>;
+
+  @OneToMany(
+    () => ProjectAmenity,
+    (projectAmenity) => projectAmenity.amenity,
+    {
+      lazy: true,
+    },
+  )
+  projectAmenities!: Promise<ProjectAmenity[]>;
 }

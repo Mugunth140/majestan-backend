@@ -34,6 +34,7 @@ export enum FurnishedStatus {
   UNFURNISHED = 'unfurnished',
   SEMI_FURNISHED = 'semi_furnished',
   FULLY_FURNISHED = 'fully_furnished',
+  BARESHELL = 'bareshell',
 }
 
 export enum FacingDirection {
@@ -55,6 +56,7 @@ export enum ListingMode {
 export enum PropertyUnitStatus {
   AVAILABLE = 'available',
   RESERVED = 'reserved',
+  BOOKED = 'booked',
   SOLD = 'sold',
   RENTED = 'rented',
   INACTIVE = 'inactive',

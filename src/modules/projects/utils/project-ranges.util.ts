@@ -4,6 +4,7 @@ export interface RangeUnitInput {
   carpetAreaSqft?: string | number | null;
   superBuiltupAreaSqft?: string | number | null;
   bedrooms?: number | null;
+  facing?: string | null;
   status?: string | null;
 }
 
@@ -13,6 +14,7 @@ export interface ProjectRanges {
   minArea: number | null;
   maxArea: number | null;
   bhk: number[];
+  facings: string[];
   unitsCount: number;
 }
 
@@ -30,6 +32,7 @@ export function computeProjectRanges(units: RangeUnitInput[]): ProjectRanges {
     minArea: null,
     maxArea: null,
     bhk: [],
+    facings: [],
     unitsCount: 0,
   };
   if (!units || units.length === 0) return empty;
@@ -48,12 +51,29 @@ export function computeProjectRanges(units: RangeUnitInput[]): ProjectRanges {
         .filter((n) => Number.isInteger(n) && n > 0),
     ),
   ).sort((a, b) => a - b);
+  // Distinct unit facings in canonical compass order for stable display.
+  const FACING_ORDER = ['east', 'west', 'north', 'south', 'north_east', 'north_west', 'south_east', 'south_west'];
+  const facings = Array.from(
+    new Set(
+      available
+        .map((u) => (typeof u.facing === 'string' ? u.facing.trim().toLowerCase() : ''))
+        .filter((f) => f !== ''),
+    ),
+  ).sort((a, b) => {
+    const ai = FACING_ORDER.indexOf(a);
+    const bi = FACING_ORDER.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
   return {
     minPrice: prices.length ? Math.min(...prices) : null,
     maxPrice: prices.length ? Math.max(...prices) : null,
     minArea: areas.length ? Math.min(...areas) : null,
     maxArea: areas.length ? Math.max(...areas) : null,
     bhk,
+    facings,
     unitsCount: available.length,
   };
 }

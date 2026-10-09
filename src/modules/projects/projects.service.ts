@@ -7,10 +7,13 @@ import { computeProjectRanges } from './utils/project-ranges.util';
 import { StorageService } from '../storage/storage.service';
 
 const toProjectListItem = (project: Project, units: any[], readUrl: (key: string) => string) => {
-  const { id, name, slug, canonicalSlug, projectCode, projectType, builderName, reraNumber, possessionDate, possessionStatus, city, state, sublocation, coverImageUrl, status, createdAt, updatedAt } = project;
+  const { id, name, slug, canonicalSlug, projectCode, projectType, builderName, reraNumber, possessionDate, possessionStatus, city, state, sublocation, coverImageUrl, brochureKey, brochureName, status, createdAt, updatedAt, totalFloors, projectAreaSqft, towerDetails, pincode, latitude, longitude, highlights, specifications } = project;
   return {
     id, name, slug, canonicalSlug, projectCode, projectType, builderName, reraNumber,
     possessionDate, possessionStatus, city, state, sublocation,
+    totalFloors, projectAreaSqft, towerDetails, pincode, latitude, longitude, highlights, specifications,
+    brochureUrl: brochureKey ? readUrl(brochureKey) : null,
+    brochureName,
     coverImageUrl: coverImageUrl ? readUrl(coverImageUrl) : coverImageUrl,
     status, createdAt, updatedAt,
     ranges: computeProjectRanges(units),
@@ -70,6 +73,10 @@ export class ProjectsService {
     }
     const units = this.resolveUnitUrls(((await project.units) ?? []) as any[]);
     const seo = await project.seo;
+    const projectAmenitiesRaw = ((await project.projectAmenities) ?? []) as any[];
+    const projectAmenities = await Promise.all(
+      projectAmenitiesRaw.map(async (pa) => ({ ...pa, amenity: await pa.amenity })),
+    );
     const availableFirst = [...units].sort((a: any, b: any) =>
       a.status === b.status ? 0 : a.status === 'available' ? -1 : 1,
     );
@@ -81,6 +88,7 @@ export class ProjectsService {
       totalUnits: project.totalUnits,
       galleryImageUrls: (project.galleryImageUrls ?? []).map((g) => this.readUrl(g)),
       units: availableFirst,
+      projectAmenities,
       seo: seo ?? null,
     };
   }

@@ -25,6 +25,29 @@ import {
   ProjectStatus,
   ProjectType,
 } from '../../../../database/entities/project.entity';
+import { ProjectAmenityAvailability } from '../../../../database/entities/project-amenity.entity';
+
+class ProjectRoomDimensionDto {
+  @IsString() @MaxLength(100) name!: string;
+  @IsString() @MaxLength(100) dimensions!: string;
+}
+
+class ProjectTowerDetailDto {
+  @IsOptional() @IsString() @MaxLength(50) tower?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) floors?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) units?: number;
+}
+
+class ProjectSpecificationDto {
+  @IsString() @MaxLength(100) label!: string;
+  @IsString() @MaxLength(255) value!: string;
+}
+
+class ProjectAmenityDto {
+  @Type(() => Number) @IsNumber() amenityId!: number;
+  @IsOptional() @IsEnum(ProjectAmenityAvailability) availability?: ProjectAmenityAvailability;
+  @IsOptional() @IsString() @MaxLength(255) notes?: string;
+}
 
 export class CreateProjectUnitDto {
   @IsString()
@@ -42,6 +65,16 @@ export class CreateProjectUnitDto {
   @IsOptional() @Type(() => Number) @IsNumber() carpetAreaSqft?: number;
   @IsOptional() @Type(() => Number) @IsNumber() builtupAreaSqft?: number;
   @IsOptional() @Type(() => Number) @IsNumber() superBuiltupAreaSqft?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() udsAreaSqft?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() plotAreaSqft?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) parking?: number;
+  @IsOptional() @IsString() @MaxLength(20) parkingType?: string;
+  @IsOptional() @IsBoolean() unitGuestParking?: boolean;
+  @IsOptional() @IsBoolean() poojaRoom?: boolean;
+  @IsOptional() @IsBoolean() studyRoom?: boolean;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) openSides?: number;
+  @IsOptional() @IsBoolean() boundaryWall?: boolean;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectRoomDimensionDto) roomDimensions?: ProjectRoomDimensionDto[];
   @ApiProperty({ enum: FurnishedStatus, enumName: 'FurnishedStatus', required: false })
   @IsOptional() @IsEnum(FurnishedStatus) furnishedStatus?: FurnishedStatus;
   @ApiProperty({ enum: FacingDirection, enumName: 'FacingDirection', required: false })
@@ -70,18 +103,29 @@ export class CreateProjectDto {
   @IsOptional() @IsDateString() possessionDate?: string;
   @ApiProperty({ enum: PossessionStatus, enumName: 'PossessionStatus', required: false })
   @IsOptional() @IsEnum(PossessionStatus) possessionStatus?: PossessionStatus;
-  @IsString() @MaxLength(255) city!: string;
+  @IsOptional() @IsString() @MaxLength(255) city!: string;
   @IsOptional() @IsString() @MaxLength(255) state?: string;
   @IsOptional() @IsString() @MaxLength(255) sublocation?: string;
   @IsOptional() @IsString() address?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) towers?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) totalUnits?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) totalFloors?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() projectAreaSqft?: number;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectTowerDetailDto) towerDetails?: ProjectTowerDetailDto[];
+  @IsOptional() @IsString() @MaxLength(20) pincode?: string;
+  @IsOptional() @Type(() => Number) @IsNumber() latitude?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() longitude?: number;
+  @IsOptional() @IsString() highlights?: string;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectSpecificationDto) specifications?: ProjectSpecificationDto[];
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() @MaxLength(1024) coverImageUrl?: string;
   @IsOptional() @IsArray() galleryImageUrls?: string[];
+  @IsOptional() @IsString() @MaxLength(1024) brochureKey?: string;
+  @IsOptional() @IsString() @MaxLength(255) brochureName?: string;
   @ApiProperty({ enum: ProjectStatus, enumName: 'ProjectStatus', required: false })
   @IsOptional() @IsEnum(ProjectStatus) status?: ProjectStatus;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => CreateProjectUnitDto) units?: CreateProjectUnitDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectAmenityDto) amenities?: ProjectAmenityDto[];
 }
 
 export class UpdateProjectDto {
@@ -100,10 +144,21 @@ export class UpdateProjectDto {
   @IsOptional() @IsString() address?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) towers?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) totalUnits?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) totalFloors?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() projectAreaSqft?: number;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectTowerDetailDto) towerDetails?: ProjectTowerDetailDto[];
+  @IsOptional() @IsString() @MaxLength(20) pincode?: string;
+  @IsOptional() @Type(() => Number) @IsNumber() latitude?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() longitude?: number;
+  @IsOptional() @IsString() highlights?: string;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectSpecificationDto) specifications?: ProjectSpecificationDto[];
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() @MaxLength(1024) coverImageUrl?: string;
   @IsOptional() @IsArray() galleryImageUrls?: string[];
+  @IsOptional() @IsString() @MaxLength(1024) brochureKey?: string;
+  @IsOptional() @IsString() @MaxLength(255) brochureName?: string;
   @ApiProperty({ enum: ProjectStatus, enumName: 'ProjectStatus', required: false })
   @IsOptional() @IsEnum(ProjectStatus) status?: ProjectStatus;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => CreateProjectUnitDto) units?: CreateProjectUnitDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectAmenityDto) amenities?: ProjectAmenityDto[];
 }

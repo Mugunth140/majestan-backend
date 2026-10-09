@@ -3,13 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Project } from '../../../database/entities/project.entity';
 import { ProjectUnit } from '../../../database/entities/project-unit.entity';
+import { ProjectAmenity } from '../../../database/entities/project-amenity.entity';
 import { ProjectSeo, ProjectSeoData } from '../../../database/entities/project-seo.entity';
 import { toProjectSlug } from '../../../modules/projects/utils/project-slug.util';
 import { generateProjectCode } from '../../../modules/projects/utils/project-code.util';
 import { CreateProjectDto, CreateProjectUnitDto, UpdateProjectDto } from './dto/create-project.dto';
 import { StorageService } from '../../storage/storage.service';
 
-const DECIMAL_KEYS = ['price', 'monthlyRent', 'securityDeposit', 'maintenanceFee', 'carpetAreaSqft', 'builtupAreaSqft', 'superBuiltupAreaSqft'] as const;
+const DECIMAL_KEYS = ['price', 'monthlyRent', 'securityDeposit', 'maintenanceFee', 'carpetAreaSqft', 'builtupAreaSqft', 'superBuiltupAreaSqft', 'udsAreaSqft', 'plotAreaSqft'] as const;
 
 const toUnitRow = (u: CreateProjectUnitDto, projectId: number) => {
   const row: Record<string, unknown> = { ...u, projectId };
@@ -38,8 +39,15 @@ export class AdminProjectsService {
     const project = await this.projectRepository.findOne({ where: { id } });
     if (!project) throw new NotFoundException('Project not found');
     const units = (await project.units) ?? [];
-    const { units: _lazyUnits, seo: _lazySeo, ...scalars } = project as any;
-    return { ...scalars, units };
+    const projectAmenitiesRaw = (await project.projectAmenities) ?? [];
+    const projectAmenities = await Promise.all(
+      projectAmenitiesRaw.map(async (pa) => {
+        const amenity = await pa.amenity;
+        return { ...pa, amenity };
+      }),
+    );
+    const { units: _lazyUnits, seo: _lazySeo, projectAmenities: _lazyAmenities, ...scalars } = project as any;
+    return { ...scalars, units, projectAmenities };
   }
 
   async list(page = 1, limit = 20, search?: string, status?: string, projectType?: string) {
@@ -51,7 +59,7 @@ export class AdminProjectsService {
     const items: any[] = [];
     for (const project of projects) {
       const units = (await project.units) ?? [];
-      const { units: _lazyUnits, seo: _lazySeo, ...scalars } = project as any;
+      const { units: _lazyUnits, seo: _lazySeo, projectAmenities: _lazyAmenities, ...scalars } = project as any;
       items.push({ ...scalars, units });
     }
     return { items, total, page, limit };
@@ -68,8 +76,12 @@ export class AdminProjectsService {
     try {
       const slug = payload.slug ? toProjectSlug(payload.slug) : toProjectSlug(payload.name);
       const coverImageUrl = await this.finalizeImage(payload.coverImageUrl);
+      const { units: _units, amenities: _amenities, latitude, longitude, projectAreaSqft, ...projectScalars } = payload;
       const project = queryRunner.manager.create(Project, {
-        ...payload,
+        ...projectScalars,
+        latitude: latitude !== undefined ? String(latitude) : undefined,
+        longitude: longitude !== undefined ? String(longitude) : undefined,
+        projectAreaSqft: projectAreaSqft !== undefined ? String(projectAreaSqft) : undefined,
         coverImageUrl,
         slug,
         canonicalSlug: slug,
@@ -83,6 +95,17 @@ export class AdminProjectsService {
         }
         const units = rows.map((r) => queryRunner.manager.create(ProjectUnit, r));
         await queryRunner.manager.save(ProjectUnit, units);
+      }
+      if (payload.amenities?.length) {
+        const rows = payload.amenities.map((a) => {
+          const pa = new ProjectAmenity();
+          pa.projectId = saved.id;
+          pa.amenityId = a.amenityId;
+          if (a.availability) pa.availability = a.availability as any;
+          if (a.notes !== undefined) pa.notes = a.notes;
+          return pa;
+        });
+        await queryRunner.manager.save(ProjectAmenity, rows);
       }
       // Assign project code using DB-generated ID (same pattern as property codes and asset display IDs)
       const projectCode = generateProjectCode(saved.projectType, saved.id);
@@ -117,9 +140,16 @@ export class AdminProjectsService {
           canonicalSlug: existingCode ? `${newSlug}-${existingCode.toLowerCase()}` : newSlug,
         };
       }
-      const { units, ...scalars } = payload;
+      const { units, amenities, latitude, longitude, projectAreaSqft, ...scalars } = payload;
       const coverImageUrl = scalars.coverImageUrl ? await this.finalizeImage(scalars.coverImageUrl) : scalars.coverImageUrl;
-      await queryRunner.manager.update(Project, id, { ...scalars, coverImageUrl, ...slugPatch });
+      await queryRunner.manager.update(Project, id, {
+        ...scalars,
+        latitude: latitude !== undefined ? String(latitude) : undefined,
+        longitude: longitude !== undefined ? String(longitude) : undefined,
+        projectAreaSqft: projectAreaSqft !== undefined ? String(projectAreaSqft) : undefined,
+        coverImageUrl,
+        ...slugPatch,
+      });
       if (units) {
         await queryRunner.manager.delete(ProjectUnit, { projectId: id });
         if (units.length) {
@@ -128,6 +158,20 @@ export class AdminProjectsService {
             rows.push({ ...toUnitRow(u, id), floorPlanImageUrl: await this.finalizeImage(u.floorPlanImageUrl) });
           }
           await queryRunner.manager.save(ProjectUnit, rows.map((r) => queryRunner.manager.create(ProjectUnit, r)));
+        }
+      }
+      if (amenities !== undefined) {
+        await queryRunner.manager.delete(ProjectAmenity, { projectId: id });
+        if (amenities.length) {
+          const rows = amenities.map((a) => {
+            const pa = new ProjectAmenity();
+            pa.projectId = id;
+            pa.amenityId = a.amenityId;
+            if (a.availability) pa.availability = a.availability as any;
+            if (a.notes !== undefined) pa.notes = a.notes;
+            return pa;
+          });
+          await queryRunner.manager.save(ProjectAmenity, rows);
         }
       }
       await queryRunner.commitTransaction();

@@ -64,6 +64,36 @@ export class ProjectUnit {
   @Column({ name: 'super_builtup_area_sqft', type: 'decimal', precision: 12, scale: 2, nullable: true })
   superBuiltupAreaSqft!: string | null;
 
+  @Column({ name: 'uds_area_sqft', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  udsAreaSqft!: string | null;
+
+  @Column({ name: 'plot_area_sqft', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  plotAreaSqft!: string | null;
+
+  @Column({ name: 'parking', type: 'tinyint', unsigned: true, nullable: true })
+  parking!: number | null;
+
+  @Column({ name: 'parking_type', type: 'varchar', length: 20, nullable: true })
+  parkingType!: string | null;
+
+  @Column({ name: 'unit_guest_parking', type: 'boolean', nullable: true })
+  unitGuestParking!: boolean | null;
+
+  @Column({ name: 'pooja_room', type: 'boolean', nullable: true })
+  poojaRoom!: boolean | null;
+
+  @Column({ name: 'study_room', type: 'boolean', nullable: true })
+  studyRoom!: boolean | null;
+
+  @Column({ name: 'open_sides', type: 'tinyint', unsigned: true, nullable: true })
+  openSides!: number | null;
+
+  @Column({ name: 'boundary_wall', type: 'boolean', nullable: true })
+  boundaryWall!: boolean | null;
+
+  @Column({ name: 'room_dimensions', type: 'json', nullable: true })
+  roomDimensions!: { name: string; dimensions: string }[] | null;
+
   @Column({ name: 'furnished_status', type: 'enum', enum: FurnishedStatus, nullable: true })
   furnishedStatus!: FurnishedStatus | null;
 

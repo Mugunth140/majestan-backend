@@ -13,6 +13,7 @@ describe('computeProjectRanges', () => {
       minArea: 1200,
       maxArea: 1450,
       bhk: [3, 4],
+      facings: [],
       unitsCount: 2,
     });
   });
@@ -36,7 +37,18 @@ describe('computeProjectRanges', () => {
       minArea: null,
       maxArea: null,
       bhk: [],
+      facings: [],
       unitsCount: 0,
     });
+  });
+
+  it('collects distinct facings from available units in compass order', () => {
+    const ranges = computeProjectRanges([
+      { price: '8000000', builtupAreaSqft: '1200', bedrooms: 3, facing: 'west', status: 'available' },
+      { price: '9000000', builtupAreaSqft: '1300', bedrooms: 3, facing: 'East', status: 'available' },
+      { price: '9500000', builtupAreaSqft: '1350', bedrooms: 3, facing: 'east', status: 'available' },
+      { price: '5000000', builtupAreaSqft: '900', bedrooms: 2, facing: 'north', status: 'sold' },
+    ]);
+    expect(ranges.facings).toEqual(['east', 'west']);
   });
 });
