@@ -42,6 +42,7 @@ export class AddProjectApartmentVillaDetails1782500000000 implements MigrationIn
       ALTER TABLE \`project_units\`
       ADD COLUMN \`uds_area_sqft\` decimal(12,2) NULL,
       ADD COLUMN \`plot_area_sqft\` decimal(12,2) NULL,
+      ADD COLUMN \`plot_area_cents\` decimal(12,4) NULL,
       ADD COLUMN \`parking\` tinyint unsigned NULL,
       ADD COLUMN \`parking_type\` varchar(20) NULL,
       ADD COLUMN \`unit_guest_parking\` tinyint(1) NULL,
@@ -64,6 +65,7 @@ export class AddProjectApartmentVillaDetails1782500000000 implements MigrationIn
       DROP COLUMN \`unit_guest_parking\`,
       DROP COLUMN \`parking_type\`,
       DROP COLUMN \`parking\`,
+      DROP COLUMN \`plot_area_cents\`,
       DROP COLUMN \`plot_area_sqft\`,
       DROP COLUMN \`uds_area_sqft\`
     `);

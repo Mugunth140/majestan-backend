@@ -67,6 +67,7 @@ export class CreateProjectUnitDto {
   @IsOptional() @Type(() => Number) @IsNumber() superBuiltupAreaSqft?: number;
   @IsOptional() @Type(() => Number) @IsNumber() udsAreaSqft?: number;
   @IsOptional() @Type(() => Number) @IsNumber() plotAreaSqft?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() plotAreaCents?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) parking?: number;
   @IsOptional() @IsString() @MaxLength(20) parkingType?: string;
   @IsOptional() @IsBoolean() unitGuestParking?: boolean;

@@ -3,6 +3,7 @@ export interface RangeUnitInput {
   builtupAreaSqft?: string | number | null;
   carpetAreaSqft?: string | number | null;
   superBuiltupAreaSqft?: string | number | null;
+  plotAreaCents?: string | number | null;
   bedrooms?: number | null;
   facing?: string | null;
   status?: string | null;
@@ -13,6 +14,8 @@ export interface ProjectRanges {
   maxPrice: number | null;
   minArea: number | null;
   maxArea: number | null;
+  minPlotCents: number | null;
+  maxPlotCents: number | null;
   bhk: number[];
   facings: string[];
   unitsCount: number;
@@ -31,6 +34,8 @@ export function computeProjectRanges(units: RangeUnitInput[]): ProjectRanges {
     maxPrice: null,
     minArea: null,
     maxArea: null,
+    minPlotCents: null,
+    maxPlotCents: null,
     bhk: [],
     facings: [],
     unitsCount: 0,
@@ -43,6 +48,9 @@ export function computeProjectRanges(units: RangeUnitInput[]): ProjectRanges {
     .filter((n): n is number => n !== null);
   const areas = available
     .map((u) => toPositiveNumber(u.builtupAreaSqft ?? u.carpetAreaSqft ?? u.superBuiltupAreaSqft))
+    .filter((n): n is number => n !== null);
+  const plotCents = available
+    .map((u) => toPositiveNumber(u.plotAreaCents))
     .filter((n): n is number => n !== null);
   const bhk = Array.from(
     new Set(
@@ -72,6 +80,8 @@ export function computeProjectRanges(units: RangeUnitInput[]): ProjectRanges {
     maxPrice: prices.length ? Math.max(...prices) : null,
     minArea: areas.length ? Math.min(...areas) : null,
     maxArea: areas.length ? Math.max(...areas) : null,
+    minPlotCents: plotCents.length ? Math.min(...plotCents) : null,
+    maxPlotCents: plotCents.length ? Math.max(...plotCents) : null,
     bhk,
     facings,
     unitsCount: available.length,

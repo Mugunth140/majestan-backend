@@ -12,6 +12,8 @@ describe('computeProjectRanges', () => {
       maxPrice: 12000000,
       minArea: 1200,
       maxArea: 1450,
+      minPlotCents: null,
+      maxPlotCents: null,
       bhk: [3, 4],
       facings: [],
       unitsCount: 2,
@@ -36,6 +38,8 @@ describe('computeProjectRanges', () => {
       maxPrice: null,
       minArea: null,
       maxArea: null,
+      minPlotCents: null,
+      maxPlotCents: null,
       bhk: [],
       facings: [],
       unitsCount: 0,
@@ -50,5 +54,17 @@ describe('computeProjectRanges', () => {
       { price: '5000000', builtupAreaSqft: '900', bedrooms: 2, facing: 'north', status: 'sold' },
     ]);
     expect(ranges.facings).toEqual(['east', 'west']);
+  });
+
+  it('collects plot cents range from available units only', () => {
+    const ranges = computeProjectRanges([
+      { price: '5000000', plotAreaCents: '10', status: 'available' },
+      { price: '9000000', plotAreaCents: '20.5', status: 'available' },
+      { price: '4000000', plotAreaCents: '8', status: 'sold' },
+    ]);
+    expect(ranges.minPlotCents).toBe(10);
+    expect(ranges.maxPlotCents).toBe(20.5);
+    expect(ranges.minArea).toBeNull();
+    expect(ranges.bhk).toEqual([]);
   });
 });

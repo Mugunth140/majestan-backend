@@ -10,7 +10,7 @@ import { generateProjectCode } from '../../../modules/projects/utils/project-cod
 import { CreateProjectDto, CreateProjectUnitDto, UpdateProjectDto } from './dto/create-project.dto';
 import { StorageService } from '../../storage/storage.service';
 
-const DECIMAL_KEYS = ['price', 'monthlyRent', 'securityDeposit', 'maintenanceFee', 'carpetAreaSqft', 'builtupAreaSqft', 'superBuiltupAreaSqft', 'udsAreaSqft', 'plotAreaSqft'] as const;
+const DECIMAL_KEYS = ['price', 'monthlyRent', 'securityDeposit', 'maintenanceFee', 'carpetAreaSqft', 'builtupAreaSqft', 'superBuiltupAreaSqft', 'udsAreaSqft', 'plotAreaSqft', 'plotAreaCents'] as const;
 
 const toUnitRow = (u: CreateProjectUnitDto, projectId: number) => {
   const row: Record<string, unknown> = { ...u, projectId };

@@ -70,6 +70,9 @@ export class ProjectUnit {
   @Column({ name: 'plot_area_sqft', type: 'decimal', precision: 12, scale: 2, nullable: true })
   plotAreaSqft!: string | null;
 
+  @Column({ name: 'plot_area_cents', type: 'decimal', precision: 12, scale: 4, nullable: true })
+  plotAreaCents!: string | null;
+
   @Column({ name: 'parking', type: 'tinyint', unsigned: true, nullable: true })
   parking!: number | null;
 
