@@ -92,11 +92,43 @@ export class AdminProjectsService {
     };
   }
 
-  async list(page = 1, limit = 20, search?: string, status?: string, projectType?: string) {
+  async list(
+    page = 1,
+    limit = 20,
+    search?: string,
+    status?: string,
+    projectType?: string,
+    extra?: { locality?: string; minPrice?: number; maxPrice?: number; bhk?: number[]; minUnits?: number },
+  ) {
     const qb = this.projectRepository.createQueryBuilder('p');
     if (search) qb.andWhere('(p.name LIKE :s OR p.builderName LIKE :s OR p.city LIKE :s)', { s: `%${search}%` });
     if (status) qb.andWhere('p.status = :status', { status });
     if (projectType) qb.andWhere('p.projectType = :projectType', { projectType });
+    if (extra?.locality) {
+      qb.andWhere('(p.sublocation LIKE :loc OR p.address LIKE :loc OR p.city LIKE :loc)', { loc: `%${extra.locality}%` });
+    }
+    if (extra && (extra.minPrice != null || extra.maxPrice != null || (extra.bhk && extra.bhk.length > 0))) {
+      const conds = ['u.project_id = p.id', `(u.status IS NULL OR u.status = 'available')`];
+      const params: Record<string, any> = {};
+      if (extra.minPrice != null) {
+        conds.push('u.price >= :uMinPrice');
+        params.uMinPrice = extra.minPrice;
+      }
+      if (extra.maxPrice != null) {
+        conds.push('u.price <= :uMaxPrice');
+        params.uMaxPrice = extra.maxPrice;
+      }
+      if (extra.bhk && extra.bhk.length > 0) {
+        conds.push('u.bedrooms IN (:...uBhk)');
+        params.uBhk = extra.bhk;
+      }
+      qb.andWhere(`EXISTS (SELECT 1 FROM project_units u WHERE ${conds.join(' AND ')})`, params);
+    }
+    if (extra?.minUnits != null) {
+      qb.andWhere('(SELECT COUNT(*) FROM project_units u2 WHERE u2.project_id = p.id) >= :minUnits', {
+        minUnits: extra.minUnits,
+      });
+    }
     const [projects, total] = await qb.orderBy('p.createdAt', 'DESC').skip((page - 1) * limit).take(limit).getManyAndCount();
     const items: any[] = [];
     for (const project of projects) {

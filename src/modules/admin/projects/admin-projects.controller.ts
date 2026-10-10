@@ -12,8 +12,38 @@ export class AdminProjectsController {
   constructor(private readonly adminProjectsService: AdminProjectsService) {}
 
   @Get()
-  async list(@Query('page') page = 1, @Query('limit') limit = 20, @Query('search') search?: string, @Query('status') status?: string, @Query('projectType') projectType?: string) {
-    return this.adminProjectsService.list(Number(page), Number(limit), search, status, projectType);
+  async list(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('projectType') projectType?: string,
+    @Query('locality') locality?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('bhk') bhk?: string,
+    @Query('minUnits') minUnits?: string,
+  ) {
+    const toNum = (v?: string): number | undefined => {
+      if (v === undefined || v === null || String(v).trim() === '') return undefined;
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 0 ? n : undefined;
+    };
+    const toInt = (v?: string): number | undefined => {
+      const n = toNum(v);
+      return n !== undefined && Number.isInteger(n) && n > 0 ? n : undefined;
+    };
+    const bhkArr = (bhk ?? '')
+      .split(',')
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    return this.adminProjectsService.list(Number(page), Number(limit), search, status, projectType, {
+      locality: locality?.trim() || undefined,
+      minPrice: toNum(minPrice),
+      maxPrice: toNum(maxPrice),
+      bhk: bhkArr.length ? bhkArr : undefined,
+      minUnits: toInt(minUnits),
+    });
   }
 
   @Get(':id')
