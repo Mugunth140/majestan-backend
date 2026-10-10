@@ -143,6 +143,7 @@ export class CreateProjectDto {
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectSpecificationDto) specifications?: ProjectSpecificationDto[];
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() @MaxLength(1024) coverImageUrl?: string;
+  @IsOptional() @IsString() @MaxLength(1024) mobileCoverImageUrl?: string;
   @IsOptional() @IsArray() galleryImageUrls?: string[];
   @IsOptional() @IsString() @MaxLength(1024) brochureKey?: string;
   @IsOptional() @IsString() @MaxLength(255) brochureName?: string;
@@ -181,6 +182,7 @@ export class UpdateProjectDto {
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectSpecificationDto) specifications?: ProjectSpecificationDto[];
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() @MaxLength(1024) coverImageUrl?: string;
+  @IsOptional() @IsString() @MaxLength(1024) mobileCoverImageUrl?: string;
   @IsOptional() @IsArray() galleryImageUrls?: string[];
   @IsOptional() @IsString() @MaxLength(1024) brochureKey?: string;
   @IsOptional() @IsString() @MaxLength(255) brochureName?: string;

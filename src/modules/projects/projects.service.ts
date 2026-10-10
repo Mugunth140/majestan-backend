@@ -7,7 +7,7 @@ import { computeProjectRanges } from './utils/project-ranges.util';
 import { StorageService } from '../storage/storage.service';
 
 const toProjectListItem = (project: Project, units: any[], readUrl: (key: string) => string) => {
-  const { id, name, slug, canonicalSlug, projectCode, projectType, builderName, reraNumber, possessionDate, possessionStatus, city, state, sublocation, coverImageUrl, brochureKey, brochureName, status, createdAt, updatedAt, totalFloors, projectAreaSqft, towerDetails, pincode, latitude, longitude, highlights, specifications } = project;
+  const { id, name, slug, canonicalSlug, projectCode, projectType, builderName, reraNumber, possessionDate, possessionStatus, city, state, sublocation, coverImageUrl, mobileCoverImageUrl, brochureKey, brochureName, status, createdAt, updatedAt, totalFloors, projectAreaSqft, towerDetails, pincode, latitude, longitude, highlights, specifications } = project;
   return {
     id, name, slug, canonicalSlug, projectCode, projectType, builderName, reraNumber,
     possessionDate, possessionStatus, city, state, sublocation,
@@ -15,6 +15,7 @@ const toProjectListItem = (project: Project, units: any[], readUrl: (key: string
     brochureUrl: brochureKey ? readUrl(brochureKey) : null,
     brochureName,
     coverImageUrl: coverImageUrl ? readUrl(coverImageUrl) : coverImageUrl,
+    mobileCoverImageUrl: mobileCoverImageUrl ? readUrl(mobileCoverImageUrl) : mobileCoverImageUrl,
     status, createdAt, updatedAt,
     ranges: computeProjectRanges(units),
   };

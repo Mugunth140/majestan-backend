@@ -77,6 +77,7 @@ export class AdminProjectsService {
     return {
       ...scalars,
       coverImageUrl: readUrl(scalars.coverImageUrl) ?? scalars.coverImageUrl,
+      mobileCoverImageUrl: readUrl(scalars.mobileCoverImageUrl) ?? scalars.mobileCoverImageUrl,
       galleryImageUrls: Array.isArray(scalars.galleryImageUrls)
         ? scalars.galleryImageUrls.map((g: any) =>
             typeof g === 'string' ? (readUrl(g) ?? g) : g,
@@ -150,6 +151,7 @@ export class AdminProjectsService {
     try {
       const slug = payload.slug ? toProjectSlug(payload.slug) : toProjectSlug(payload.name);
       const coverImageUrl = await this.finalizeImage(payload.coverImageUrl);
+      const mobileCoverImageUrl = await this.finalizeImage(payload.mobileCoverImageUrl);
       const { units: _units, amenities: _amenities, faqs: _faqs, latitude, longitude, projectAreaSqft, ...projectScalars } = payload;
       const project = queryRunner.manager.create(Project, {
         ...projectScalars,
@@ -157,6 +159,7 @@ export class AdminProjectsService {
         longitude: longitude !== undefined ? String(longitude) : undefined,
         projectAreaSqft: projectAreaSqft !== undefined ? String(projectAreaSqft) : undefined,
         coverImageUrl,
+        mobileCoverImageUrl,
         slug,
         canonicalSlug: slug,
         units: undefined,
@@ -240,12 +243,14 @@ export class AdminProjectsService {
       }
       const { units, amenities, faqs, latitude, longitude, projectAreaSqft, ...scalars } = payload;
       const coverImageUrl = scalars.coverImageUrl ? await this.finalizeImage(scalars.coverImageUrl) : scalars.coverImageUrl;
+      const mobileCoverImageUrl = scalars.mobileCoverImageUrl ? await this.finalizeImage(scalars.mobileCoverImageUrl) : scalars.mobileCoverImageUrl;
       await queryRunner.manager.update(Project, id, {
         ...scalars,
         latitude: latitude !== undefined ? String(latitude) : undefined,
         longitude: longitude !== undefined ? String(longitude) : undefined,
         projectAreaSqft: projectAreaSqft !== undefined ? String(projectAreaSqft) : undefined,
         coverImageUrl,
+        mobileCoverImageUrl,
         ...slugPatch,
       });
       if (units) {

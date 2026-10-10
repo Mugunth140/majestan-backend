@@ -127,6 +127,9 @@ export class Project {
   @Column({ name: 'cover_image_url', type: 'varchar', length: 1024, nullable: true })
   coverImageUrl!: string | null;
 
+  @Column({ name: 'mobile_cover_image_url', type: 'varchar', length: 1024, nullable: true })
+  mobileCoverImageUrl!: string | null;
+
   @Column({ name: 'gallery_image_urls', type: 'json', nullable: true })
   galleryImageUrls!: string[] | null;
 

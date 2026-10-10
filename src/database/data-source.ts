@@ -21,6 +21,7 @@ import { AddProjectApartmentVillaDetails1782500000000 } from './migrations/17825
 import { AddProjectBookedNewLaunchAndAvailability1782600000000 } from './migrations/1782600000000-AddProjectBookedNewLaunchAndAvailability';
 import { AddBareshellFurnishedStatus1782700000000 } from './migrations/1782700000000-AddBareshellFurnishedStatus';
 import { UpdateProjectCodeScheme1782800000000 } from './migrations/1782800000000-UpdateProjectCodeScheme';
+import { AddMobileCoverImage1782900000000 } from './migrations/1782900000000-AddMobileCoverImage';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -69,6 +70,7 @@ export default new DataSource({
     AddProjectBookedNewLaunchAndAvailability1782600000000,
     AddBareshellFurnishedStatus1782700000000,
     UpdateProjectCodeScheme1782800000000,
+    AddMobileCoverImage1782900000000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),
