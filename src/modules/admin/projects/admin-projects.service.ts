@@ -45,6 +45,14 @@ export class AdminProjectsService {
     return this.storageService.processAndUploadImage(key);
   }
 
+  private async finalizeCoverImage(
+    key?: string,
+    slot: 'desktop' | 'mobile' = 'desktop',
+  ): Promise<string | undefined> {
+    if (!key) return undefined;
+    return this.storageService.processCoverImage(key, slot);
+  }
+
   private async findOrFail(id: number) {
     const project = await this.projectRepository.findOne({ where: { id } });
     if (!project) throw new NotFoundException('Project not found');
@@ -150,8 +158,8 @@ export class AdminProjectsService {
     await queryRunner.startTransaction();
     try {
       const slug = payload.slug ? toProjectSlug(payload.slug) : toProjectSlug(payload.name);
-      const coverImageUrl = await this.finalizeImage(payload.coverImageUrl);
-      const mobileCoverImageUrl = await this.finalizeImage(payload.mobileCoverImageUrl);
+      const coverImageUrl = await this.finalizeCoverImage(payload.coverImageUrl, 'desktop');
+      const mobileCoverImageUrl = await this.finalizeCoverImage(payload.mobileCoverImageUrl, 'mobile');
       const { units: _units, amenities: _amenities, faqs: _faqs, latitude, longitude, projectAreaSqft, ...projectScalars } = payload;
       const project = queryRunner.manager.create(Project, {
         ...projectScalars,
@@ -242,8 +250,8 @@ export class AdminProjectsService {
         };
       }
       const { units, amenities, faqs, latitude, longitude, projectAreaSqft, ...scalars } = payload;
-      const coverImageUrl = scalars.coverImageUrl ? await this.finalizeImage(scalars.coverImageUrl) : scalars.coverImageUrl;
-      const mobileCoverImageUrl = scalars.mobileCoverImageUrl ? await this.finalizeImage(scalars.mobileCoverImageUrl) : scalars.mobileCoverImageUrl;
+      const coverImageUrl = scalars.coverImageUrl ? await this.finalizeCoverImage(scalars.coverImageUrl, 'desktop') : scalars.coverImageUrl;
+      const mobileCoverImageUrl = scalars.mobileCoverImageUrl ? await this.finalizeCoverImage(scalars.mobileCoverImageUrl, 'mobile') : scalars.mobileCoverImageUrl;
       await queryRunner.manager.update(Project, id, {
         ...scalars,
         latitude: latitude !== undefined ? String(latitude) : undefined,

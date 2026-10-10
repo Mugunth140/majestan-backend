@@ -54,8 +54,7 @@ describe('StorageService.processAdImage', () => {
     expect(write).toHaveBeenCalledWith('uploads/ads/123-a.webp', webp, { type: 'image/webp' });
   });
 
-  it('reads R2-hosted image dimensions by downloading bytes and probing with sharp (no imgproxy info endpoint)', async () => {
-    const sharp = require('sharp');
+    it('reads R2-hosted image dimensions by downloading bytes and probing with sharp (no imgproxy info endpoint)', async () => {    const sharp = require('sharp');
     const png = await sharp({
       create: { width: 3200, height: 900, channels: 3, background: { r: 1, g: 2, b: 3 } },
     })
@@ -178,5 +177,70 @@ describe('StorageService local driver', () => {
     await expect(
       svc.getImageDimensions('http://localhost:5000/local/temp/m.png'),
     ).resolves.toEqual({ width: 800, height: 1000 });
+  });
+});
+
+describe('StorageService.processCoverImage', () => {
+  const OLD_ENV = { ...process.env };
+  beforeEach(() => {
+    process.env.R2_PUBLIC_URL = 'https://cdn.example';
+    process.env.R2_BUCKET_NAME = 'test-bucket';
+    process.env.R2_ACCOUNT_ID = 'test-acct';
+    process.env.R2_ACCESS_KEY_ID = 'k';
+    process.env.R2_SECRET_ACCESS_KEY = 's';
+    delete process.env.STORAGE_DRIVER;
+    global.fetch = jest.fn() as any;
+  });
+  afterEach(() => {
+    process.env = { ...OLD_ENV };
+    jest.restoreAllMocks();
+  });
+
+  const mockFetchOk = () => {
+    const webp = new Blob(['fake'], { type: 'image/webp' });
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => webp } as any) as any;
+  };
+
+  const mockSvc = () => {
+    const svc = new StorageService({ get: () => undefined } as any);
+    (svc as any).s3Client = { write: jest.fn().mockResolvedValue(undefined), delete: jest.fn().mockResolvedValue(undefined) };
+    return svc;
+  };
+
+  it('passes non-temp keys through untouched', async () => {
+    const svc = mockSvc();
+    await expect(svc.processCoverImage('uploads/properties/old.webp', 'desktop')).resolves.toBe(
+      'uploads/properties/old.webp',
+    );
+    await expect(svc.processCoverImage('uploads/properties/old.webp', 'mobile')).resolves.toBe(
+      'uploads/properties/old.webp',
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('crops desktop covers to exactly 16:9 webp WITHOUT any watermark param', async () => {
+    mockFetchOk();
+    const svc = mockSvc();
+    const out = await svc.processCoverImage('uploads/temp/123-cover.png', 'desktop');
+    expect(out).toBe('uploads/properties/123-cover.webp');
+    const url = (global.fetch as unknown as jest.Mock).mock.calls[0][0] as string;
+    expect(url).toContain('rs:fill:1920:1080:0');
+    expect(url).toContain('/format:webp');
+    expect(url.endsWith('@webp')).toBe(true);
+    expect(url).not.toContain('wm:');
+    expect(url).not.toContain('watermark');
+  });
+
+  it('crops mobile covers to exactly 4:5 webp WITHOUT any watermark param', async () => {
+    mockFetchOk();
+    const svc = mockSvc();
+    const out = await svc.processCoverImage('uploads/temp/123-mobile.png', 'mobile');
+    expect(out).toBe('uploads/properties/123-mobile.webp');
+    const url = (global.fetch as unknown as jest.Mock).mock.calls[0][0] as string;
+    expect(url).toContain('rs:fill:1080:1350:0');
+    expect(url).toContain('/format:webp');
+    expect(url.endsWith('@webp')).toBe(true);
+    expect(url).not.toContain('wm:');
+    expect(url).not.toContain('watermark');
   });
 });

@@ -305,6 +305,55 @@ export class StorageService {
     return finalKey;
   }
 
+  /**
+   * Project-cover finalize: exact-ratio crop + compress + webp, deliberately
+   * WITHOUT any watermark param. Desktop covers come out exactly 16:9
+   * (1920×1080), mobile covers exactly 4:5 (1080×1350) — `fill` crops (center)
+   * rather than fitting, so the stored file always matches its design slot.
+   */
+  async processCoverImage(originalKey: string, slot: 'desktop' | 'mobile'): Promise<string> {
+    if (!originalKey.includes('uploads/temp/') && !originalKey.startsWith(LOCAL_TEMP_PREFIX)) return originalKey;
+
+    const bounds = slot === 'desktop' ? { width: 1920, height: 1080 } : { width: 1080, height: 1350 };
+
+    // Local driver: same exact-crop + webp finalize, processed with sharp on
+    // disk instead of imgproxy + R2.
+    if (this.isLocalDriver()) {
+      const filename = originalKey.split('/').pop() || Date.now().toString();
+      const finalKey = `local/properties/${filename.replace(/\.[^/.]+$/, '')}.webp`;
+      await fs.mkdir(dirname(this.localPathForKey(finalKey)), { recursive: true });
+      await sharp(this.localPathForKey(originalKey))
+        .resize(bounds.width, bounds.height, { fit: 'cover', position: 'centre' })
+        .webp({ quality: 85 })
+        .toFile(this.localPathForKey(finalKey));
+      await this.deleteFile(originalKey);
+      return finalKey;
+    }
+
+    const publicUrl = process.env.R2_PUBLIC_URL || this.configService.get<string>('R2_PUBLIC_URL');
+    if (!publicUrl) {
+      console.warn('[StorageService] R2_PUBLIC_URL missing. Skipping cover finalize.');
+      return originalKey;
+    }
+
+    const baseUrl = publicUrl.endsWith('/') ? publicUrl.slice(0, -1) : publicUrl;
+    const fileUrl = `${baseUrl}/${originalKey}`;
+    // NOTE (imgproxy v4): keep the explicit `@webp` extension suffix so the
+    // result format is unambiguous (same convention as processAdImage).
+    const imgproxyUrl = `${this.imgproxyBase()}/insecure/rs:fill:${bounds.width}:${bounds.height}:0/q:85/format:webp/plain/${fileUrl}@webp`;
+
+    const response = await fetch(imgproxyUrl);
+    if (!response.ok) {
+      throw new Error(`Imgproxy cover finalize failed: ${response.status}`);
+    }
+    const filename = originalKey.split('/').pop() || Date.now().toString();
+    const finalKey = `uploads/properties/${filename.replace(/\.[^/.]+$/, '')}.webp`;
+    const blob = await response.blob();
+    await this.s3Client.write(finalKey, blob, { type: 'image/webp' });
+    this.deleteFile(originalKey).catch(console.error);
+    return finalKey;
+  }
+
   async getImageDimensions(fileUrl: string): Promise<{ width: number; height: number }> {
     // Disk-stored files (local/ namespace) are measured with sharp instead
     // of imgproxy — in any driver mode.
