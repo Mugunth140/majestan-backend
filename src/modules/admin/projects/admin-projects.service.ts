@@ -46,8 +46,26 @@ export class AdminProjectsService {
         return { ...pa, amenity };
       }),
     );
+    // Resolve storage keys to viewable URLs (mirrors the public API mapper —
+    // raw R2 keys cannot render or download client-side).
+    const readUrl = (key?: string | null) =>
+      key ? this.storageService.generateReadUrl(key) : key;
     const { units: _lazyUnits, seo: _lazySeo, projectAmenities: _lazyAmenities, ...scalars } = project as any;
-    return { ...scalars, units, projectAmenities };
+    return {
+      ...scalars,
+      coverImageUrl: readUrl(scalars.coverImageUrl) ?? scalars.coverImageUrl,
+      galleryImageUrls: Array.isArray(scalars.galleryImageUrls)
+        ? scalars.galleryImageUrls.map((g: any) =>
+            typeof g === 'string' ? (readUrl(g) ?? g) : g,
+          )
+        : scalars.galleryImageUrls,
+      brochureUrl: readUrl(scalars.brochureKey) ?? null,
+      units: units.map((u: any) => ({
+        ...u,
+        floorPlanImageUrl: readUrl(u.floorPlanImageUrl) ?? u.floorPlanImageUrl,
+      })),
+      projectAmenities,
+    };
   }
 
   async list(page = 1, limit = 20, search?: string, status?: string, projectType?: string) {
