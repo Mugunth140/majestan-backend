@@ -1,8 +1,8 @@
 export const getProjectTypeCode = (projectType: string): string => {
   switch (projectType.toLowerCase()) {
-    case 'apartment': return 'PRA';
-    case 'villa':     return 'PRV';
-    case 'plot':      return 'PRP';
+    case 'apartment': return 'PA';
+    case 'villa':     return 'PV';
+    case 'plot':      return 'PP';
     default:          return 'PRO';
   }
 };
