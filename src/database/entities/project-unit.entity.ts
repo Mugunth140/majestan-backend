@@ -5,6 +5,7 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
@@ -142,4 +143,7 @@ export class ProjectUnit {
   @ManyToOne(() => Project, { lazy: true, nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
   project!: Promise<Project>;
+
+  @OneToMany('ProjectUnitFurnishing', (furnishing: any) => furnishing.unit, { lazy: true })
+  unitFurnishings!: Promise<any[]>;
 }

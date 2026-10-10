@@ -4,6 +4,8 @@ import { DataSource, Repository } from 'typeorm';
 import { Project } from '../../../database/entities/project.entity';
 import { ProjectUnit } from '../../../database/entities/project-unit.entity';
 import { ProjectAmenity } from '../../../database/entities/project-amenity.entity';
+import { ProjectFaq } from '../../../database/entities/project-faq.entity';
+import { ProjectUnitFurnishing } from '../../../database/entities/project-unit-furnishing.entity';
 import { ProjectSeo, ProjectSeoData } from '../../../database/entities/project-seo.entity';
 import { toProjectSlug } from '../../../modules/projects/utils/project-slug.util';
 import { generateProjectCode } from '../../../modules/projects/utils/project-code.util';
@@ -13,12 +15,20 @@ import { StorageService } from '../../storage/storage.service';
 const DECIMAL_KEYS = ['price', 'monthlyRent', 'securityDeposit', 'maintenanceFee', 'carpetAreaSqft', 'builtupAreaSqft', 'superBuiltupAreaSqft', 'udsAreaSqft', 'plotAreaSqft', 'plotAreaCents'] as const;
 
 const toUnitRow = (u: CreateProjectUnitDto, projectId: number) => {
-  const row: Record<string, unknown> = { ...u, projectId };
+  const { furnishingItemIds: _furnishingItemIds, ...scalars } = u;
+  const row: Record<string, unknown> = { ...scalars, projectId };
   for (const key of DECIMAL_KEYS) {
     if (row[key] !== undefined && row[key] !== null) row[key] = String(row[key]);
   }
   return row;
 };
+
+const toFaqRow = (f: { question: string; answer: string }, projectId: number, index: number) => ({
+  projectId,
+  question: f.question.trim(),
+  answer: f.answer.trim(),
+  sortOrder: index,
+});
 
 @Injectable()
 export class AdminProjectsService {
@@ -46,11 +56,24 @@ export class AdminProjectsService {
         return { ...pa, amenity };
       }),
     );
+    const projectFaqsRaw = (await project.projectFaqs) ?? [];
+    const projectFaqs = projectFaqsRaw
+      .slice()
+      .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const unitsWithFurnishings = await Promise.all(
+      units.map(async (u: any) => {
+        const links = (await u.unitFurnishings) ?? [];
+        const furnishingItems = await Promise.all(
+          links.map(async (link: any) => link.furnishingItem),
+        );
+        return { ...u, furnishingItems };
+      }),
+    );
     // Resolve storage keys to viewable URLs (mirrors the public API mapper —
     // raw R2 keys cannot render or download client-side).
     const readUrl = (key?: string | null) =>
       key ? this.storageService.generateReadUrl(key) : key;
-    const { units: _lazyUnits, seo: _lazySeo, projectAmenities: _lazyAmenities, ...scalars } = project as any;
+    const { units: _lazyUnits, seo: _lazySeo, projectAmenities: _lazyAmenities, projectFaqs: _lazyFaqs, ...scalars } = project as any;
     return {
       ...scalars,
       coverImageUrl: readUrl(scalars.coverImageUrl) ?? scalars.coverImageUrl,
@@ -60,11 +83,12 @@ export class AdminProjectsService {
           )
         : scalars.galleryImageUrls,
       brochureUrl: readUrl(scalars.brochureKey) ?? null,
-      units: units.map((u: any) => ({
+      units: unitsWithFurnishings.map((u: any) => ({
         ...u,
         floorPlanImageUrl: readUrl(u.floorPlanImageUrl) ?? u.floorPlanImageUrl,
       })),
       projectAmenities,
+      projectFaqs,
     };
   }
 
@@ -94,7 +118,7 @@ export class AdminProjectsService {
     try {
       const slug = payload.slug ? toProjectSlug(payload.slug) : toProjectSlug(payload.name);
       const coverImageUrl = await this.finalizeImage(payload.coverImageUrl);
-      const { units: _units, amenities: _amenities, latitude, longitude, projectAreaSqft, ...projectScalars } = payload;
+      const { units: _units, amenities: _amenities, faqs: _faqs, latitude, longitude, projectAreaSqft, ...projectScalars } = payload;
       const project = queryRunner.manager.create(Project, {
         ...projectScalars,
         latitude: latitude !== undefined ? String(latitude) : undefined,
@@ -112,7 +136,22 @@ export class AdminProjectsService {
           rows.push({ ...toUnitRow(u, saved.id), floorPlanImageUrl: await this.finalizeImage(u.floorPlanImageUrl) });
         }
         const units = rows.map((r) => queryRunner.manager.create(ProjectUnit, r));
-        await queryRunner.manager.save(ProjectUnit, units);
+        const savedUnits = await queryRunner.manager.save(ProjectUnit, units);
+        const furnishingLinks: ProjectUnitFurnishing[] = [];
+        payload.units.forEach((u, i) => {
+          const ids = Array.isArray(u.furnishingItemIds) ? u.furnishingItemIds : [];
+          const unitId = (savedUnits[i] as any)?.id;
+          if (unitId == null) return;
+          for (const furnishingItemId of ids) {
+            const link = new ProjectUnitFurnishing();
+            link.unitId = Number(unitId);
+            link.furnishingItemId = Number(furnishingItemId);
+            furnishingLinks.push(link);
+          }
+        });
+        if (furnishingLinks.length) {
+          await queryRunner.manager.save(ProjectUnitFurnishing, furnishingLinks);
+        }
       }
       if (payload.amenities?.length) {
         const rows = payload.amenities.map((a) => {
@@ -124,6 +163,15 @@ export class AdminProjectsService {
           return pa;
         });
         await queryRunner.manager.save(ProjectAmenity, rows);
+      }
+      const faqs = (payload.faqs ?? [])
+        .filter((f: any) => f?.question?.trim() && f?.answer?.trim())
+        .map((f: any, i: number) => toFaqRow(f, saved.id, i));
+      if (faqs.length) {
+        await queryRunner.manager.save(
+          ProjectFaq,
+          faqs.map((r: any) => queryRunner.manager.create(ProjectFaq, r)),
+        );
       }
       // Assign project code using DB-generated ID (same pattern as property codes and asset display IDs)
       const projectCode = generateProjectCode(saved.projectType, saved.id);
@@ -158,7 +206,7 @@ export class AdminProjectsService {
           canonicalSlug: existingCode ? `${newSlug}-${existingCode.toLowerCase()}` : newSlug,
         };
       }
-      const { units, amenities, latitude, longitude, projectAreaSqft, ...scalars } = payload;
+      const { units, amenities, faqs, latitude, longitude, projectAreaSqft, ...scalars } = payload;
       const coverImageUrl = scalars.coverImageUrl ? await this.finalizeImage(scalars.coverImageUrl) : scalars.coverImageUrl;
       await queryRunner.manager.update(Project, id, {
         ...scalars,
@@ -175,7 +223,37 @@ export class AdminProjectsService {
           for (const u of units) {
             rows.push({ ...toUnitRow(u, id), floorPlanImageUrl: await this.finalizeImage(u.floorPlanImageUrl) });
           }
-          await queryRunner.manager.save(ProjectUnit, rows.map((r) => queryRunner.manager.create(ProjectUnit, r)));
+          const savedUnits = await queryRunner.manager.save(
+            ProjectUnit,
+            rows.map((r) => queryRunner.manager.create(ProjectUnit, r)),
+          );
+          const furnishingLinks: ProjectUnitFurnishing[] = [];
+          units.forEach((u, i) => {
+            const ids = Array.isArray(u.furnishingItemIds) ? u.furnishingItemIds : [];
+            const unitId = (savedUnits[i] as any)?.id;
+            if (unitId == null) return;
+            for (const furnishingItemId of ids) {
+              const link = new ProjectUnitFurnishing();
+              link.unitId = Number(unitId);
+              link.furnishingItemId = Number(furnishingItemId);
+              furnishingLinks.push(link);
+            }
+          });
+          if (furnishingLinks.length) {
+            await queryRunner.manager.save(ProjectUnitFurnishing, furnishingLinks);
+          }
+        }
+      }
+      if (faqs !== undefined) {
+        await queryRunner.manager.delete(ProjectFaq, { projectId: id });
+        const faqRows = (faqs ?? [])
+          .filter((f: any) => f?.question?.trim() && f?.answer?.trim())
+          .map((f: any, i: number) => toFaqRow(f, id, i));
+        if (faqRows.length) {
+          await queryRunner.manager.save(
+            ProjectFaq,
+            faqRows.map((r: any) => queryRunner.manager.create(ProjectFaq, r)),
+          );
         }
       }
       if (amenities !== undefined) {

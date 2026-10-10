@@ -49,6 +49,28 @@ class ProjectAmenityDto {
   @IsOptional() @IsString() @MaxLength(255) notes?: string;
 }
 
+class ProjectConnectivityDto {
+  @IsOptional() @IsString() @MaxLength(50) icon?: string;
+  @IsOptional() @IsString() @MaxLength(100) label?: string;
+  @IsOptional() @IsString() @MaxLength(255) detail?: string;
+}
+
+class NearbyPlaceDto {
+  @IsOptional() @IsString() @MaxLength(255) name?: string;
+  @IsOptional() @IsString() @MaxLength(50) distance?: string;
+}
+
+class NearbyCategoryDto {
+  @IsOptional() @IsString() @MaxLength(100) title?: string;
+  @IsOptional() @IsString() @MaxLength(100) icon?: string;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => NearbyPlaceDto) places?: NearbyPlaceDto[];
+}
+
+class ProjectFaqDto {
+  @IsString() @MaxLength(500) question!: string;
+  @IsString() answer!: string;
+}
+
 export class CreateProjectUnitDto {
   @IsString()
   @MaxLength(64)
@@ -92,6 +114,7 @@ export class CreateProjectUnitDto {
   @IsOptional() @IsString() @MaxLength(1024) floorPlanImageUrl?: string;
   @IsOptional() @IsString() @MaxLength(1024) floorPlanImageKey?: string;
   @IsOptional() @IsBoolean() isPrimary?: boolean;
+  @IsOptional() @IsArray() @Type(() => Number) @IsInt({ each: true }) furnishingItemIds?: number[];
 }
 
 export class CreateProjectDto {
@@ -123,6 +146,9 @@ export class CreateProjectDto {
   @IsOptional() @IsArray() galleryImageUrls?: string[];
   @IsOptional() @IsString() @MaxLength(1024) brochureKey?: string;
   @IsOptional() @IsString() @MaxLength(255) brochureName?: string;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectConnectivityDto) connectivity?: ProjectConnectivityDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => NearbyCategoryDto) nearbyCategories?: NearbyCategoryDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectFaqDto) faqs?: ProjectFaqDto[];
   @ApiProperty({ enum: ProjectStatus, enumName: 'ProjectStatus', required: false })
   @IsOptional() @IsEnum(ProjectStatus) status?: ProjectStatus;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => CreateProjectUnitDto) units?: CreateProjectUnitDto[];
@@ -158,6 +184,9 @@ export class UpdateProjectDto {
   @IsOptional() @IsArray() galleryImageUrls?: string[];
   @IsOptional() @IsString() @MaxLength(1024) brochureKey?: string;
   @IsOptional() @IsString() @MaxLength(255) brochureName?: string;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectConnectivityDto) connectivity?: ProjectConnectivityDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => NearbyCategoryDto) nearbyCategories?: NearbyCategoryDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectFaqDto) faqs?: ProjectFaqDto[];
   @ApiProperty({ enum: ProjectStatus, enumName: 'ProjectStatus', required: false })
   @IsOptional() @IsEnum(ProjectStatus) status?: ProjectStatus;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => CreateProjectUnitDto) units?: CreateProjectUnitDto[];

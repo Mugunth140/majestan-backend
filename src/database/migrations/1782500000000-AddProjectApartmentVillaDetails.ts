@@ -7,6 +7,9 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * - project_amenities join table mirroring property_amenities
  * - project_units: UDS/plot areas, parking, pooja/study rooms, villa land
  *   fields (open sides, boundary wall), room dimensions
+ * - locality: connectivity + nearby_categories JSON (all types)
+ * - project_faqs table (simple Q&A list, all types)
+ * - project_unit_furnishings join (per-unit furnishing items, non-plot only)
  * All columns nullable so existing rows are unaffected.
  */
 export class AddProjectApartmentVillaDetails1782500000000 implements MigrationInterface {
@@ -22,7 +25,34 @@ export class AddProjectApartmentVillaDetails1782500000000 implements MigrationIn
       ADD COLUMN \`highlights\` text NULL,
       ADD COLUMN \`specifications\` json NULL,
       ADD COLUMN \`brochure_key\` varchar(1024) NULL,
-      ADD COLUMN \`brochure_name\` varchar(255) NULL
+      ADD COLUMN \`brochure_name\` varchar(255) NULL,
+      ADD COLUMN \`connectivity\` json NULL,
+      ADD COLUMN \`nearby_categories\` json NULL
+    `);
+    await queryRunner.query(`
+      CREATE TABLE \`project_faqs\` (
+        \`id\` int unsigned NOT NULL AUTO_INCREMENT,
+        \`project_id\` int unsigned NOT NULL,
+        \`question\` varchar(500) NOT NULL,
+        \`answer\` text NOT NULL,
+        \`sort_order\` int NOT NULL DEFAULT 0,
+        \`created_at\` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+        \`updated_at\` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+        PRIMARY KEY (\`id\`),
+        INDEX \`idx_project_faqs_project_id\` (\`project_id\`),
+        CONSTRAINT \`FK_project_faqs_project\` FOREIGN KEY (\`project_id\`) REFERENCES \`projects\` (\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await queryRunner.query(`
+      CREATE TABLE \`project_unit_furnishings\` (
+        \`unit_id\` int unsigned NOT NULL,
+        \`furnishing_item_id\` int unsigned NOT NULL,
+        \`created_at\` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+        PRIMARY KEY (\`unit_id\`, \`furnishing_item_id\`),
+        INDEX \`idx_project_unit_furnishings_item_id\` (\`furnishing_item_id\`),
+        CONSTRAINT \`FK_project_unit_furnishings_unit\` FOREIGN KEY (\`unit_id\`) REFERENCES \`project_units\` (\`id\`) ON DELETE CASCADE,
+        CONSTRAINT \`FK_project_unit_furnishings_item\` FOREIGN KEY (\`furnishing_item_id\`) REFERENCES \`furnishing_items\` (\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
     await queryRunner.query(`
       CREATE TABLE \`project_amenities\` (
@@ -69,11 +99,15 @@ export class AddProjectApartmentVillaDetails1782500000000 implements MigrationIn
       DROP COLUMN \`plot_area_sqft\`,
       DROP COLUMN \`uds_area_sqft\`
     `);
+    await queryRunner.query(`DROP TABLE \`project_unit_furnishings\``);
+    await queryRunner.query(`DROP TABLE \`project_faqs\``);
     await queryRunner.query(`DROP TABLE \`project_amenities\``);
     await queryRunner.query(`
       ALTER TABLE \`projects\`
       DROP COLUMN \`brochure_name\`,
       DROP COLUMN \`brochure_key\`,
+      DROP COLUMN \`nearby_categories\`,
+      DROP COLUMN \`connectivity\`,
       DROP COLUMN \`specifications\`,
       DROP COLUMN \`highlights\`,
       DROP COLUMN \`longitude\`,

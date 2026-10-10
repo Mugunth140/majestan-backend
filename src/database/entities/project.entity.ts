@@ -112,6 +112,12 @@ export class Project {
   @Column({ name: 'brochure_name', type: 'varchar', length: 255, nullable: true })
   brochureName!: string | null;
 
+  @Column({ name: 'connectivity', type: 'json', nullable: true })
+  connectivity!: { icon?: string; label?: string; detail?: string }[] | null;
+
+  @Column({ name: 'nearby_categories', type: 'json', nullable: true })
+  nearbyCategories!: { title?: string; icon?: string; places?: { name?: string; distance?: string }[] }[] | null;
+
   @Column({ name: 'total_units', type: 'int', unsigned: true, nullable: true })
   totalUnits!: number | null;
 
@@ -138,6 +144,9 @@ export class Project {
 
   @OneToMany('ProjectAmenity', (projectAmenity: any) => projectAmenity.project, { lazy: true })
   projectAmenities!: Promise<any[]>;
+
+  @OneToMany('ProjectFaq', (faq: any) => faq.project, { lazy: true })
+  projectFaqs!: Promise<any[]>;
 
   @OneToOne('ProjectSeo', (seo: any) => seo.project, { lazy: true, nullable: true })
   seo!: Promise<ProjectSeo | null>;

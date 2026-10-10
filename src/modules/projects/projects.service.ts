@@ -71,12 +71,31 @@ export class ProjectsService {
     if (!project || project.status !== ProjectStatus.PUBLISHED) {
       throw new NotFoundException('Project not found');
     }
-    const units = this.resolveUnitUrls(((await project.units) ?? []) as any[]);
+    const rawUnits = ((await project.units) ?? []) as any[];
+    const unitsWithFurnishings = await Promise.all(
+      rawUnits.map(async (u: any) => {
+        let links: any[] = [];
+        try {
+          links = (await u.unitFurnishings) ?? [];
+        } catch {
+          links = [];
+        }
+        const furnishingItems = await Promise.all(
+          links.map(async (link: any) => link.furnishingItem),
+        );
+        return { ...u, furnishingItems };
+      }),
+    );
+    const units = this.resolveUnitUrls(unitsWithFurnishings);
     const seo = await project.seo;
     const projectAmenitiesRaw = ((await project.projectAmenities) ?? []) as any[];
     const projectAmenities = await Promise.all(
       projectAmenitiesRaw.map(async (pa) => ({ ...pa, amenity: await pa.amenity })),
     );
+    const projectFaqsRaw = ((await project.projectFaqs) ?? []) as any[];
+    const projectFaqs = projectFaqsRaw
+      .slice()
+      .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     const availableFirst = [...units].sort((a: any, b: any) =>
       a.status === b.status ? 0 : a.status === 'available' ? -1 : 1,
     );
@@ -89,6 +108,7 @@ export class ProjectsService {
       galleryImageUrls: (project.galleryImageUrls ?? []).map((g) => this.readUrl(g)),
       units: availableFirst,
       projectAmenities,
+      projectFaqs,
       seo: seo ?? null,
     };
   }

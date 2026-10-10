@@ -3,13 +3,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Project } from '../../database/entities/project.entity';
 import { ProjectUnit } from '../../database/entities/project-unit.entity';
 import { ProjectAmenity } from '../../database/entities/project-amenity.entity';
+import { ProjectFaq } from '../../database/entities/project-faq.entity';
+import { ProjectUnitFurnishing } from '../../database/entities/project-unit-furnishing.entity';
 import { ProjectSeo } from '../../database/entities/project-seo.entity';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { StorageModule } from '../storage/storage.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Project, ProjectUnit, ProjectAmenity, ProjectSeo]), StorageModule],
+  imports: [TypeOrmModule.forFeature([Project, ProjectUnit, ProjectAmenity, ProjectFaq, ProjectUnitFurnishing, ProjectSeo]), StorageModule],
   controllers: [ProjectsController],
   providers: [ProjectsService],
   exports: [ProjectsService],
