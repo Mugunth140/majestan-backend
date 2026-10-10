@@ -7,6 +7,9 @@ export interface RangeUnitInput {
   bedrooms?: number | null;
   facing?: string | null;
   status?: string | null;
+  boundaryWall?: boolean | null;
+  openSides?: string | number | null;
+  roomDimensions?: { name?: string; dimensions?: string }[] | null;
 }
 
 export interface ProjectRanges {
@@ -16,9 +19,13 @@ export interface ProjectRanges {
   maxArea: number | null;
   minPlotCents: number | null;
   maxPlotCents: number | null;
+  plotCents: number[];
   bhk: number[];
   facings: string[];
   unitsCount: number;
+  plotDimensions: string[];
+  plotBoundaryWall: boolean;
+  plotOpenSides: number[];
 }
 
 const toPositiveNumber = (value: string | number | null | undefined): number | null => {
@@ -36,9 +43,13 @@ export function computeProjectRanges(units: RangeUnitInput[]): ProjectRanges {
     maxArea: null,
     minPlotCents: null,
     maxPlotCents: null,
+    plotCents: [],
     bhk: [],
     facings: [],
     unitsCount: 0,
+    plotDimensions: [],
+    plotBoundaryWall: false,
+    plotOpenSides: [],
   };
   if (!units || units.length === 0) return empty;
   const available = units.filter((u) => !u.status || u.status === 'available');
@@ -82,8 +93,28 @@ export function computeProjectRanges(units: RangeUnitInput[]): ProjectRanges {
     maxArea: areas.length ? Math.max(...areas) : null,
     minPlotCents: plotCents.length ? Math.min(...plotCents) : null,
     maxPlotCents: plotCents.length ? Math.max(...plotCents) : null,
+    plotCents: Array.from(new Set(plotCents)).sort((a, b) => a - b),
     bhk,
     facings,
     unitsCount: available.length,
+    // Plot-card parity with property land cards: distinct "Plot"-named
+    // dimension rows, any boundary wall, distinct open-sides counts.
+    plotDimensions: Array.from(
+      new Set(
+        available
+          .flatMap((u) => u.roomDimensions ?? [])
+          .filter((r) => (r?.name ?? '') === 'Plot')
+          .map((r) => (r?.dimensions ?? '').trim())
+          .filter((s) => s !== ''),
+      ),
+    ),
+    plotBoundaryWall: available.some((u) => u.boundaryWall === true),
+    plotOpenSides: Array.from(
+      new Set(
+        available
+          .map((u) => (typeof u.openSides === 'number' ? u.openSides : Number(u.openSides)))
+          .filter((n) => Number.isInteger(n) && n > 0),
+      ),
+    ).sort((a, b) => a - b),
   };
 }
