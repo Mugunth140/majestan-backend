@@ -3,6 +3,8 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
@@ -10,6 +12,7 @@ import {
 } from 'typeorm';
 import { ProjectUnit } from './project-unit.entity';
 import { ProjectSeo } from './project-seo.entity';
+import { Builder } from './builder.entity';
 export enum ProjectType {
   APARTMENT = 'apartment',
   VILLA = 'villa',
@@ -57,6 +60,13 @@ export class Project {
 
   @Column({ name: 'builder_name', type: 'varchar', length: 255, nullable: true })
   builderName!: string | null;
+
+  @Column({ name: 'builder_id', type: 'int', unsigned: true, nullable: true })
+  builderId!: number | null;
+
+  @ManyToOne(() => Builder, (builder) => builder.projects, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'builder_id' })
+  builder!: Builder | null;
 
   @Column({ name: 'rera_number', type: 'varchar', length: 100, nullable: true })
   reraNumber!: string | null;
@@ -132,6 +142,9 @@ export class Project {
 
   @Column({ name: 'gallery_image_urls', type: 'json', nullable: true })
   galleryImageUrls!: string[] | null;
+
+  @Column({ name: 'video_urls', type: 'json', nullable: true })
+  videoUrls!: string[] | null;
 
   @Column({ name: 'status', type: 'enum', enum: ProjectStatus, nullable: false, default: ProjectStatus.DRAFT })
   status!: ProjectStatus;
