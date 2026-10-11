@@ -96,12 +96,19 @@ export class AdminBuildersService {
     return this.mapBuilder(builder);
   }
 
+  private async finalizeLogo(logoUrl?: string): Promise<string | undefined> {
+    if (!logoUrl) return undefined;
+    try {
+      return await this.storageService.processBuilderLogo(logoUrl);
+    } catch (err) {
+      console.error(`[AdminBuildersService] Failed to process logo ${logoUrl}`, err);
+      return logoUrl;
+    }
+  }
+
   async create(dto: CreateBuilderDto) {
     const slug = await this.generateUniqueSlug(dto.name);
-    let logoKey = dto.logoUrl;
-    if (logoKey) {
-      logoKey = await this.storageService.processBuilderLogo(logoKey);
-    }
+    const logoKey = await this.finalizeLogo(dto.logoUrl);
     const builder = this.builderRepository.create({
       ...dto,
       logoUrl: logoKey,
@@ -122,8 +129,8 @@ export class AdminBuildersService {
       builder.slug = await this.generateUniqueSlug(dto.name, id);
     }
 
-    if (dto.logoUrl && dto.logoUrl !== builder.logoUrl) {
-      dto.logoUrl = await this.storageService.processBuilderLogo(dto.logoUrl);
+    if (dto.logoUrl !== undefined && dto.logoUrl !== builder.logoUrl) {
+      dto.logoUrl = await this.finalizeLogo(dto.logoUrl);
     }
 
     Object.assign(builder, dto);
