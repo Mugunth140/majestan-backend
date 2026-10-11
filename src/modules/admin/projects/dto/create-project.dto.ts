@@ -122,6 +122,7 @@ export class CreateProjectDto {
   @IsOptional() @IsString() @MaxLength(512) slug?: string;
   @ApiProperty({ enum: ProjectType, enumName: 'ProjectType' })
   @IsEnum(ProjectType) projectType!: ProjectType;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) builderId?: number;
   @IsOptional() @IsString() @MaxLength(255) builderName?: string;
   @IsOptional() @IsString() @MaxLength(100) reraNumber?: string;
   @IsOptional() @IsDateString() possessionDate?: string;
@@ -145,6 +146,7 @@ export class CreateProjectDto {
   @IsOptional() @IsString() @MaxLength(1024) coverImageUrl?: string;
   @IsOptional() @IsString() @MaxLength(1024) mobileCoverImageUrl?: string;
   @IsOptional() @IsArray() galleryImageUrls?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) videoUrls?: string[];
   @IsOptional() @IsString() @MaxLength(1024) brochureKey?: string;
   @IsOptional() @IsString() @MaxLength(255) brochureName?: string;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectConnectivityDto) connectivity?: ProjectConnectivityDto[];
@@ -160,7 +162,8 @@ export class UpdateProjectDto {
   @IsOptional() @IsString() @MaxLength(255) name?: string;
   @IsOptional() @IsString() @MaxLength(512) slug?: string;
   @ApiProperty({ enum: ProjectType, enumName: 'ProjectType', required: false })
-  @IsOptional() @IsEnum(ProjectType) projectType?: ProjectType;
+  @IsEnum(ProjectType) projectType?: ProjectType;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) builderId?: number;
   @IsOptional() @IsString() @MaxLength(255) builderName?: string;
   @IsOptional() @IsString() @MaxLength(100) reraNumber?: string;
   @IsOptional() @IsDateString() possessionDate?: string;
@@ -184,6 +187,7 @@ export class UpdateProjectDto {
   @IsOptional() @IsString() @MaxLength(1024) coverImageUrl?: string;
   @IsOptional() @IsString() @MaxLength(1024) mobileCoverImageUrl?: string;
   @IsOptional() @IsArray() galleryImageUrls?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) videoUrls?: string[];
   @IsOptional() @IsString() @MaxLength(1024) brochureKey?: string;
   @IsOptional() @IsString() @MaxLength(255) brochureName?: string;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectConnectivityDto) connectivity?: ProjectConnectivityDto[];

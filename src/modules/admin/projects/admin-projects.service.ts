@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Project } from '../../../database/entities/project.entity';
+import { Builder } from '../../../database/entities/builder.entity';
 import { ProjectUnit } from '../../../database/entities/project-unit.entity';
 import { ProjectAmenity } from '../../../database/entities/project-amenity.entity';
 import { ProjectFaq } from '../../../database/entities/project-faq.entity';
@@ -160,9 +161,17 @@ export class AdminProjectsService {
       const slug = payload.slug ? toProjectSlug(payload.slug) : toProjectSlug(payload.name);
       const coverImageUrl = await this.finalizeCoverImage(payload.coverImageUrl, 'desktop');
       const mobileCoverImageUrl = await this.finalizeCoverImage(payload.mobileCoverImageUrl, 'mobile');
+      let builderName = payload.builderName;
+      if (payload.builderId) {
+        const builder = await queryRunner.manager.findOne(Builder, { where: { id: payload.builderId } });
+        if (builder) {
+          builderName = builder.name;
+        }
+      }
       const { units: _units, amenities: _amenities, faqs: _faqs, latitude, longitude, projectAreaSqft, ...projectScalars } = payload;
       const project = queryRunner.manager.create(Project, {
         ...projectScalars,
+        builderName,
         latitude: latitude !== undefined ? String(latitude) : undefined,
         longitude: longitude !== undefined ? String(longitude) : undefined,
         projectAreaSqft: projectAreaSqft !== undefined ? String(projectAreaSqft) : undefined,
@@ -250,10 +259,20 @@ export class AdminProjectsService {
         };
       }
       const { units, amenities, faqs, latitude, longitude, projectAreaSqft, ...scalars } = payload;
+      let builderName = scalars.builderName;
+      if (scalars.builderId !== undefined) {
+        if (scalars.builderId) {
+          const builder = await queryRunner.manager.findOne(Builder, { where: { id: scalars.builderId } });
+          if (builder) {
+            builderName = builder.name;
+          }
+        }
+      }
       const coverImageUrl = scalars.coverImageUrl ? await this.finalizeCoverImage(scalars.coverImageUrl, 'desktop') : scalars.coverImageUrl;
       const mobileCoverImageUrl = scalars.mobileCoverImageUrl ? await this.finalizeCoverImage(scalars.mobileCoverImageUrl, 'mobile') : scalars.mobileCoverImageUrl;
       await queryRunner.manager.update(Project, id, {
         ...scalars,
+        ...(builderName !== undefined ? { builderName } : {}),
         latitude: latitude !== undefined ? String(latitude) : undefined,
         longitude: longitude !== undefined ? String(longitude) : undefined,
         projectAreaSqft: projectAreaSqft !== undefined ? String(projectAreaSqft) : undefined,

@@ -33,6 +33,7 @@ import { AdsModule } from './modules/ads/ads.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { SearchModule } from './modules/search/search.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { AdminBuildersModule } from './modules/admin/builders/admin-builders.module';
 import { RootController } from './root.controller';
 
 @Module({
@@ -92,6 +93,7 @@ import { RootController } from './root.controller';
     StorageModule,
     SearchModule,
     ProjectsModule,
+    AdminBuildersModule,
   ],
   controllers: [RootController],
   providers: [

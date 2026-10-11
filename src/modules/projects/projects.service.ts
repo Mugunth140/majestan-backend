@@ -16,6 +16,7 @@ const toProjectListItem = (project: Project, units: any[], readUrl: (key: string
     brochureName,
     coverImageUrl: coverImageUrl ? readUrl(coverImageUrl) : coverImageUrl,
     mobileCoverImageUrl: mobileCoverImageUrl ? readUrl(mobileCoverImageUrl) : mobileCoverImageUrl,
+    videoUrls: project.videoUrls ?? null,
     status, createdAt, updatedAt,
     ranges: computeProjectRanges(units),
   };
@@ -68,6 +69,7 @@ export class ProjectsService {
   async detailsBySlug(slug: string) {
     const project = await this.projectRepository.findOne({
       where: [{ slug }, { canonicalSlug: slug }],
+      relations: ['builder'],
     });
     if (!project || project.status !== ProjectStatus.PUBLISHED) {
       throw new NotFoundException('Project not found');
@@ -100,8 +102,22 @@ export class ProjectsService {
     const availableFirst = [...units].sort((a: any, b: any) =>
       a.status === b.status ? 0 : a.status === 'available' ? -1 : 1,
     );
+    const builder = project.builder
+      ? {
+          id: project.builder.id,
+          name: project.builder.name,
+          slug: project.builder.slug,
+          logoUrl: project.builder.logoUrl ? this.readUrl(project.builder.logoUrl) : project.builder.logoUrl,
+          experienceYears: project.builder.experienceYears,
+          completedProjects: project.builder.completedProjects,
+          ongoingProjects: project.builder.ongoingProjects,
+          description: project.builder.description,
+          website: project.builder.website,
+        }
+      : null;
     return {
       ...toProjectListItem(project, units, this.readUrl),
+      builder,
       description: project.description,
       address: project.address,
       towers: project.towers,

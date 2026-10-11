@@ -13,6 +13,7 @@ import { AdminUtilitiesModule } from './utilities/admin-utilities.module';
 import { AdminSeoModule } from './seo/admin-seo.module';
 import { ListingPageSeoModule } from './listing-page-seo/listing-page-seo.module';
 import { AdminProjectsModule } from './projects/admin-projects.module';
+import { AdminBuildersModule } from './builders/admin-builders.module';
 import { AdminAdsModule } from './ads/admin-ads.module';
 
 @Module({
@@ -31,6 +32,7 @@ import { AdminAdsModule } from './ads/admin-ads.module';
     AdminSeoModule,
     ListingPageSeoModule,
     AdminProjectsModule,
+    AdminBuildersModule,
     AdminAdsModule,
   ],
 })
