@@ -243,4 +243,21 @@ describe('StorageService.processCoverImage', () => {
     expect(url).not.toContain('wm:');
     expect(url).not.toContain('watermark');
   });
+
+  it('falls back to the temp key when imgproxy is unreachable, never throwing', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('ENOTFOUND imgproxy')) as any;
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const svc = mockSvc();
+    await expect(
+      svc.processCoverImage('uploads/temp/123-cover.png', 'desktop'),
+    ).resolves.toBe('uploads/temp/123-cover.png');
+    await expect(
+      svc.processCoverImage('uploads/temp/123-mobile.png', 'mobile'),
+    ).resolves.toBe('uploads/temp/123-mobile.png');
+    await expect(
+      svc.processAdImage('uploads/temp/123-ad.png', 'desktop'),
+    ).resolves.toBe('uploads/temp/123-ad.png');
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
 });

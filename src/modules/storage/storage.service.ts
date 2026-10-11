@@ -293,16 +293,23 @@ export class StorageService {
     // ambiguous format negotiation on this stack).
     const imgproxyUrl = `${this.imgproxyBase()}/insecure/${bounds}/q:82/format:webp/plain/${fileUrl}@webp`;
 
-    const response = await fetch(imgproxyUrl);
-    if (!response.ok) {
-      throw new Error(`Imgproxy ad finalize failed: ${response.status}`);
+    try {
+      const response = await fetch(imgproxyUrl);
+      if (!response.ok) {
+        throw new Error(`Imgproxy ad finalize failed: ${response.status}`);
+      }
+      const filename = originalKey.split('/').pop() || Date.now().toString();
+      const finalKey = `uploads/ads/${filename.replace(/\.[^/.]+$/, '')}.webp`;
+      const blob = await response.blob();
+      await this.s3Client.write(finalKey, blob, { type: 'image/webp' });
+      this.deleteFile(originalKey).catch(console.error);
+      return finalKey;
+    } catch (err) {
+      console.error(`[StorageService] Failed to finalize ad image ${originalKey} via imgproxy`, err);
+      // Fallback: same rationale as processCoverImage — never fail the
+      // enclosing save because processing is unavailable.
+      return originalKey;
     }
-    const filename = originalKey.split('/').pop() || Date.now().toString();
-    const finalKey = `uploads/ads/${filename.replace(/\.[^/.]+$/, '')}.webp`;
-    const blob = await response.blob();
-    await this.s3Client.write(finalKey, blob, { type: 'image/webp' });
-    this.deleteFile(originalKey).catch(console.error);
-    return finalKey;
   }
 
   /**
@@ -342,16 +349,24 @@ export class StorageService {
     // result format is unambiguous (same convention as processAdImage).
     const imgproxyUrl = `${this.imgproxyBase()}/insecure/rs:fill:${bounds.width}:${bounds.height}:0/q:85/format:webp/plain/${fileUrl}@webp`;
 
-    const response = await fetch(imgproxyUrl);
-    if (!response.ok) {
-      throw new Error(`Imgproxy cover finalize failed: ${response.status}`);
+    try {
+      const response = await fetch(imgproxyUrl);
+      if (!response.ok) {
+        throw new Error(`Imgproxy cover finalize failed: ${response.status}`);
+      }
+      const filename = originalKey.split('/').pop() || Date.now().toString();
+      const finalKey = `uploads/properties/${filename.replace(/\.[^/.]+$/, '')}.webp`;
+      const blob = await response.blob();
+      await this.s3Client.write(finalKey, blob, { type: 'image/webp' });
+      this.deleteFile(originalKey).catch(console.error);
+      return finalKey;
+    } catch (err) {
+      console.error(`[StorageService] Failed to finalize cover ${originalKey} via imgproxy`, err);
+      // Fallback: the raw temp file is already in R2 and serves fine — never
+      // fail the enclosing save because processing is unavailable (e.g.
+      // imgproxy hostname unresolvable from a host-run backend).
+      return originalKey;
     }
-    const filename = originalKey.split('/').pop() || Date.now().toString();
-    const finalKey = `uploads/properties/${filename.replace(/\.[^/.]+$/, '')}.webp`;
-    const blob = await response.blob();
-    await this.s3Client.write(finalKey, blob, { type: 'image/webp' });
-    this.deleteFile(originalKey).catch(console.error);
-    return finalKey;
   }
 
   /**
