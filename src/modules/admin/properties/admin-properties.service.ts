@@ -487,6 +487,11 @@ export class AdminPropertiesService {
           otherLegalDetails: payload.details.otherLegalDetails,
           publicTransportAccess: payload.details.publicTransportAccess,
           truckTrailerCount: payload.details.truckTrailerCount,
+          // ── Commercial porting fields (commercial only) ──
+          sharedWashrooms: payload.details.sharedWashrooms,
+          individualWashrooms: payload.details.individualWashrooms,
+          constructionDate: payload.details.constructionDate,
+          documentRequire: payload.details.documentRequire,
         });
 
         if (payload.details.floorPlanImages && payload.details.floorPlanImages.length > 0) {
@@ -822,6 +827,11 @@ export class AdminPropertiesService {
           otherLegalDetails: payload.details.otherLegalDetails,
           publicTransportAccess: payload.details.publicTransportAccess,
           truckTrailerCount: payload.details.truckTrailerCount,
+          // ── Commercial porting fields (commercial only) ──
+          sharedWashrooms: payload.details.sharedWashrooms,
+          individualWashrooms: payload.details.individualWashrooms,
+          constructionDate: payload.details.constructionDate,
+          documentRequire: payload.details.documentRequire,
         });
 
         if (payload.details.floorPlanImages) {

@@ -141,6 +141,11 @@ class PropertyDetailsDto {
   @IsOptional() @IsString() otherLegalDetails?: string;
   @IsOptional() @IsString() publicTransportAccess?: string;
   @IsOptional() @IsNumber() truckTrailerCount?: number;
+  // ── Commercial porting fields (commercial only) ──
+  @IsOptional() @IsNumber() sharedWashrooms?: number;
+  @IsOptional() @IsNumber() individualWashrooms?: number;
+  @IsOptional() @IsString() constructionDate?: string;
+  @IsOptional() @IsString() documentRequire?: string;
 }
 
 class RoomDimensionDto {
