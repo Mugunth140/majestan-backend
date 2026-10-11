@@ -65,6 +65,34 @@ export const stripPropertyIdSuffix = (slug: string): string => {
   return normalized.replace(/-[a-z]{1,6}\d+$/i, '');
 };
 
+/**
+ * URL slug suffix (`-ap006`) → DB property type + id. Only the two-letter
+ * codes the slug generator emits are accepted — anything else (project
+ * codes like `pa`, legacy tokens) returns null so callers 404 instead of
+ * serving an unrelated property that happens to share the numeric id.
+ */
+const SLUG_SUFFIX_TYPES: Record<string, string> = {
+  ap: 'apartment',
+  cs: 'commercial',
+  ip: 'individual_portion',
+  fl: 'farmland',
+  cw: 'coworking',
+  is: 'industrial',
+  ot: 'other',
+};
+
+export const parsePropertySlugSuffix = (
+  slug: string,
+): { propertyType: string; id: number } | null => {
+  const match = slug.match(/-([a-z]{2})(\d+)$/i);
+  if (!match) return null;
+  const propertyType = SLUG_SUFFIX_TYPES[match[1].toLowerCase()];
+  if (!propertyType) return null;
+  const id = parseInt(match[2], 10);
+  if (!Number.isFinite(id)) return null;
+  return { propertyType, id };
+};
+
 export const enforceSlugSuffix = (slug: string, propertyType: string, id: number): string => {
   const stripped = stripPropertyIdSuffix(slug);
   const code = getPropertyTypeCode(propertyType);

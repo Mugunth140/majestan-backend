@@ -93,6 +93,7 @@ function normFacing(v: string): string {
 }
 
 import { AdminPropertiesService } from '../admin/properties/admin-properties.service';
+import { parsePropertySlugSuffix } from './utils/property-slug.util';
 import { CreatePropertyDto } from '../admin/properties/dto/create-property.dto';
 import { DataSource } from 'typeorm';
 import { StorageService } from '../storage/storage.service';
@@ -461,12 +462,13 @@ export class PropertiesService {
     });
 
     if (!property) {
-      // Try to parse ID suffix like -ap8471
-      const match = slug.match(/-([a-z]{2})(\d+)$/);
-      if (match) {
-        const id = parseInt(match[2], 10);
+      // ID-suffix recovery for canonical slugs like -ap8471. The prefix must
+      // be a known property-type code matching the row's type — otherwise a
+      // project slug such as -pa0006 would serve unrelated property id 6.
+      const parsed = parsePropertySlugSuffix(slug);
+      if (parsed) {
         property = await this.propertyRepository.findOne({
-          where: { id, status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE },
+          where: { id: parsed.id, propertyType: parsed.propertyType as PropertyType, status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE },
           relations: [
             'propertyDetails',
             'propertyLocations',
