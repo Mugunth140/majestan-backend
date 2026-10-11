@@ -130,6 +130,17 @@ class PropertyDetailsDto {
   @IsOptional() @IsString() communityFacilities?: string;
   @IsOptional() @IsString() accessibility?: string;
   @IsOptional() @IsString() furnishingStatus?: string;
+  // ── Industrial porting fields (industrial only) ──
+  @IsOptional() @IsString() powerSupply2?: string;
+  @IsOptional() @IsString() powerSupply3?: string;
+  @IsOptional() @IsString() ownershipProofVerified?: string;
+  @IsOptional() @IsString() buildingApprovalCert?: string;
+  @IsOptional() @IsString() pollutionClearance?: string;
+  @IsOptional() @IsString() blueprintLayout?: string;
+  @IsOptional() @IsString() otherLegalClearance?: string;
+  @IsOptional() @IsString() otherLegalDetails?: string;
+  @IsOptional() @IsString() publicTransportAccess?: string;
+  @IsOptional() @IsNumber() truckTrailerCount?: number;
 }
 
 class RoomDimensionDto {
@@ -262,6 +273,11 @@ export class CreatePropertyDto {
   @IsOptional() @IsString() attachment4?: string;
   @IsOptional() @IsString() attachment5?: string;
   @IsOptional() @IsString() attachment6?: string;
+
+  // ── Industrial porting anchors (TEMP, industrial only) ──
+  @IsOptional() @IsString() legacySourceId?: string;
+  @IsOptional() @IsNumber() legacyRowNo?: number;
+  @IsOptional() @IsString() availableVisitTime?: string;
 
   @IsOptional() @IsBoolean() negotiable?: boolean;
   @IsOptional() @IsString() maintenanceCharges?: string;

@@ -332,6 +332,10 @@ export class AdminPropertiesService {
         attachment4: payload.attachment4,
         attachment5: payload.attachment5,
         attachment6: payload.attachment6,
+        // ── Industrial porting anchors (TEMP, industrial only) ──
+        legacySourceId: payload.legacySourceId,
+        legacyRowNo: payload.legacyRowNo,
+        availableVisitTime: payload.availableVisitTime,
       });
       let savedProperty = await queryRunner.manager.save(property);
       
@@ -472,6 +476,17 @@ export class AdminPropertiesService {
           communityFacilities: payload.details.communityFacilities,
           accessibility: payload.details.accessibility,
           furnishingStatus: payload.details.furnishingStatus,
+          // ── Industrial porting fields (industrial only) ──
+          powerSupply2: payload.details.powerSupply2,
+          powerSupply3: payload.details.powerSupply3,
+          ownershipProofVerified: payload.details.ownershipProofVerified,
+          buildingApprovalCert: payload.details.buildingApprovalCert,
+          pollutionClearance: payload.details.pollutionClearance,
+          blueprintLayout: payload.details.blueprintLayout,
+          otherLegalClearance: payload.details.otherLegalClearance,
+          otherLegalDetails: payload.details.otherLegalDetails,
+          publicTransportAccess: payload.details.publicTransportAccess,
+          truckTrailerCount: payload.details.truckTrailerCount,
         });
 
         if (payload.details.floorPlanImages && payload.details.floorPlanImages.length > 0) {
@@ -656,6 +671,8 @@ export class AdminPropertiesService {
         'ebReceipt', 'pattaChitta', 'approvals', 'financeFacing', 'hypothecation',
         'deviation', 'attachment1', 'attachment2', 'attachment3', 'attachment4',
         'attachment5', 'attachment6',
+        // ── Industrial porting anchors (TEMP, industrial only) ──
+        'legacySourceId', 'legacyRowNo', 'availableVisitTime',
       ] as const;
       for (const key of crmTopLevelKeys) {
         if (payload[key] !== undefined) updateData[key] = payload[key];
@@ -794,6 +811,17 @@ export class AdminPropertiesService {
           // Preserve CRM-set status when the payload omits it (site wizard
           // sends it now, but older clients don't — never wipe silently).
           furnishingStatus: payload.details.furnishingStatus ?? existingDetails?.furnishingStatus ?? null,
+          // ── Industrial porting fields (industrial only) ──
+          powerSupply2: payload.details.powerSupply2,
+          powerSupply3: payload.details.powerSupply3,
+          ownershipProofVerified: payload.details.ownershipProofVerified,
+          buildingApprovalCert: payload.details.buildingApprovalCert,
+          pollutionClearance: payload.details.pollutionClearance,
+          blueprintLayout: payload.details.blueprintLayout,
+          otherLegalClearance: payload.details.otherLegalClearance,
+          otherLegalDetails: payload.details.otherLegalDetails,
+          publicTransportAccess: payload.details.publicTransportAccess,
+          truckTrailerCount: payload.details.truckTrailerCount,
         });
 
         if (payload.details.floorPlanImages) {

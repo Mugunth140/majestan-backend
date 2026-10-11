@@ -120,6 +120,11 @@ export class ProjectsService {
       builder,
       description: project.description,
       address: project.address,
+      // Detail-only: the CRM captures these under "Connectivity & Nearby",
+      // and the overview's location section renders them. Kept out of
+      // toProjectListItem so listing payloads don't carry them.
+      connectivity: project.connectivity ?? null,
+      nearbyCategories: project.nearbyCategories ?? null,
       towers: project.towers,
       totalUnits: project.totalUnits,
       galleryImageUrls: (project.galleryImageUrls ?? []).map((g) => this.readUrl(g)),
