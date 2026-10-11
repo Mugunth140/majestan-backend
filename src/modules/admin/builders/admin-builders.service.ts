@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Builder } from '../../../database/entities/builder.entity';
+import { StorageService } from '../../storage/storage.service';
 import { toProjectSlug } from '../../projects/utils/project-slug.util';
 import { AdminBuilderQueryDto } from './dto/admin-builder-query.dto';
 import { CreateBuilderDto, UpdateBuilderDto } from './dto/create-builder.dto';
@@ -11,7 +12,21 @@ export class AdminBuildersService {
   constructor(
     @InjectRepository(Builder)
     private readonly builderRepository: Repository<Builder>,
+    private readonly storageService: StorageService,
   ) {}
+
+  private resolveUrl(key?: string | null): string | null {
+    if (!key) return null;
+    return this.storageService.generateReadUrl(key);
+  }
+
+  private mapBuilder(builder: Builder) {
+    return {
+      ...builder,
+      logoUrl: this.resolveUrl(builder.logoUrl),
+      rawLogoKey: builder.logoUrl,
+    };
+  }
 
   private async generateUniqueSlug(name: string, excludeId?: number): Promise<string> {
     const baseSlug = toProjectSlug(name) || 'builder';
@@ -52,15 +67,25 @@ export class AdminBuildersService {
     qb.skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
-    return { items, total, page, limit };
+    return {
+      items: items.map((b) => this.mapBuilder(b)),
+      total,
+      page,
+      limit,
+    };
   }
 
   async findDropdown() {
-    return this.builderRepository.find({
+    const list = await this.builderRepository.find({
       where: { isActive: true },
       select: ['id', 'name', 'logoUrl'],
       order: { name: 'ASC' },
     });
+    return list.map((b) => ({
+      id: b.id,
+      name: b.name,
+      logoUrl: this.resolveUrl(b.logoUrl),
+    }));
   }
 
   async findOne(id: number) {
@@ -68,28 +93,42 @@ export class AdminBuildersService {
     if (!builder) {
       throw new NotFoundException(`Builder with ID ${id} not found`);
     }
-    return builder;
+    return this.mapBuilder(builder);
   }
 
   async create(dto: CreateBuilderDto) {
     const slug = await this.generateUniqueSlug(dto.name);
+    let logoKey = dto.logoUrl;
+    if (logoKey) {
+      logoKey = await this.storageService.processBuilderLogo(logoKey);
+    }
     const builder = this.builderRepository.create({
       ...dto,
+      logoUrl: logoKey,
       slug,
       isActive: dto.isActive !== undefined ? dto.isActive : true,
     });
-    return this.builderRepository.save(builder);
+    const saved = await this.builderRepository.save(builder);
+    return this.mapBuilder(saved);
   }
 
   async update(id: number, dto: UpdateBuilderDto) {
-    const builder = await this.findOne(id);
+    const builder = await this.builderRepository.findOne({ where: { id } });
+    if (!builder) {
+      throw new NotFoundException(`Builder with ID ${id} not found`);
+    }
 
     if (dto.name && dto.name.trim() !== builder.name) {
       builder.slug = await this.generateUniqueSlug(dto.name, id);
     }
 
+    if (dto.logoUrl && dto.logoUrl !== builder.logoUrl) {
+      dto.logoUrl = await this.storageService.processBuilderLogo(dto.logoUrl);
+    }
+
     Object.assign(builder, dto);
-    return this.builderRepository.save(builder);
+    const saved = await this.builderRepository.save(builder);
+    return this.mapBuilder(saved);
   }
 
   async remove(id: number) {
