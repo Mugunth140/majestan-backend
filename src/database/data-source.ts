@@ -26,6 +26,7 @@ import { AddProjectVideoUrls1783000000000 } from './migrations/1783000000000-Add
 import { CreateBuildersTable1783100000000 } from './migrations/1783100000000-CreateBuildersTable';
 import { AddIndustrialPortingFields1783200000000 } from './migrations/1783200000000-AddIndustrialPortingFields';
 import { AddCommercialPortingFields1783300000000 } from './migrations/1783300000000-AddCommercialPortingFields';
+import { AddProjectVideos1783400000000 } from './migrations/1783400000000-AddProjectVideos';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -79,6 +80,7 @@ export default new DataSource({
     CreateBuildersTable1783100000000,
     AddIndustrialPortingFields1783200000000,
     AddCommercialPortingFields1783300000000,
+    AddProjectVideos1783400000000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),

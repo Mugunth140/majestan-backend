@@ -49,6 +49,11 @@ class ProjectAmenityDto {
   @IsOptional() @IsString() @MaxLength(255) notes?: string;
 }
 
+class ProjectVideoDto {
+  @IsOptional() @IsString() @MaxLength(200) title?: string;
+  @IsString() @MaxLength(1024) url!: string;
+}
+
 class ProjectConnectivityDto {
   @IsOptional() @IsString() @MaxLength(50) icon?: string;
   @IsOptional() @IsString() @MaxLength(100) label?: string;
@@ -147,6 +152,7 @@ export class CreateProjectDto {
   @IsOptional() @IsString() @MaxLength(1024) mobileCoverImageUrl?: string;
   @IsOptional() @IsArray() galleryImageUrls?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) videoUrls?: string[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectVideoDto) videos?: ProjectVideoDto[];
   @IsOptional() @IsString() @MaxLength(1024) brochureKey?: string;
   @IsOptional() @IsString() @MaxLength(255) brochureName?: string;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectConnectivityDto) connectivity?: ProjectConnectivityDto[];
@@ -188,6 +194,7 @@ export class UpdateProjectDto {
   @IsOptional() @IsString() @MaxLength(1024) mobileCoverImageUrl?: string;
   @IsOptional() @IsArray() galleryImageUrls?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) videoUrls?: string[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectVideoDto) videos?: ProjectVideoDto[];
   @IsOptional() @IsString() @MaxLength(1024) brochureKey?: string;
   @IsOptional() @IsString() @MaxLength(255) brochureName?: string;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectConnectivityDto) connectivity?: ProjectConnectivityDto[];

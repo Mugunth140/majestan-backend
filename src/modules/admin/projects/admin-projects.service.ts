@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { readVideos, videoFields } from '../../projects/utils/project-videos.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Project } from '../../../database/entities/project.entity';
@@ -93,6 +94,7 @@ export class AdminProjectsService {
           )
         : scalars.galleryImageUrls,
       brochureUrl: readUrl(scalars.brochureKey) ?? null,
+      videos: readVideos(scalars),
       units: unitsWithFurnishings.map((u: any) => ({
         ...u,
         floorPlanImageUrl: readUrl(u.floorPlanImageUrl) ?? u.floorPlanImageUrl,
@@ -171,6 +173,7 @@ export class AdminProjectsService {
       const { units: _units, amenities: _amenities, faqs: _faqs, latitude, longitude, projectAreaSqft, ...projectScalars } = payload;
       const project = queryRunner.manager.create(Project, {
         ...projectScalars,
+        ...videoFields(payload.videos),
         builderName,
         latitude: latitude !== undefined ? String(latitude) : undefined,
         longitude: longitude !== undefined ? String(longitude) : undefined,
@@ -272,6 +275,7 @@ export class AdminProjectsService {
       const mobileCoverImageUrl = scalars.mobileCoverImageUrl ? await this.finalizeCoverImage(scalars.mobileCoverImageUrl, 'mobile') : scalars.mobileCoverImageUrl;
       await queryRunner.manager.update(Project, id, {
         ...scalars,
+        ...videoFields(payload.videos),
         ...(builderName !== undefined ? { builderName } : {}),
         latitude: latitude !== undefined ? String(latitude) : undefined,
         longitude: longitude !== undefined ? String(longitude) : undefined,

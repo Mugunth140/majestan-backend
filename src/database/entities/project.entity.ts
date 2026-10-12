@@ -13,6 +13,8 @@ import {
 import { ProjectUnit } from './project-unit.entity';
 import { ProjectSeo } from './project-seo.entity';
 import { Builder } from './builder.entity';
+export type ProjectVideo = { title: string | null; url: string };
+
 export enum ProjectType {
   APARTMENT = 'apartment',
   VILLA = 'villa',
@@ -145,6 +147,14 @@ export class Project {
 
   @Column({ name: 'video_urls', type: 'json', nullable: true })
   videoUrls!: string[] | null;
+
+  /**
+   * YouTube videos with an editor-written title. Supersedes `videoUrls`,
+   * which is kept and mirrored from this on every save so nothing that still
+   * reads the plain link list goes stale.
+   */
+  @Column({ name: 'videos', type: 'json', nullable: true })
+  videos!: ProjectVideo[] | null;
 
   @Column({ name: 'status', type: 'enum', enum: ProjectStatus, nullable: false, default: ProjectStatus.DRAFT })
   status!: ProjectStatus;

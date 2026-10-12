@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Project, ProjectStatus } from '../../database/entities/project.entity';
 import { ProjectSearchQueryDto } from './dto/project-search.dto';
 import { computeProjectRanges } from './utils/project-ranges.util';
+import { readVideos } from './utils/project-videos.util';
 import { StorageService } from '../storage/storage.service';
 
 const toProjectListItem = (project: Project, units: any[], readUrl: (key: string) => string) => {
@@ -17,6 +18,7 @@ const toProjectListItem = (project: Project, units: any[], readUrl: (key: string
     coverImageUrl: coverImageUrl ? readUrl(coverImageUrl) : coverImageUrl,
     mobileCoverImageUrl: mobileCoverImageUrl ? readUrl(mobileCoverImageUrl) : mobileCoverImageUrl,
     videoUrls: project.videoUrls ?? null,
+    videos: readVideos(project),
     status, createdAt, updatedAt,
     ranges: computeProjectRanges(units),
   };
