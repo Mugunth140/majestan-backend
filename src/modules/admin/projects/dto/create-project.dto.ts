@@ -87,7 +87,7 @@ export class CreateProjectUnitDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) bedrooms?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) bathrooms?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) balconies?: number;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) floorNo?: number;
+  @IsOptional() @IsString() @MaxLength(255) floorNo?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) totalFloors?: number;
   @IsOptional() @Type(() => Number) @IsNumber() carpetAreaSqft?: number;
   @IsOptional() @Type(() => Number) @IsNumber() builtupAreaSqft?: number;

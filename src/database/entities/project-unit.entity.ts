@@ -50,8 +50,8 @@ export class ProjectUnit {
   @Column({ name: 'balconies', type: 'tinyint', unsigned: true, nullable: true })
   balconies!: number | null;
 
-  @Column({ name: 'floor_no', type: 'smallint', unsigned: true, nullable: true })
-  floorNo!: number | null;
+  @Column({ name: 'floor_no', type: 'varchar', length: 255, nullable: true })
+  floorNo!: string | null;
 
   @Column({ name: 'total_floors', type: 'smallint', unsigned: true, nullable: true })
   totalFloors!: number | null;
