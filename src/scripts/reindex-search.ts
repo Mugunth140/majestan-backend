@@ -30,12 +30,15 @@ async function main() {
     });
     await index.updateSettings({
       searchableAttributes: ['title', 'description', 'city', 'state', 'propertyCode', 'slug', 'propertyType'],
-      filterableAttributes: ['propertyType', 'listingType', 'city', 'state', 'status', 'priceNumeric'],
+      // approvalStatus MUST stay filterable: the app filters
+      // `status = available AND approvalStatus = Approved`. Dropping it here
+      // breaks all Meili-backed searches until docs are patched back.
+      filterableAttributes: ['propertyType', 'listingType', 'city', 'state', 'status', 'approvalStatus', 'priceNumeric'],
       sortableAttributes: ['priceNumeric', 'createdAt'],
     });
   } catch {}
 
-  const rows: any[] = await ds.query(`SELECT id, title, description, property_code, slug, property_type, listing_type, status, city, state, country, price, created_at FROM properties WHERE status='available'`);
+  const rows: any[] = await ds.query(`SELECT id, title, description, property_code, slug, property_type, listing_type, status, approval_status, city, state, country, price, created_at FROM properties WHERE status='available'`);
   const docs = rows.map((r) => ({
     id: r.id,
     title: r.title || '',
@@ -45,6 +48,7 @@ async function main() {
     propertyType: r.property_type,
     listingType: r.listing_type,
     status: r.status,
+    approvalStatus: r.approval_status || 'Pending',
     city: r.city || '',
     state: r.state || '',
     country: r.country || '',
