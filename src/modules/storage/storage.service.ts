@@ -218,8 +218,8 @@ export class StorageService {
     // Compress, webp, and watermark.
     // Watermark is barely-visible by design: the SVG itself is solid black
     // (no built-in opacity), so imgproxy opacity stays low (~0.15), centered
-    // (ce), scale 0.8 to make it large
-    const processingString = 'rs:fit:1920:1080:0/q:85/wm:0.15:ce:0:0:0.8/format:webp';
+    // (ce), scale 0.5 (half the image width)
+    const processingString = 'rs:fit:1920:1080:0/q:85/wm:0.15:ce:0:0:0.5/format:webp';
     const imgproxyUrl = `http://imgproxy:8080/insecure/${processingString}/plain/${fileUrl}`;
 
     try {
