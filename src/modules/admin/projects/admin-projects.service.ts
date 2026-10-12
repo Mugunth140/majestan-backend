@@ -55,6 +55,23 @@ export class AdminProjectsService {
     return this.storageService.processCoverImage(key, slot);
   }
 
+  /**
+   * Gallery finalize: routes through the standard watermarked pipeline
+   * (imgproxy fit + q:85 + watermark + webp). Covers deliberately stay
+   * clean — gallery is where the watermark belongs.
+   */
+  private async finalizeGallery(keys?: string[]): Promise<string[] | undefined> {
+    if (!keys) return undefined;
+    const out: string[] = [];
+    for (const k of keys) {
+      if (typeof k === 'string') {
+        const finalized = await this.finalizeImage(k);
+        if (finalized) out.push(finalized);
+      }
+    }
+    return out;
+  }
+
   private async findOrFail(id: number) {
     const project = await this.projectRepository.findOne({ where: { id } });
     if (!project) throw new NotFoundException('Project not found');
@@ -170,7 +187,8 @@ export class AdminProjectsService {
           builderName = builder.name;
         }
       }
-      const { units: _units, amenities: _amenities, faqs: _faqs, latitude, longitude, projectAreaSqft, ...projectScalars } = payload;
+      const { units: _units, amenities: _amenities, faqs: _faqs, galleryImageUrls: _gallery, latitude, longitude, projectAreaSqft, ...projectScalars } = payload;
+      const galleryImageUrls = await this.finalizeGallery(payload.galleryImageUrls);
       const project = queryRunner.manager.create(Project, {
         ...projectScalars,
         ...videoFields(payload.videos),
@@ -180,6 +198,9 @@ export class AdminProjectsService {
         projectAreaSqft: projectAreaSqft !== undefined ? String(projectAreaSqft) : undefined,
         coverImageUrl,
         mobileCoverImageUrl,
+        // Gallery rides the watermarked pipeline; omitted when not supplied
+        // so the column default applies.
+        ...(galleryImageUrls !== undefined ? { galleryImageUrls } : {}),
         slug,
         canonicalSlug: slug,
         units: undefined,
@@ -261,7 +282,7 @@ export class AdminProjectsService {
           canonicalSlug: existingCode ? `${newSlug}-${existingCode.toLowerCase()}` : newSlug,
         };
       }
-      const { units, amenities, faqs, latitude, longitude, projectAreaSqft, ...scalars } = payload;
+      const { units, amenities, faqs, galleryImageUrls: _gallery, latitude, longitude, projectAreaSqft, ...scalars } = payload;
       let builderName = scalars.builderName;
       if (scalars.builderId !== undefined) {
         if (scalars.builderId) {
@@ -273,6 +294,12 @@ export class AdminProjectsService {
       }
       const coverImageUrl = scalars.coverImageUrl ? await this.finalizeCoverImage(scalars.coverImageUrl, 'desktop') : scalars.coverImageUrl;
       const mobileCoverImageUrl = scalars.mobileCoverImageUrl ? await this.finalizeCoverImage(scalars.mobileCoverImageUrl, 'mobile') : scalars.mobileCoverImageUrl;
+      // Gallery rides the watermarked pipeline on update too; untouched when
+      // the payload omits it. Already-finalized keys pass through unchanged
+      // (processAndUploadImage early-returns non-temp keys).
+      const galleryImageUrls = payload.galleryImageUrls
+        ? await this.finalizeGallery(payload.galleryImageUrls)
+        : undefined;
       await queryRunner.manager.update(Project, id, {
         ...scalars,
         ...videoFields(payload.videos),
@@ -282,6 +309,7 @@ export class AdminProjectsService {
         projectAreaSqft: projectAreaSqft !== undefined ? String(projectAreaSqft) : undefined,
         coverImageUrl,
         mobileCoverImageUrl,
+        galleryImageUrls,
         ...slugPatch,
       });
       if (units) {
