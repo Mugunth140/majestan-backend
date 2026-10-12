@@ -227,13 +227,12 @@ export class PropertiesService {
   /**
    * Applies the place filters (`location` and `city`) with washed comparison
    * so URL slugs and display names match the same stored values. Requires the
-   * builder to already join `propertyLocations` as `locations` (both search
-   * paths do); adds the `subloc` join itself when `location` is present.
+   * builder to already join `propertyLocations` as `locations` and its
+   * sublocation relation as `subloc` (both search paths do).
    * Shared by the DB and Meilisearch paths.
    */
   private applyPlaceFilters(qb: SelectQueryBuilder<Property>, query: PropertySearchQueryDto): void {
     if (query.location) {
-      qb.leftJoin('locations.sublocation', 'subloc');
       qb.andWhere(
         `(${PLACE_EXPR('p.city')} = :placeLocation OR ${PLACE_EXPR('subloc.localityName')} = :placeLocation)`,
         { placeLocation: normPlace(query.location) },
@@ -263,6 +262,7 @@ export class PropertiesService {
           const meiliQb = this.propertyRepository.createQueryBuilder('p')
             .leftJoinAndSelect('p.propertyDetails', 'details')
             .leftJoinAndSelect('p.propertyLocations', 'locations')
+            .leftJoinAndSelect('locations.sublocation', 'subloc')
             .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
             .leftJoinAndSelect('p.propertyUnits', 'units')
             .where('p.id IN (:...ids)', { ids })
@@ -287,6 +287,7 @@ export class PropertiesService {
     const qb = this.propertyRepository.createQueryBuilder('p')
       .leftJoinAndSelect('p.propertyDetails', 'details')
       .leftJoinAndSelect('p.propertyLocations', 'locations')
+      .leftJoinAndSelect('locations.sublocation', 'subloc')
       .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
       .leftJoinAndSelect('p.propertyUnits', 'units')
       .where('p.status = :status', { status: PropertyStatus.AVAILABLE })
@@ -375,6 +376,7 @@ export class PropertiesService {
       relations: [
         'propertyDetails',
         'propertyLocations',
+        'propertyLocations.sublocation',
         'propertyAmenities',
         'propertyAmenities.amenity',
         'propertyFurnishings',
@@ -449,6 +451,7 @@ export class PropertiesService {
       relations: [
         'propertyDetails',
         'propertyLocations',
+        'propertyLocations.sublocation',
         'propertyAmenities',
         'propertyAmenities.amenity',
         'propertyFurnishings',
