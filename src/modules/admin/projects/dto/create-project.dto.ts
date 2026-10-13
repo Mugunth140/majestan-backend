@@ -40,7 +40,7 @@ class ProjectTowerDetailDto {
 
 class ProjectSpecificationDto {
   @IsString() @MaxLength(100) label!: string;
-  @IsString() @MaxLength(255) value!: string;
+  @IsString() @MaxLength(2000) value!: string;
 }
 
 class ProjectAmenityDto {
