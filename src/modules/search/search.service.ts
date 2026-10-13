@@ -4,6 +4,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { Meilisearch, Index } from 'meilisearch';
 import { Property, PropertyStatus } from '../../database/entities/property.entity';
+import { Project, ProjectStatus } from '../../database/entities/project.entity';
 
 export type PropertyDocument = {
   id: number;
@@ -30,6 +31,27 @@ export type PropertyDocument = {
 };
 
 const INDEX_NAME = 'properties';
+const PROJECT_INDEX_NAME = 'projects';
+
+export type ProjectDocument = {
+  id: number;
+  name: string;
+  builderName: string | null;
+  projectCode: string | null;
+  slug: string;
+  canonicalSlug: string;
+  projectType: string;
+  city: string;
+  state: string | null;
+  sublocation: string | null;
+  sublocationSlug: string;
+  citySlug: string;
+  possessionStatus: string;
+  minPriceNumeric: number;
+  createdAt: number;
+  status: string;
+  canonicalUrl: string;
+};
 
 function toSlug(value: string): string {
   return value.trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -51,6 +73,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SearchService.name);
   private client: Meilisearch | null = null;
   private index: Index<PropertyDocument> | null = null;
+  private projectIndex: Index<ProjectDocument> | null = null;
   private enabled = false;
 
   constructor(
@@ -67,6 +90,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
         this.client = new Meilisearch({ host, apiKey: apiKey || undefined });
         this.enabled = true;
         this.index = this.client.index<PropertyDocument>(INDEX_NAME);
+        this.projectIndex = this.client.index<ProjectDocument>(PROJECT_INDEX_NAME);
         this.logger.log(`Meilisearch enabled host=${host} key=${apiKey ? '***' + apiKey.slice(-4) : 'none'}`);
       } catch (e) {
         this.logger.warn(`Meilisearch init failed: ${(e as Error).message}`);
@@ -80,6 +104,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     if (!this.enabled || !this.client || !this.index) return;
     try {
       await this.ensureIndex();
+      await this.ensureProjectIndex();
     } catch (e) {
       this.logger.warn(`Meilisearch ensureIndex failed: ${(e as Error).message}`);
     }
@@ -91,6 +116,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     this.enabled = false;
     this.client = null;
     this.index = null;
+    this.projectIndex = null;
   }
 
   private async ensureIndex() {
@@ -133,6 +159,28 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
 
   isEnabled() {
     return this.enabled && !!this.client;
+  }
+
+  // Keyword-only until an OPENAI_API_KEY is provided (see plan note);
+  // typo tolerance still applies without any key.
+  private async ensureProjectIndex() {
+    if (!this.client || !this.projectIndex) return;
+    try {
+      await this.client.getIndex(PROJECT_INDEX_NAME).catch(async () => {
+        await this.client!.createIndex(PROJECT_INDEX_NAME, { primaryKey: 'id' });
+      });
+
+      await this.projectIndex.updateSettings({
+        searchableAttributes: ['name', 'builderName', 'sublocation', 'city', 'projectCode', 'slug', 'projectType'],
+        filterableAttributes: ['projectType', 'city', 'citySlug', 'sublocationSlug', 'status', 'possessionStatus', 'minPriceNumeric'],
+        sortableAttributes: ['minPriceNumeric', 'createdAt'],
+        rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness'],
+        typoTolerance: { enabled: true, minWordSizeForTypos: { oneTypo: 4, twoTypos: 8 } },
+      });
+      this.logger.log(`Meilisearch index ${PROJECT_INDEX_NAME} ready`);
+    } catch (e) {
+      this.logger.warn(`ensureProjectIndex error: ${(e as any)?.message || String(e)}`);
+    }
   }
 
   private async toDocument(p: Property): Promise<PropertyDocument> {
@@ -224,6 +272,97 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     } catch {}
   }
 
+  private async toProjectDocument(p: Project): Promise<ProjectDocument> {
+    // Units is a lazy relation — resolve safely like the property mapper.
+    const units = await Promise.resolve(p.units).catch(() => []) as any[];
+    const prices = (Array.isArray(units) ? units : [])
+      .map((u) => Number(u?.price))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const minPriceNumeric = prices.length > 0 ? Math.min(...prices) : 0;
+
+    const sublocationName = (p.sublocation || '').trim();
+    return {
+      id: p.id,
+      name: p.name || '',
+      builderName: p.builderName ?? null,
+      projectCode: p.projectCode ?? null,
+      slug: p.slug || '',
+      canonicalSlug: p.canonicalSlug || '',
+      projectType: p.projectType,
+      city: p.city || '',
+      state: p.state ?? null,
+      sublocation: sublocationName || null,
+      sublocationSlug: sublocationName ? toSlug(sublocationName) : '',
+      citySlug: p.city ? toSlug(p.city) : '',
+      possessionStatus: p.possessionStatus,
+      minPriceNumeric,
+      createdAt: (p as any).createdAt ? new Date((p as any).createdAt).getTime() : Date.now(),
+      status: p.status,
+      canonicalUrl: p.canonicalSlug ? `/${p.canonicalSlug}` : '',
+    };
+  }
+
+  async indexProject(projectId: number) {
+    if (!this.enabled || !this.projectIndex) return;
+    try {
+      const repo = this.dataSource.getRepository(Project);
+      const proj = await repo.findOne({ where: { id: projectId } });
+      if (!proj) {
+        await this.deleteProject(projectId);
+        return;
+      }
+      // Only published projects belong in the public index.
+      if (proj.status !== ProjectStatus.PUBLISHED) {
+        await this.deleteProject(projectId);
+        return;
+      }
+      const doc = await this.toProjectDocument(proj);
+      await this.projectIndex.addDocuments([doc]);
+    } catch (e) {
+      this.logger.warn(`indexProject ${projectId} failed: ${(e as Error).message}`);
+    }
+  }
+
+  async deleteProject(projectId: number) {
+    if (!this.enabled || !this.projectIndex) return;
+    try {
+      await this.projectIndex.deleteDocument(projectId);
+    } catch {}
+  }
+
+  async reindexAllProjects(): Promise<{ indexed: number }> {
+    if (!this.enabled || !this.projectIndex) throw new Error('Meilisearch not enabled');
+    const repo = this.dataSource.getRepository(Project);
+
+    await this.projectIndex.deleteAllDocuments().catch(() => {});
+
+    const BATCH_SIZE = 500;
+    let offset = 0;
+    let totalIndexed = 0;
+
+    while (true) {
+      const projects = await repo.find({
+        where: { status: ProjectStatus.PUBLISHED },
+        take: BATCH_SIZE,
+        skip: offset,
+        order: { id: 'ASC' },
+      });
+
+      if (projects.length === 0) break;
+
+      const docs = await Promise.all(projects.map((p) => this.toProjectDocument(p)));
+      const task = await this.projectIndex.addDocuments(docs);
+      this.logger.log(`Reindex projects batch offset=${offset} count=${docs.length} taskUid=${task.taskUid}`);
+      totalIndexed += docs.length;
+      offset += BATCH_SIZE;
+
+      if (projects.length < BATCH_SIZE) break;
+    }
+
+    this.logger.log(`Reindex projects complete: total=${totalIndexed}`);
+    return { indexed: totalIndexed };
+  }
+
   async reindexAll(): Promise<{ indexed: number }> {
     if (!this.enabled || !this.index) throw new Error('Meilisearch not enabled');
     const repo = this.dataSource.getRepository(Property);
@@ -273,8 +412,11 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     page: number,
     limit: number,
     useHybrid = false,
+    scope: 'properties' | 'projects' = 'properties',
   ) {
-    if (!this.enabled || !this.index) throw new Error('Meilisearch not enabled');
+    if (!this.enabled || !this.client) throw new Error('Meilisearch not enabled');
+    if (scope === 'projects') return this.searchProjects(query, filters, page, limit);
+    if (!this.index) throw new Error('Meilisearch not enabled');
     // Public visibility gate (mirrors the DB path): live AND approved.
     const filterParts: string[] = ['status = available', 'approvalStatus = Approved'];
     if (filters.propertyType) filterParts.push(`propertyType = "${filters.propertyType}"`);
@@ -309,6 +451,31 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     }
 
     const res = await this.index.search(query || '', searchOptions);
+    return { hits: res.hits, total: (res as any).estimatedTotalHits ?? (res as any).totalHits ?? res.hits.length, page, limit };
+  }
+
+  private async searchProjects(
+    query: string,
+    filters: { propertyType?: string; city?: string; locality?: string; location?: string; minPrice?: number },
+    page: number,
+    limit: number,
+  ) {
+    if (!this.projectIndex) throw new Error('Meilisearch not enabled');
+    // Public visibility gate: published only.
+    const filterParts: string[] = ['status = published'];
+    if (filters.propertyType) filterParts.push(`projectType = "${filters.propertyType}"`);
+    if (filters.city) filterParts.push(`citySlug = "${toSlug(filters.city)}"`);
+    const place = filters.locality || filters.location;
+    if (place) filterParts.push(`(citySlug = "${toSlug(place)}" OR sublocationSlug = "${toSlug(place)}")`);
+    if (Number.isFinite(filters.minPrice)) filterParts.push(`minPriceNumeric >= ${filters.minPrice}`);
+    const filter = filterParts.join(' AND ');
+
+    const res = await this.projectIndex.search(query || '', {
+      filter: filter || undefined,
+      page,
+      hitsPerPage: limit,
+      attributesToRetrieve: ['id', 'name', 'builderName', 'projectCode', 'slug', 'canonicalSlug', 'projectType', 'city', 'sublocation', 'possessionStatus', 'minPriceNumeric', 'canonicalUrl'],
+    });
     return { hits: res.hits, total: (res as any).estimatedTotalHits ?? (res as any).totalHits ?? res.hits.length, page, limit };
   }
 

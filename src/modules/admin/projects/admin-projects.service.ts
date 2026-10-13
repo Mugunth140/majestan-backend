@@ -13,6 +13,7 @@ import { toProjectSlug } from '../../../modules/projects/utils/project-slug.util
 import { generateProjectCode } from '../../../modules/projects/utils/project-code.util';
 import { CreateProjectDto, CreateProjectUnitDto, UpdateProjectDto } from './dto/create-project.dto';
 import { StorageService } from '../../storage/storage.service';
+import { SearchService } from '../../search/search.service';
 
 const DECIMAL_KEYS = ['price', 'monthlyRent', 'securityDeposit', 'maintenanceFee', 'carpetAreaSqft', 'builtupAreaSqft', 'superBuiltupAreaSqft', 'udsAreaSqft', 'plotAreaSqft', 'plotAreaCents'] as const;
 
@@ -40,6 +41,7 @@ export class AdminProjectsService {
     @InjectRepository(ProjectSeo) private readonly seoRepository: Repository<ProjectSeo>,
     private readonly dataSource: DataSource,
     private readonly storageService: StorageService,
+    private readonly searchService: SearchService,
   ) {}
 
   private async finalizeImage(key?: string): Promise<string | undefined> {
@@ -256,6 +258,7 @@ export class AdminProjectsService {
       saved.canonicalSlug = `${saved.slug}-${projectCode.toLowerCase()}`;
       await queryRunner.manager.save(Project, saved);
       await queryRunner.commitTransaction();
+      this.searchService.indexProject(saved.id).catch(() => {});
       return this.findOrFail(saved.id);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -367,6 +370,7 @@ export class AdminProjectsService {
         }
       }
       await queryRunner.commitTransaction();
+      this.searchService.indexProject(id).catch(() => {});
       return this.findOrFail(id);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -379,12 +383,14 @@ export class AdminProjectsService {
   async updateStatus(id: number, status: string) {
     await this.findOrFail(id);
     await this.projectRepository.update(id, { status: status as any });
+    this.searchService.indexProject(id).catch(() => {});
     return this.findOrFail(id);
   }
 
   async remove(id: number) {
     await this.findOrFail(id);
     await this.projectRepository.delete(id);
+    this.searchService.deleteProject(id).catch(() => {});
     return { deleted: true };
   }
 

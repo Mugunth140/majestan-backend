@@ -28,6 +28,10 @@ export class SearchQueryDto {
   locality?: string;
 
   @IsOptional()
+  @IsString()
+  scope?: string;
+
+  @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   hybrid?: boolean;

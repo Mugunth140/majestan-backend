@@ -9,9 +9,10 @@ import { ProjectSeo } from '../../../database/entities/project-seo.entity';
 import { AdminProjectsController } from './admin-projects.controller';
 import { AdminProjectsService } from './admin-projects.service';
 import { StorageModule } from '../../storage/storage.module';
+import { SearchModule } from '../../search/search.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Project, ProjectUnit, ProjectAmenity, ProjectFaq, ProjectUnitFurnishing, ProjectSeo]), StorageModule],
+  imports: [TypeOrmModule.forFeature([Project, ProjectUnit, ProjectAmenity, ProjectFaq, ProjectUnitFurnishing, ProjectSeo]), StorageModule, SearchModule],
   controllers: [AdminProjectsController],
   providers: [AdminProjectsService],
   exports: [AdminProjectsService],

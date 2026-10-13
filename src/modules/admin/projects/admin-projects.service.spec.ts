@@ -63,6 +63,7 @@ function makeService() {
     {} as any,
     dataSource as any,
     storage as any,
+    { indexProject: jest.fn(async () => undefined), deleteProject: jest.fn(async () => undefined) } as any,
   );
   return { service, manager, queryRunner, projectRepository, storage };
 }

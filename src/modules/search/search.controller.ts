@@ -18,8 +18,9 @@ export class SearchController {
       return { hits: [], total: 0, page: query.page, limit: query.limit, fallback: true };
     }
     try {
-      const res = await this.searchService.search(query.q || '', { propertyType: query.propertyType, listingType: query.listingType, city: query.city, locality: query.locality }, query.page, query.limit, query.hybrid ?? false);
-      return { ...res, fallback: false };
+      const scope = query.scope === 'projects' ? 'projects' : 'properties';
+      const res = await this.searchService.search(query.q || '', { propertyType: query.propertyType, listingType: query.listingType, city: query.city, locality: query.locality }, query.page, query.limit, query.hybrid ?? false, scope);
+      return { ...res, fallback: false, scope };
     } catch {
       return { hits: [], total: 0, page: query.page, limit: query.limit, fallback: true };
     }
@@ -35,7 +36,8 @@ export class SearchController {
   @Roles(AppRole.Admin)
   async reindex() {
     const res = await this.searchService.reindexAll();
-    return { success: true, ...res };
+    const projects = await this.searchService.reindexAllProjects();
+    return { success: true, ...res, projects };
   }
 }
 
@@ -48,7 +50,8 @@ export class AdminSearchController {
   @Roles(AppRole.Admin)
   async reindex() {
     const res = await this.searchService.reindexAll();
-    return { success: true, ...res };
+    const projects = await this.searchService.reindexAllProjects();
+    return { success: true, ...res, projects };
   }
 
   @Get('health')
