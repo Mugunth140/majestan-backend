@@ -11,6 +11,14 @@ jest.mock(
   { virtual: true },
 );
 
+jest.mock(
+  'meilisearch',
+  () => ({
+    Meilisearch: jest.fn().mockImplementation(() => ({ index: jest.fn() })),
+  }),
+  { virtual: true },
+);
+
 import { AdminProjectsService } from './admin-projects.service';
 
 function makeService() {
