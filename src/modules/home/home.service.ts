@@ -176,6 +176,7 @@ export class HomeService {
       where: {
         propertyType: propertyType as any,
         status: PropertyStatus.AVAILABLE,
+        approvalStatus: 'Approved',
       },
       relations: ['propertyImages', 'propertyLocations', 'propertyLocations.sublocation', 'propertyDetails'],
       order: { createdAt: 'DESC' },

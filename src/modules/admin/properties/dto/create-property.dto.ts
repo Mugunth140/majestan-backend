@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { PropertyType, PropertyStatus } from '../../../../database/entities/property.entity';
 
-class PropertyDetailsDto {
+export class PropertyDetailsDto {
   @IsOptional() @IsNumber() bedrooms?: number;
   @IsOptional() @IsNumber() bathrooms?: number;
   @IsOptional() @IsNumber() parking?: number;
@@ -159,7 +159,7 @@ class FloorPlanImageDto {
   @IsOptional() @IsString() imageKey?: string;
 }
 
-class PropertyLocationDto {
+export class PropertyLocationDto {
   @IsOptional() @IsString() address?: string;
   @IsOptional() @IsString() subLocation?: string;
   @IsOptional() @IsString() landmark?: string;

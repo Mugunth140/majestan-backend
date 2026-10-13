@@ -203,7 +203,16 @@ export class StorageService {
   /**
    * Processes an image via imgproxy and uploads the optimized webp to R2 final destination.
    */
-  async processAndUploadImage(originalKey: string): Promise<string> {
+  async processAndUploadImage(originalKey: string, retainOriginal = false): Promise<string> {
+    if (originalKey.startsWith(LOCAL_TEMP_PREFIX) && this.isLocalDriver()) {
+      const filename = originalKey.split('/').pop()!;
+      const finalKey = `local/properties/${filename.replace(/\.[^/.]+$/, '')}.webp`;
+      await fs.mkdir(dirname(this.localPathForKey(finalKey)), { recursive: true });
+      await sharp(this.localPathForKey(originalKey))
+        .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 85 }).toFile(this.localPathForKey(finalKey));
+      return finalKey;
+    }
     if (!originalKey.includes('uploads/temp/')) return originalKey;
 
     const publicUrl = process.env.R2_PUBLIC_URL || this.configService.get<string>('R2_PUBLIC_URL');
@@ -242,7 +251,7 @@ export class StorageService {
       });
 
       // Fire and forget delete of the raw original temp file
-      this.deleteFile(originalKey).catch(console.error);
+      if (!retainOriginal) this.deleteFile(originalKey).catch(console.error);
 
       return finalKey;
     } catch (err) {

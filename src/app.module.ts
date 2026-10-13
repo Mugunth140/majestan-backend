@@ -34,6 +34,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { SearchModule } from './modules/search/search.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { AdminBuildersModule } from './modules/admin/builders/admin-builders.module';
+import { OwnerPostModule } from './modules/owner-post/owner-post.module';
 import { RootController } from './root.controller';
 
 @Module({
@@ -94,6 +95,7 @@ import { RootController } from './root.controller';
     SearchModule,
     ProjectsModule,
     AdminBuildersModule,
+    OwnerPostModule,
   ],
   controllers: [RootController],
   providers: [

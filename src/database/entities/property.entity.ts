@@ -309,6 +309,11 @@ export class Property {
   @Column({ name: 'available_visit_time', type: 'varchar', length: 20, nullable: true })
   availableVisitTime!: string | null;
 
+  // Owner self-post marker: 'staff' for CRM entries, 'owner-post' for public
+  // intake. Staff filter the moderation queue on this.
+  @Column({ name: 'source', type: 'varchar', length: 32, nullable: false, default: 'staff' })
+  source!: string;
+
   @CreateDateColumn({
     name: 'created_at',
     type: 'timestamp',

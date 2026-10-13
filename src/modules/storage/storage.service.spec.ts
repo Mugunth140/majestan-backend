@@ -111,6 +111,19 @@ describe('StorageService local driver', () => {
 
   const makeSvc = () => new StorageService({ get: () => undefined } as any);
 
+  it('finalizes a local owner photo to webp while retaining its staging file for retries', async () => {
+    const sharp = require('sharp');
+    const key = 'local/temp/123-owner-11-12345678-1234-1234-1234-123456789abc-photo.png';
+    const input = await sharp({ create: { width: 160, height: 90, channels: 3, background: 'white' } }).png().toBuffer();
+    const svc = makeSvc();
+    async function* bytes() { yield input; }
+    await svc.writeLocalTempFile(key, bytes());
+    const result = await svc.processAndUploadImage(key);
+    expect(result).toBe('local/properties/123-owner-11-12345678-1234-1234-1234-123456789abc-photo.webp');
+    expect((await sharp(path.join(tmpDir, result)).metadata()).format).toBe('webp');
+    expect(fs.existsSync(path.join(tmpDir, key))).toBe(true);
+  });
+
   it('generatePresignedUrl returns a same-origin PUT url without touching S3', async () => {
     const svc = makeSvc();
     const presign = jest.fn();

@@ -243,7 +243,8 @@ export class AdminPropertiesService {
     };
   }
 
-  async create(propertyType: string, payload: CreatePropertyDto) {
+  async create(propertyType: string, payload: CreatePropertyDto & { source?: 'staff' | 'owner-post' }) {
+    const ownerTempKeys: string[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -260,6 +261,7 @@ export class AdminPropertiesService {
         propertyCode: payload.propertyCode || `PROP-${Date.now()}`,
         slug: `temp-slug-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
         title: payload.title,
+        source: payload.source || 'staff',
         description: payload.description,
         price: payload.price,
         propertyType: propertyType as PropertyType,
@@ -497,7 +499,7 @@ export class AdminPropertiesService {
         if (payload.details.floorPlanImages && payload.details.floorPlanImages.length > 0) {
           const processedImages = await mapWithConcurrency(payload.details.floorPlanImages, 3, async img => {
             let finalKey = img.imageKey;
-            if (finalKey && finalKey.includes('uploads/temp/')) {
+            if (finalKey && (finalKey.includes('uploads/temp/') || finalKey.startsWith('local/temp/'))) {
               finalKey = await this.storageService.processAndUploadImage(finalKey);
               img.imageKey = finalKey;
               img.imageUrl = finalKey;
@@ -546,7 +548,7 @@ export class AdminPropertiesService {
       if (payload.units && payload.units.length > 0) {
         const units = await mapWithConcurrency(payload.units, 3, async u => {
           let finalKey = u.floorPlanImageKey;
-          if (finalKey && finalKey.includes('uploads/temp/')) {
+          if (finalKey && (finalKey.includes('uploads/temp/') || finalKey.startsWith('local/temp/'))) {
             finalKey = await this.storageService.processAndUploadImage(finalKey);
             u.floorPlanImageKey = finalKey;
             u.floorPlanImageUrl = finalKey;
@@ -564,8 +566,14 @@ export class AdminPropertiesService {
         const images = await mapWithConcurrency(payload.files, 3, async (f, idx) => {
           let finalKey = f.fileKey ?? f.fileUrl;
           
-          if (finalKey && finalKey.includes('uploads/temp/')) {
-            finalKey = await this.storageService.processAndUploadImage(finalKey);
+          if (finalKey && (finalKey.includes('uploads/temp/') || finalKey.startsWith('local/temp/'))) {
+            if (payload.source === 'owner-post') {
+              const originalKey = finalKey;
+              finalKey = await this.storageService.processAndUploadImage(originalKey, true);
+              if (finalKey !== originalKey) ownerTempKeys.push(originalKey);
+            } else {
+              finalKey = await this.storageService.processAndUploadImage(finalKey);
+            }
           }
           
           const pi = new PropertyImage();
@@ -595,6 +603,8 @@ export class AdminPropertiesService {
       }
 
       await queryRunner.commitTransaction();
+      // Keep staged owner photos available for retry until the DB commit succeeds.
+      if (ownerTempKeys.length) this.storageService.deleteFiles(ownerTempKeys).catch(() => {});
       if (savedProperty.slug) {
         this.triggerFrontendRevalidation(savedProperty.slug);
       }
@@ -837,7 +847,7 @@ export class AdminPropertiesService {
         if (payload.details.floorPlanImages) {
           const processedImages = await mapWithConcurrency(payload.details.floorPlanImages, 3, async img => {
             let finalKey = img.imageKey;
-            if (finalKey && finalKey.includes('uploads/temp/')) {
+            if (finalKey && (finalKey.includes('uploads/temp/') || finalKey.startsWith('local/temp/'))) {
               finalKey = await this.storageService.processAndUploadImage(finalKey);
               img.imageKey = finalKey;
               img.imageUrl = finalKey;
@@ -910,7 +920,7 @@ export class AdminPropertiesService {
         if (payload.files.length > 0) {
           const images = await mapWithConcurrency(payload.files, 3, async (f, idx) => {
             let finalKey = f.fileKey ?? f.fileUrl;
-            if (finalKey && finalKey.includes('uploads/temp/')) {
+            if (finalKey && (finalKey.includes('uploads/temp/') || finalKey.startsWith('local/temp/'))) {
               finalKey = await this.storageService.processAndUploadImage(finalKey);
             }
             const pi = new PropertyImage();
@@ -946,7 +956,7 @@ export class AdminPropertiesService {
         if (payload.units.length > 0) {
           const units = await mapWithConcurrency(payload.units, 3, async u => {
             let finalKey = u.floorPlanImageKey;
-            if (finalKey && finalKey.includes('uploads/temp/')) {
+            if (finalKey && (finalKey.includes('uploads/temp/') || finalKey.startsWith('local/temp/'))) {
               finalKey = await this.storageService.processAndUploadImage(finalKey);
               u.floorPlanImageKey = finalKey;
               u.floorPlanImageUrl = finalKey;

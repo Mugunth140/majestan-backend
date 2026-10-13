@@ -281,7 +281,9 @@ export class AuthService {
   async loginUserWithPhone(canonical: string) {
     const user = await this.getAppUserByPhone(canonical);
     if (!user) throw new NotFoundException('Phone not registered. Please register first.');
-    return this.buildUserAuthResponse(user);
+    // This path is called after successful OTP verification, including legacy accounts.
+    await this.dataSource.createQueryBuilder().update('users').set({ isVerified: true }).where('id = :id', { id: user.id }).execute();
+    return this.buildUserAuthResponse({ ...user, is_verified: true });
   }
 
   private async getAppUserByPhone(phone: string): Promise<AppUserRow | null> {
