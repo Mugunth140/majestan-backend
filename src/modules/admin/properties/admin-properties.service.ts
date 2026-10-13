@@ -102,10 +102,17 @@ export class AdminPropertiesService {
       .leftJoin('sl.city', 'c')
       .addSelect(['c.id', 'c.cityName', 'sl.id', 'sl.localityName']);
 
-    if (query.statusFilter === 'archived') {
-      qb.where(`p.status != 'available'`);
+    // Site submissions stay in review until approved, including an owner
+    // submission temporarily marked unavailable while staff edit it.
+    const ownerReview = "(COALESCE(p.source, 'staff') = :ownerSource AND COALESCE(p.approvalStatus, 'Pending') = :pendingApproval AND p.status IN (:...reviewStatuses))";
+    const reviewParams = { ownerSource: 'owner-post', pendingApproval: 'Pending', reviewStatuses: ['available', 'unavailable'] };
+    if (query.statusFilter === 'review') {
+      qb.where(ownerReview, reviewParams);
+    } else if (query.statusFilter === 'archived') {
+      qb.where(`p.status != 'available'`).andWhere(`NOT ${ownerReview}`, reviewParams);
     } else if (query.statusFilter) {
       qb.where('p.status = :status', { status: query.statusFilter });
+      if (query.statusFilter === 'available') qb.andWhere(`NOT ${ownerReview}`, reviewParams);
     }
 
     if (query.listingType) {
