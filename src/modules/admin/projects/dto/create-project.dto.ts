@@ -77,6 +77,7 @@ class NearbyCategoryDto {
 class ProjectFaqDto {
   @IsString() @MaxLength(500) question!: string;
   @IsString() answer!: string;
+  @IsOptional() @IsString() @MaxLength(100) section?: string;
 }
 
 class ProjectFloorPlanDto {

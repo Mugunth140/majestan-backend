@@ -27,10 +27,11 @@ const toUnitRow = (u: CreateProjectUnitDto, projectId: number) => {
   return row;
 };
 
-const toFaqRow = (f: { question: string; answer: string }, projectId: number, index: number) => ({
+const toFaqRow = (f: { question: string; answer: string; section?: string }, projectId: number, index: number) => ({
   projectId,
   question: f.question.trim(),
   answer: f.answer.trim(),
+  section: f.section?.trim() || 'overview',
   sortOrder: index,
 });
 
