@@ -46,12 +46,76 @@ const validCreate = () => ({
 });
 
 describe('AdminAdsService', () => {
+  describe('placement specs', () => {
+    it('creates a single-image 3:2 mega-menu ad targeted at an audience', async () => {
+      const { service, repo, storage } = makeService({
+        storage: { getImageDimensions: jest.fn(async () => ({ width: 1500, height: 1000 })) },
+      });
+      await service.create(
+        { title: 'Rent promo', placement: AdPlacement.MegaMenu, audience: 'rent', desktopImageKey: 'uploads/temp/d.png', linkType: 'preset', linkPreset: 'rent' } as any,
+        'admin',
+      );
+      expect(storage.processAdImage).toHaveBeenCalledWith('uploads/temp/d.png', 'desktop', { width: 900, height: 600 });
+      expect(repo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ placement: AdPlacement.MegaMenu, audience: 'rent', mobileImageKey: null }),
+      );
+    });
+
+    it('rejects a mega-menu image that is not 3:2', async () => {
+      const { service } = makeService({
+        storage: { getImageDimensions: jest.fn(async () => ({ width: 3200, height: 900 })) },
+      });
+      await expect(
+        service.create({ title: 'X', placement: AdPlacement.MegaMenu, desktopImageKey: 'uploads/temp/d.png' } as any),
+      ).rejects.toThrow(/3:2/);
+    });
+
+    it('drops a mobile upload on a single-image placement', async () => {
+      const { service, repo, storage } = makeService({
+        storage: { getImageDimensions: jest.fn(async () => ({ width: 1500, height: 1000 })) },
+      });
+      await service.create({ title: 'X', placement: AdPlacement.MegaMenu, desktopImageKey: 'uploads/temp/d.png', mobileImageKey: 'uploads/temp/m.png' } as any);
+      expect(storage.deleteFile).toHaveBeenCalledWith('uploads/temp/m.png');
+      expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ mobileImageKey: null }));
+    });
+
+    it('rejects an audience the placement does not offer', async () => {
+      const { service } = makeService({
+        storage: { getImageDimensions: jest.fn(async () => ({ width: 1500, height: 1000 })) },
+      });
+      await expect(
+        service.create({ title: 'X', placement: AdPlacement.MegaMenu, audience: 'projects', desktopImageKey: 'uploads/temp/d.png' } as any),
+      ).rejects.toThrow(/audience/);
+    });
+
+    it('lets the offers carousel skip the optional mobile image', async () => {
+      const { service, repo } = makeService({
+        storage: { getImageDimensions: jest.fn(async () => ({ width: 3600, height: 900 })) },
+      });
+      await service.create({ title: 'Offer', placement: AdPlacement.Offers, desktopImageKey: 'uploads/temp/d.png' } as any);
+      expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ placement: AdPlacement.Offers, mobileImageKey: null, audience: null }));
+    });
+
+    it('still requires the hero mobile image', async () => {
+      const { service } = makeService();
+      await expect(
+        service.create({ title: 'X', desktopImageKey: 'uploads/temp/d.png' } as any),
+      ).rejects.toThrow(/mobile image is required/);
+    });
+
+    it('requires fresh images when an ad moves to a different placement', async () => {
+      const existing = { id: 3, placement: AdPlacement.Hero, desktopImageKey: 'uploads/ads/d.webp', mobileImageKey: 'uploads/ads/m.webp', audience: null };
+      const { service } = makeService({ repo: { findOne: jest.fn(async () => ({ ...existing })) } });
+      await expect(service.update(3, { placement: AdPlacement.MegaMenu } as any)).rejects.toThrow(/new image/);
+    });
+  });
+
   it('finalizes both temp images on create and saves the ad', async () => {
     const { service, repo, storage } = makeService();
     const out = await service.create(validCreate() as any, 'admin');
     expect(storage.getImageDimensions).toHaveBeenCalledTimes(2);
-    expect(storage.processAdImage).toHaveBeenCalledWith('uploads/temp/d.png', 'desktop');
-    expect(storage.processAdImage).toHaveBeenCalledWith('uploads/temp/m.png', 'mobile');
+    expect(storage.processAdImage).toHaveBeenCalledWith('uploads/temp/d.png', 'desktop', { width: 1920, height: 540 });
+    expect(storage.processAdImage).toHaveBeenCalledWith('uploads/temp/m.png', 'mobile', { width: 1080, height: 1350 });
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Diwali Offer',

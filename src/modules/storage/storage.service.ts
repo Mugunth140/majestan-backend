@@ -286,15 +286,19 @@ export class StorageService {
   /**
    * Ad-creative finalize: imgproxy fit-bounds + webp, deliberately WITHOUT
    * any watermark param. Bounds cap the long edge; fit never crops, so the
-   * 32:9 (desktop) / 4:5 (mobile) compositions uploaded from CRM survive.
+   * composition uploaded from CRM survives. `bounds` comes from the ad
+   * placement spec; the default is the hero's 32:9 desktop / 4:5 mobile.
    */
-  async processAdImage(originalKey: string, slot: 'desktop' | 'mobile'): Promise<string> {
+  async processAdImage(
+    originalKey: string,
+    slot: 'desktop' | 'mobile',
+    bounds: { width: number; height: number } = slot === 'desktop' ? { width: 1920, height: 540 } : { width: 1080, height: 1350 },
+  ): Promise<string> {
     if (!originalKey.includes('uploads/temp/') && !originalKey.startsWith(LOCAL_TEMP_PREFIX)) return originalKey;
 
     // Local driver: same fit-bounds + webp finalize, processed with sharp on
     // disk instead of imgproxy + R2.
     if (this.isLocalDriver()) {
-      const bounds = slot === 'desktop' ? { width: 1920, height: 540 } : { width: 1080, height: 1350 };
       const filename = originalKey.split('/').pop() || Date.now().toString();
       const finalKey = `local/ads/${filename.replace(/\.[^/.]+$/, '')}.webp`;
       await fs.mkdir(dirname(this.localPathForKey(finalKey)), { recursive: true });
@@ -314,11 +318,11 @@ export class StorageService {
 
     const baseUrl = publicUrl.endsWith('/') ? publicUrl.slice(0, -1) : publicUrl;
     const fileUrl = `${baseUrl}/${originalKey}`;
-    const bounds = slot === 'desktop' ? 'rs:fit:1920:540:0' : 'rs:fit:1080:1350:0';
+    const fit = `rs:fit:${bounds.width}:${bounds.height}:0`;
     // NOTE (imgproxy v4): keep the explicit `@webp` extension suffix so the
     // result format is unambiguous (IMGPROXY_ENFORCE_WEBP=true still rejects
     // ambiguous format negotiation on this stack).
-    const imgproxyUrl = `${this.imgproxyBase()}/insecure/${bounds}/q:82/format:webp/plain/${fileUrl}@webp`;
+    const imgproxyUrl = `${this.imgproxyBase()}/insecure/${fit}/q:82/format:webp/plain/${fileUrl}@webp`;
 
     try {
       const response = await fetch(imgproxyUrl);

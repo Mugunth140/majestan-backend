@@ -28,10 +28,18 @@ export class UpdateAdDto {
   @MaxLength(500)
   desktopImageKey?: string;
 
+  // null clears an optional mobile creative (site falls back to desktop).
+  @ValidateIf((o) => o.mobileImageKey !== null)
   @IsString()
   @IsOptional()
   @MaxLength(500)
-  mobileImageKey?: string;
+  mobileImageKey?: string | null;
+
+  @ValidateIf((o) => o.audience !== null && o.audience !== '')
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  audience?: string | null;
 
   @ApiProperty({ enum: AdLinkType, enumName: 'AdLinkType', required: false })
   @IsEnum(AdLinkType)

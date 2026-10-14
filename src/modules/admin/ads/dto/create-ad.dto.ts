@@ -29,10 +29,18 @@ export class CreateAdDto {
   @MaxLength(500)
   desktopImageKey!: string;
 
+  // Required only where the placement spec says so (checked in the service).
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(500)
-  mobileImageKey!: string;
+  mobileImageKey?: string;
+
+  // Audience targeting (e.g. buy / rent / services); empty = all / fallback.
+  @ValidateIf((o) => o.audience !== null && o.audience !== '')
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  audience?: string | null;
 
   @ApiProperty({ enum: AdLinkType, enumName: 'AdLinkType', default: 'preset', required: false })
   @IsEnum(AdLinkType)

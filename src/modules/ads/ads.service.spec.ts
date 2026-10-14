@@ -26,7 +26,19 @@ describe('AdsService', () => {
       linkType: 'preset',
       linkPreset: 'buy-apartments',
       linkCustom: null,
+      audience: null,
     });
     expect(out.items).toHaveLength(2);
+  });
+
+  it('falls back to the desktop image when an ad has no mobile creative', async () => {
+    const repo = {
+      find: jest.fn(async () => [
+        { id: 5, title: 'M', desktopImageKey: 'uploads/ads/x.webp', mobileImageKey: null, audience: 'rent', linkType: 'preset', linkPreset: 'rent', linkCustom: null, sortOrder: 0, isActive: true },
+      ]),
+    };
+    const storage = { generateReadUrl: jest.fn((k: string) => `https://cdn.example/${k}`) };
+    const out = await new AdsService(repo as any, storage as any).listActive(AdPlacement.MegaMenu);
+    expect(out.items[0]).toMatchObject({ mobileImage: 'https://cdn.example/uploads/ads/x.webp', audience: 'rent' });
   });
 });

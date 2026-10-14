@@ -23,7 +23,9 @@ export class AdsService {
       id: ad.id,
       title: ad.title,
       desktopImage: this.storageService.generateReadUrl(ad.desktopImageKey),
-      mobileImage: this.storageService.generateReadUrl(ad.mobileImageKey),
+      // Optional mobile creative falls back to the desktop image.
+      mobileImage: this.storageService.generateReadUrl(ad.mobileImageKey ?? ad.desktopImageKey),
+      audience: ad.audience ?? null,
       linkType: ad.linkType,
       linkPreset: ad.linkPreset,
       linkCustom: ad.linkCustom,

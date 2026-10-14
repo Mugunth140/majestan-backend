@@ -9,6 +9,8 @@ import {
 
 export enum AdPlacement {
   Hero = 'hero',
+  Offers = 'offers',
+  MegaMenu = 'mega_menu',
   ListingFeed = 'listing_feed',
   Announcement = 'announcement',
   Popup = 'popup',
@@ -34,8 +36,15 @@ export class Ad {
   @Column({ name: 'desktop_image_key', type: 'varchar', length: 500 })
   desktopImageKey!: string;
 
-  @Column({ name: 'mobile_image_key', type: 'varchar', length: 500 })
-  mobileImageKey!: string;
+  // Null for single-image placements (mega menu) or when the optional mobile
+  // creative was skipped — the site then falls back to the desktop image.
+  @Column({ name: 'mobile_image_key', type: 'varchar', length: 500, nullable: true })
+  mobileImageKey!: string | null;
+
+  // Targeted audience (e.g. buy / rent / services); null = shown everywhere
+  // and used as the fallback when no audience-specific ad is active.
+  @Column({ name: 'audience', type: 'varchar', length: 20, nullable: true })
+  audience!: string | null;
 
   @Column({ name: 'link_type', type: 'enum', enum: AdLinkType, default: AdLinkType.Preset })
   linkType!: AdLinkType;
