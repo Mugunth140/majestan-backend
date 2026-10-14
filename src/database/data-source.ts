@@ -35,6 +35,7 @@ import { AddProjectRevision1783800000000 } from './migrations/1783800000000-AddP
 import { AddProjectUnitFloorPlans1783900000000 } from './migrations/1783900000000-AddProjectUnitFloorPlans';
 import { ExtendAdPlacements1784000000000 } from './migrations/1784000000000-ExtendAdPlacements';
 import { AddProjectFaqSection1784100000000 } from './migrations/1784100000000-AddProjectFaqSection';
+import { AddProjectEnquiryToLeads1784200000000 } from './migrations/1784200000000-AddProjectEnquiryToLeads';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -96,6 +97,7 @@ export default new DataSource({
     AddProjectUnitFloorPlans1783900000000,
     ExtendAdPlacements1784000000000,
     AddProjectFaqSection1784100000000,
+    AddProjectEnquiryToLeads1784200000000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),

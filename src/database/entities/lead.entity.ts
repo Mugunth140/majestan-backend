@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Property } from './property.entity';
+import { Project } from './project.entity';
 import { User } from './user.entity';
 
 export enum LeadStatus {
@@ -18,13 +19,17 @@ export enum LeadStatus {
 
 @Entity('leads')
 @Index('idx_leads_property_id', ['propertyId'])
+@Index('idx_leads_project_id', ['projectId'])
 @Index('idx_leads_user_id', ['userId'])
 export class Lead {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
 
-  @Column({ name: 'property_id', type: 'int', unsigned: true, nullable: false })
-  propertyId!: number;
+  @Column({ name: 'property_id', type: 'int', unsigned: true, nullable: true })
+  propertyId!: number | null;
+
+  @Column({ name: 'project_id', type: 'int', unsigned: true, nullable: true })
+  projectId!: number | null;
 
   @Column({ name: 'user_id', type: 'int', unsigned: true, nullable: true })
   userId!: number | null;
@@ -54,11 +59,19 @@ export class Lead {
 
   @ManyToOne(() => Property, (property) => property.leads, {
     lazy: true,
-    nullable: false,
+    nullable: true,
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'property_id', referencedColumnName: 'id' })
-  property!: Promise<Property>;
+  property!: Promise<Property | null>;
+
+  @ManyToOne(() => Project, {
+    lazy: true,
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
+  project!: Promise<Project | null>;
 
   @ManyToOne(() => User, (user) => user.leads, {
     lazy: true,

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
@@ -6,6 +6,7 @@ import {
   CreatePropertyEnquiryDto,
   VISIT_SLOTS,
 } from './dto/create-property-enquiry.dto';
+import { CreateProjectEnquiryDto } from './dto/create-project-enquiry.dto';
 import { CreatePropertySubmissionDto } from './dto/create-property-submission.dto';
 import { CrmForwardingService, propertyLabelFromPageUrl } from './crm-forwarding.service';
 
@@ -255,6 +256,101 @@ export class LeadsService {
         propertyCode: propertyRow.propertyCode ?? undefined,
         propertySlug: propertyRow.slug ?? undefined,
         preferences: { pageUrl: undefined, source: 'property_page' },
+      })
+      .catch(() => undefined);
+
+    return { id: insertedId, submitted: true };
+  }
+
+  async createProjectEnquiry(
+    payload: CreateProjectEnquiryDto,
+    userId: number | null,
+  ) {
+    if (!payload.name?.trim() || !payload.phone?.trim()) {
+      throw new BadRequestException('Name and phone are required');
+    }
+    if (payload.intent === 'site_visit') {
+      if (!payload.visitDate || !payload.visitSlot) {
+        throw new BadRequestException('Visit date and time slot are required');
+      }
+      if (!VISIT_DATE_FORMAT.test(payload.visitDate)) {
+        throw new BadRequestException('Invalid visit date');
+      }
+      if (payload.visitDate < todayAsCalendarDate()) {
+        throw new BadRequestException('Visit date cannot be in the past');
+      }
+      if (payload.visitDate > maxVisitDate()) {
+        throw new BadRequestException('Visit date cannot be more than 3 months ahead');
+      }
+      if (!(VISIT_SLOTS as readonly string[]).includes(payload.visitSlot)) {
+        throw new BadRequestException('Invalid visit slot');
+      }
+    }
+
+    const normalizedMobile = this.normalizePhoneForInsert(payload.phone ?? '');
+
+    // The project is resolved from the DB by id, never from the client's
+    // projectCode/slug — those are attacker-controlled.
+    const projectRow = await this.dataSource
+      .createQueryBuilder()
+      .from('projects', 'p')
+      .select('p.id', 'id')
+      .addSelect('p.project_code', 'projectCode')
+      .addSelect('p.slug', 'slug')
+      .addSelect('p.project_type', 'projectType')
+      .where('p.id = :id', { id: payload.projectId })
+      .getRawOne<{
+        id: number;
+        projectCode: string | null;
+        slug: string | null;
+        projectType: string | null;
+      }>();
+    if (!projectRow) {
+      throw new NotFoundException('Project not found');
+    }
+
+    const contextLine =
+      `[project_page] ${projectRow.projectCode ?? payload.projectId} ${projectRow.slug ?? ''}`.trim();
+    const result = await this.dataSource
+      .createQueryBuilder()
+      .insert()
+      .into('leads')
+      .values({
+        propertyId: null,
+        projectId: projectRow.id,
+        userId,
+        name: (payload.name ?? '').trim().slice(0, 255),
+        email: (payload.email ?? '').slice(0, 255),
+        phone: normalizedMobile,
+        message:
+          [contextLine, payload.message].filter(Boolean).join('\n') ||
+          '(no message)',
+        status: 'new',
+      })
+      .execute();
+
+    const insertedId =
+      Number(result.identifiers[0]?.id) ||
+      Number((result.raw as { insertId?: number }).insertId);
+
+    void this.crmForwarding
+      .forwardEnquiry({
+        name: (payload.name ?? '').trim(),
+        mobile: normalizedMobile,
+        email: payload.email,
+        source: 'Website – Project page',
+        propertyType: projectRow.projectType ?? undefined,
+        intent: payload.intent,
+        // Same trust rule as the property flow: visit fields forward only for a
+        // visit intent (exact YYYY-MM-DD); a stray visitDate on an enquiry is
+        // meaningless data the CRM's DATE column would reject.
+        ...(payload.intent === 'site_visit'
+          ? { visitDate: payload.visitDate, visitSlot: payload.visitSlot }
+          : {}),
+        projectId: projectRow.id,
+        projectCode: projectRow.projectCode ?? undefined,
+        projectSlug: projectRow.slug ?? undefined,
+        preferences: { pageUrl: undefined, source: 'project_page' },
       })
       .catch(() => undefined);
 
