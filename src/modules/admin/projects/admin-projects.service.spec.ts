@@ -20,10 +20,12 @@ jest.mock(
 );
 
 import { Project } from '../../../database/entities/project.entity';
+import { ProjectUnit } from '../../../database/entities/project-unit.entity';
 import { AdminProjectsService } from './admin-projects.service';
 
 function makeService() {
   const manager = {
+    find: jest.fn(async () => [] as any[]),
     create: jest.fn((_: any, v: any) => v),
     // EntityManager signature: save(target, entity) / save(entity)
     save: jest.fn(async (...args: any[]) => {
@@ -65,6 +67,7 @@ function makeService() {
       k.replace('uploads/temp/', `uploads/covers/${slot}-`).replace(/\.[^/.]+$/, '.webp'),
     ),
     deleteFile: jest.fn(async () => undefined),
+    deleteFiles: jest.fn(async () => undefined),
   };
   const service = new AdminProjectsService(
     projectRepository as any,
@@ -83,6 +86,45 @@ const validCreate = () => ({
   coverImageUrl: 'uploads/temp/cover.png',
   mobileCoverImageUrl: 'uploads/temp/m-cover.png',
   galleryImageUrls: ['uploads/temp/g1.png', 'uploads/temp/g2.jpg'],
+});
+
+describe('named floors within project unit configurations', () => {
+  it('keeps the legacy single-image contract for plot layouts', async () => {
+    const { service, manager } = makeService();
+    await service.create({ name: 'Plot layout', projectType: 'plot', units: [{ unitCode: 'P1', floorPlanImageKey: 'uploads/properties/plot.webp' }] } as any);
+    expect(manager.create).toHaveBeenCalledWith(ProjectUnit, expect.objectContaining({ floorPlans: null, floorPlanImageKey: 'uploads/properties/plot.webp', floorPlanImageUrl: 'uploads/properties/plot.webp' }));
+  });
+  it('persists separate floor plans per configuration and cleans staged images only after commit', async () => {
+    const { service, manager, storage, queryRunner } = makeService();
+    await service.create({ name: 'Nested plans', projectType: 'apartment', units: [
+      { unitCode: '2BHK-1200', floorPlans: [{ floorName: 'Ground floor', imageKey: 'uploads/temp/1200-g.png' }, { floorName: 'First floor', imageKey: 'uploads/temp/1200-f.png' }] },
+      { unitCode: '2BHK-1400', floorPlans: [{ floorName: 'Ground floor', imageKey: 'uploads/temp/1400-g.png' }] },
+    ] } as any);
+    const rows = manager.create.mock.calls.filter(([entity]) => entity === ProjectUnit).map(([, row]) => row as any);
+    expect(rows[0].floorPlans.map((p: any) => p.imageKey)).toEqual(['uploads/properties/1200-g.webp', 'uploads/properties/1200-f.webp']);
+    expect(rows[1].floorPlans[0].imageKey).toBe('uploads/properties/1400-g.webp');
+    expect(storage.processAndUploadImage).toHaveBeenCalledWith('uploads/temp/1200-g.png', true);
+    expect(storage.deleteFiles.mock.invocationCallOrder[0]).toBeGreaterThan(queryRunner.commitTransaction.mock.invocationCallOrder[0]);
+  });
+  it('keeps named floors when an older client omits them, while an explicit list can clear them', async () => {
+    const { service, manager } = makeService();
+    manager.find.mockResolvedValue([{ unitCode: 'A', floorPlans: [{ floorName: 'Ground floor', imageKey: 'uploads/properties/g.webp' }] }]);
+    await service.update(11, { expectedRevision: 1, units: [{ unitCode: 'A' }] } as any);
+    expect(manager.create).toHaveBeenCalledWith(ProjectUnit, expect.objectContaining({ floorPlans: [{ floorName: 'Ground floor', imageKey: 'uploads/properties/g.webp', imageUrl: 'uploads/properties/g.webp' }] }));
+    manager.create.mockClear();
+    await service.update(11, { expectedRevision: 1, units: [{ unitCode: 'A', floorPlans: [], floorPlanImageKey: 'old.webp' }] } as any);
+    expect(manager.create).toHaveBeenCalledWith(ProjectUnit, expect.objectContaining({ floorPlans: [], floorPlanImageKey: null, floorPlanImageUrl: null }));
+  });
+  it('retains staged originals after a failed save so the draft can retry', async () => {
+    const { service, manager, storage } = makeService();
+    manager.save.mockImplementation(async (...args: any[]) => {
+      if (args[0] === ProjectUnit) throw new Error('Database write failed');
+      return { id: 11, ...args[1] };
+    });
+    await expect(service.create({ name: 'Retry', projectType: 'apartment', units: [{ unitCode: 'A', floorPlans: [{ floorName: 'Ground floor', imageKey: 'uploads/temp/g.png' }] }] } as any)).rejects.toThrow('Database write failed');
+    expect(storage.processAndUploadImage).toHaveBeenCalledWith('uploads/temp/g.png', true);
+    expect(storage.deleteFiles).not.toHaveBeenCalled();
+  });
 });
 
 describe('AdminProjectsService gallery finalize', () => {

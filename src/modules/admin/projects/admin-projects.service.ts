@@ -13,6 +13,7 @@ import { toProjectSlug } from '../../../modules/projects/utils/project-slug.util
 import { generateProjectCode } from '../../../modules/projects/utils/project-code.util';
 import { CreateProjectDto, CreateProjectUnitDto, UpdateProjectDto } from './dto/create-project.dto';
 import { StorageService } from '../../storage/storage.service';
+import { readUnitFloorPlans, resolveUnitFloorPlans, validateUnitFloorPlans, type ProjectFloorPlan } from '../../projects/utils/project-floor-plans.util';
 import { SearchService } from '../../search/search.service';
 
 const DECIMAL_KEYS = ['price', 'monthlyRent', 'securityDeposit', 'maintenanceFee', 'carpetAreaSqft', 'builtupAreaSqft', 'superBuiltupAreaSqft', 'udsAreaSqft', 'plotAreaSqft', 'plotAreaCents'] as const;
@@ -47,6 +48,23 @@ export class AdminProjectsService {
   private async finalizeImage(key?: string): Promise<string | undefined> {
     if (!key) return undefined;
     return this.storageService.processAndUploadImage(key);
+  }
+
+  private async finalizeUnit(u: CreateProjectUnitDto, projectId: number, pendingKeys: string[]) {
+    const plans = validateUnitFloorPlans(readUnitFloorPlans(u));
+    const finalized: ProjectFloorPlan[] = [];
+    for (const plan of plans) {
+      let key = plan.imageKey;
+      if (key.startsWith('uploads/temp/') || key.startsWith('local/temp/')) {
+        const original = key;
+        key = await this.storageService.processAndUploadImage(key, true);
+        if (key !== original) pendingKeys.push(original);
+      }
+      finalized.push({ floorName: plan.floorName, imageKey: key, imageUrl: key });
+    }
+    // Plot layouts and older editors still use the single-image contract.
+    const legacyKey = u.floorPlans === undefined ? finalized[0]?.imageKey ?? null : null;
+    return { ...toUnitRow(u, projectId), floorPlans: u.floorPlans === undefined ? null : finalized, floorPlanImageUrl: legacyKey, floorPlanImageKey: legacyKey };
   }
 
   private async finalizeCoverImage(
@@ -117,6 +135,7 @@ export class AdminProjectsService {
       units: unitsWithFurnishings.map((u: any) => ({
         ...u,
         floorPlanImageUrl: readUrl(u.floorPlanImageUrl) ?? u.floorPlanImageUrl,
+        floorPlans: resolveUnitFloorPlans(u, (key) => readUrl(key) ?? key),
       })),
       projectAmenities,
       projectFaqs,
@@ -175,10 +194,12 @@ export class AdminProjectsService {
   }
 
   async create(payload: CreateProjectDto) {
+    const pendingFloorPlanKeys: string[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
+      payload.units?.forEach((u) => validateUnitFloorPlans(readUnitFloorPlans(u)));
       const slug = payload.slug ? toProjectSlug(payload.slug) : toProjectSlug(payload.name);
       const coverImageUrl = await this.finalizeCoverImage(payload.coverImageUrl, 'desktop');
       const mobileCoverImageUrl = await this.finalizeCoverImage(payload.mobileCoverImageUrl, 'mobile');
@@ -211,7 +232,7 @@ export class AdminProjectsService {
       if (payload.units?.length) {
         const rows: Record<string, unknown>[] = [];
         for (const u of payload.units) {
-          rows.push({ ...toUnitRow(u, saved.id), floorPlanImageUrl: await this.finalizeImage(u.floorPlanImageUrl) });
+          rows.push(await this.finalizeUnit(u, saved.id, pendingFloorPlanKeys));
         }
         const units = rows.map((r) => queryRunner.manager.create(ProjectUnit, r));
         const savedUnits = await queryRunner.manager.save(ProjectUnit, units);
@@ -258,6 +279,7 @@ export class AdminProjectsService {
       saved.canonicalSlug = `${saved.slug}-${projectCode.toLowerCase()}`;
       await queryRunner.manager.save(Project, saved);
       await queryRunner.commitTransaction();
+      if (pendingFloorPlanKeys.length) this.storageService.deleteFiles(pendingFloorPlanKeys).catch(() => {});
       this.searchService.indexProject(saved.id).catch(() => {});
       return this.findOrFail(saved.id);
     } catch (err) {
@@ -269,6 +291,7 @@ export class AdminProjectsService {
   }
 
   async update(id: number, payload: UpdateProjectDto) {
+    const pendingFloorPlanKeys: string[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -283,6 +306,7 @@ export class AdminProjectsService {
           (payload.expectedRevision !== undefined && payload.expectedRevision !== existing.revision)) {
         throw new ConflictException('This project has changed since you opened it. Your changes were not saved. Reload the latest project before saving; your local draft has been kept.');
       }
+      payload.units?.forEach((u) => validateUnitFloorPlans(readUnitFloorPlans(u)));
       let slugPatch: Partial<{ slug: string; canonicalSlug: string }> = {};
       if (payload.slug) {
         const newSlug = toProjectSlug(payload.slug);
@@ -325,11 +349,18 @@ export class AdminProjectsService {
         ...slugPatch,
       });
       if (units) {
+        // Older clients omit the new field; keep named plans for surviving units.
+        const previousUnits = units.some((u) => u.floorPlans === undefined)
+          ? await queryRunner.manager.find(ProjectUnit, { where: { projectId: id } }) : [];
+        const previousByCode = new Map(previousUnits.map((u) => [u.unitCode, u]));
         await queryRunner.manager.delete(ProjectUnit, { projectId: id });
         if (units.length) {
           const rows: Record<string, unknown>[] = [];
           for (const u of units) {
-            rows.push({ ...toUnitRow(u, id), floorPlanImageUrl: await this.finalizeImage(u.floorPlanImageUrl) });
+            const previous = previousByCode.get(u.unitCode);
+            const planInput = u.floorPlans === undefined && previous?.floorPlans !== null && previous?.floorPlans !== undefined
+              ? { ...u, floorPlans: previous.floorPlans } : u;
+            rows.push(await this.finalizeUnit(planInput, id, pendingFloorPlanKeys));
           }
           const savedUnits = await queryRunner.manager.save(
             ProjectUnit,
@@ -379,6 +410,7 @@ export class AdminProjectsService {
         }
       }
       await queryRunner.commitTransaction();
+      if (pendingFloorPlanKeys.length) this.storageService.deleteFiles(pendingFloorPlanKeys).catch(() => {});
       this.searchService.indexProject(id).catch(() => {});
       return this.findOrFail(id);
     } catch (err) {

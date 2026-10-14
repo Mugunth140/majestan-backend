@@ -32,6 +32,7 @@ import { OwnerPostIntake1783600000000 } from './migrations/1783600000000-OwnerPo
 import { AddHigherBhkUnitTypes1783700000000 } from './migrations/1783700000000-AddHigherBhkUnitTypes';
 
 import { AddProjectRevision1783800000000 } from './migrations/1783800000000-AddProjectRevision';
+import { AddProjectUnitFloorPlans1783900000000 } from './migrations/1783900000000-AddProjectUnitFloorPlans';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -90,6 +91,7 @@ export default new DataSource({
     OwnerPostIntake1783600000000,
     AddHigherBhkUnitTypes1783700000000,
     AddProjectRevision1783800000000,
+    AddProjectUnitFloorPlans1783900000000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),

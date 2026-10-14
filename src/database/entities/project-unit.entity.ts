@@ -131,6 +131,9 @@ export class ProjectUnit {
   @Column({ name: 'floor_plan_image_key', type: 'varchar', length: 1024, nullable: true })
   floorPlanImageKey!: string | null;
 
+  @Column({ name: 'floor_plans', type: 'json', nullable: true })
+  floorPlans!: { floorName: string; imageKey: string; imageUrl?: string }[] | null;
+
   @Column({ name: 'is_primary', type: 'boolean', nullable: false, default: false })
   isPrimary!: boolean;
 

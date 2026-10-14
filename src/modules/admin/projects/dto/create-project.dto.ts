@@ -1,6 +1,9 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  ArrayUnique,
+  ArrayMaxSize,
+  IsNotEmpty,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -76,6 +79,14 @@ class ProjectFaqDto {
   @IsString() answer!: string;
 }
 
+class ProjectFloorPlanDto {
+  @Transform(({ value }) => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value)
+  @IsString() @IsNotEmpty() @MaxLength(100) floorName!: string;
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString() @IsNotEmpty() @MaxLength(1024) imageKey!: string;
+  @IsOptional() @IsString() @MaxLength(1024) imageUrl?: string;
+}
+
 export class CreateProjectUnitDto {
   @IsString()
   @MaxLength(64)
@@ -118,6 +129,10 @@ export class CreateProjectUnitDto {
   @IsOptional() @IsEnum(PropertyUnitStatus) status?: PropertyUnitStatus;
   @IsOptional() @IsString() @MaxLength(1024) floorPlanImageUrl?: string;
   @IsOptional() @IsString() @MaxLength(1024) floorPlanImageKey?: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(200)
+  @ArrayUnique((plan: ProjectFloorPlanDto) => typeof plan?.floorName === 'string' ? plan.floorName.trim().replace(/\s+/g, ' ').toLowerCase() : plan?.floorName)
+  @ValidateNested({ each: true }) @Type(() => ProjectFloorPlanDto)
+  floorPlans?: ProjectFloorPlanDto[];
   @IsOptional() @IsBoolean() isPrimary?: boolean;
   @IsOptional() @IsArray() @Type(() => Number) @IsInt({ each: true }) furnishingItemIds?: number[];
 }
