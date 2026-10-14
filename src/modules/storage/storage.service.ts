@@ -200,6 +200,24 @@ export class StorageService {
     await Promise.all(validKeys.map(key => this.deleteFile(key)));
   }
 
+  /** Promote a raw temp upload without changing its contents. */
+  async moveFile(originalKey: string, mimeType = 'application/octet-stream', retainOriginal = false): Promise<string> {
+    if (!originalKey || (!originalKey.startsWith('uploads/temp/') && !originalKey.startsWith(LOCAL_TEMP_PREFIX))) {
+      return originalKey;
+    }
+
+    const filename = originalKey.split('/').pop() || `${Date.now()}`;
+    const finalKey = `${originalKey.startsWith(LOCAL_TEMP_PREFIX) ? 'local' : 'uploads'}/properties/${filename}`;
+    if (originalKey.startsWith(LOCAL_TEMP_PREFIX) && this.isLocalDriver()) {
+      await fs.mkdir(dirname(this.localPathForKey(finalKey)), { recursive: true });
+      await fs.copyFile(this.localPathForKey(originalKey), this.localPathForKey(finalKey));
+    } else {
+      await this.s3Client.write(finalKey, this.s3Client.file(originalKey), { type: mimeType });
+    }
+    if (!retainOriginal) await this.deleteFile(originalKey);
+    return finalKey;
+  }
+
   /**
    * Processes an image via imgproxy and uploads the optimized webp to R2 final destination.
    */

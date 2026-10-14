@@ -19,7 +19,7 @@ import type { JwtPayload } from '../../common/types/jwt-payload.type';
 import { StorageService } from '../storage/storage.service';
 import { SubmitOwnerPropertyDto } from './dto/submit-owner-property.dto';
 import { UpsertDraftDto } from './dto/upsert-draft.dto';
-import { assertOwnerPhotoKey } from './owner-post-policy';
+import { assertOwnerMediaKey } from './owner-post-policy';
 import { OwnerPostService } from './owner-post.service';
 
 @Controller('owner')
@@ -34,14 +34,24 @@ export class OwnerPostController {
     @CurrentUser() user: JwtPayload,
     @Query('fileName') fileName: string,
     @Query('fileType') fileType: string,
+    @Query('fileSizeBytes') fileSizeBytes?: string,
   ) {
     await this.ownerPostService.accountFor(user.sub);
     if (
       !fileName ||
       fileName.length > 200 ||
-      !['image/jpeg', 'image/png', 'image/webp'].includes(fileType)
+      !['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(
+        fileType,
+      )
     )
-      throw new BadRequestException('Choose a JPG, PNG or WebP photo.');
+      throw new BadRequestException('Choose a JPG, PNG, WebP or PDF file.');
+    if (
+      fileSizeBytes !== undefined &&
+      (!/^\d+$/.test(fileSizeBytes) ||
+        Number(fileSizeBytes) < 1 ||
+        Number(fileSizeBytes) > 15 * 1024 * 1024)
+    )
+      throw new BadRequestException('Files must be 15 MB or smaller.');
     const filename = `owner-${user.sub}-${randomUUID()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const signed = await this.storageService.generatePresignedUrl(
       filename,
@@ -61,13 +71,13 @@ export class OwnerPostController {
     await this.ownerPostService.accountFor(user.sub);
     if (!this.storageService.isLocalDriver() || !key?.startsWith('local/'))
       throw new BadRequestException('Local uploads are disabled.');
-    assertOwnerPhotoKey(key, user.sub);
+    assertOwnerMediaKey(key, user.sub);
     if (
-      !['image/jpeg', 'image/png', 'image/webp'].includes(
+      !['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(
         String(req.headers['content-type']),
       )
     )
-      throw new BadRequestException('Choose a JPG, PNG or WebP photo.');
+      throw new BadRequestException('Choose a JPG, PNG, WebP or PDF file.');
     return this.storageService.writeLocalTempFile(key, req);
   }
   @Get('drafts/me')

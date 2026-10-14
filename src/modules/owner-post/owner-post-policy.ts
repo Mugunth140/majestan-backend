@@ -111,14 +111,14 @@ const countKeys = new Set([
   'privateCabins',
   'meetingRooms',
 ]);
-export function assertOwnerPhotoKey(key: string, userId: number) {
+export function assertOwnerMediaKey(key: string, userId: number) {
   if (
     !new RegExp(
       `^(uploads|local)/temp/[0-9]+-owner-${userId}-[a-f0-9-]{36}-[A-Za-z0-9._-]+$`,
     ).test(key)
   )
     throw new BadRequestException(
-      'Use photos uploaded from your own account. Please remove and upload this photo again.',
+      'Use files uploaded from your own account. Please remove and upload this file again.',
     );
 }
 export function ownerPayload(category: string, dto: SubmitOwnerPropertyDto) {
@@ -195,7 +195,11 @@ export function ownerPayload(category: string, dto: SubmitOwnerPropertyDto) {
     ? details.furnishingStatus === 'FULLY FURNISHED'
     : undefined;
   const isLand = ['plot', 'farmland'].includes(category);
-  if (isLand && details.areaUnit && !['Sq Ft', 'Cents', 'Acres', 'Grounds'].includes(details.areaUnit))
+  if (
+    isLand &&
+    details.areaUnit &&
+    !['Sq Ft', 'Cents', 'Acres', 'Grounds'].includes(details.areaUnit)
+  )
     throw new BadRequestException('Choose a supported land area unit.');
   const rent = dto.listingType === 'Rent';
   const money = (value: string | undefined) => {
@@ -246,5 +250,11 @@ export function ownerPayload(category: string, dto: SubmitOwnerPropertyDto) {
       ? dto.furnishingItems
       : [],
     files: dto.files || [],
+    documents: (dto.floorPlans || []).map((plan) => ({
+      ...plan,
+      documentType: 'floor_plan',
+      title: plan.fileName || 'Floor plan',
+      isPublic: true,
+    })),
   };
 }

@@ -92,7 +92,7 @@ describe('owner HTTP validation and upload minting', () => {
       .expect(400);
     expect(service.submit).not.toHaveBeenCalled();
   });
-  it('mints a unique account-scoped key and rejects non-photo uploads', async () => {
+  it('mints account-scoped keys for supported media and rejects oversized or unsupported uploads', async () => {
     const response = await request(app.getHttpServer())
       .get('/owner/media/presigned-url')
       .query({ fileName: 'front.jpg', fileType: 'image/jpeg' })
@@ -102,8 +102,24 @@ describe('owner HTTP validation and upload minting', () => {
     );
     await request(app.getHttpServer())
       .get('/owner/media/presigned-url')
-      .query({ fileName: 'file.pdf', fileType: 'application/pdf' })
+      .query({
+        fileName: 'plan.pdf',
+        fileType: 'application/pdf',
+        fileSizeBytes: '1000',
+      })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/owner/media/presigned-url')
+      .query({ fileName: 'file.exe', fileType: 'application/octet-stream' })
       .expect(400);
-    expect(storage.generatePresignedUrl).toHaveBeenCalledTimes(1);
+    await request(app.getHttpServer())
+      .get('/owner/media/presigned-url')
+      .query({
+        fileName: 'large.pdf',
+        fileType: 'application/pdf',
+        fileSizeBytes: String(15 * 1024 * 1024 + 1),
+      })
+      .expect(400);
+    expect(storage.generatePresignedUrl).toHaveBeenCalledTimes(2);
   });
 });

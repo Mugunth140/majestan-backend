@@ -11,7 +11,7 @@ import { User } from '../../database/entities/user.entity';
 import { AdminPropertiesService } from '../admin/properties/admin-properties.service';
 import { CreatePropertyDto } from '../admin/properties/dto/create-property.dto';
 import { SubmitOwnerPropertyDto } from './dto/submit-owner-property.dto';
-import { assertOwnerPhotoKey, ownerPayload } from './owner-post-policy';
+import { assertOwnerMediaKey, ownerPayload } from './owner-post-policy';
 
 @Injectable()
 export class OwnerPostService {
@@ -57,7 +57,9 @@ export class OwnerPostService {
     const user = await this.accountFor(userId);
     const payload = ownerPayload(propertyType, dto);
     for (const photo of payload.files)
-      assertOwnerPhotoKey(photo.fileKey, userId);
+      assertOwnerMediaKey(photo.fileKey, userId);
+    for (const plan of dto.floorPlans || [])
+      assertOwnerMediaKey(plan.fileKey, userId);
     const created = await this.adminPropertiesService.create(propertyType, {
       ...payload,
       status: 'available',

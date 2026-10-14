@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  Max,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -92,6 +93,18 @@ class OwnerPhotoDto {
   @Matches(/^(uploads|local)\/temp\/[A-Za-z0-9._-]+$/)
   fileKey!: string;
 }
+class OwnerFloorPlanDto {
+  @IsString()
+  @MaxLength(512)
+  @Matches(/^(uploads|local)\/temp\/[A-Za-z0-9._-]+$/)
+  fileKey!: string;
+
+  @IsOptional() @IsString() @MaxLength(255) fileName?: string;
+  @IsOptional()
+  @IsIn(['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
+  mimeType?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(15 * 1024 * 1024) fileSizeBytes?: number;
+}
 class OwnerAmenityDto {
   @IsInt() @Min(1) amenityId!: number;
 }
@@ -126,6 +139,13 @@ export class SubmitOwnerPropertyDto extends PickType(CreatePropertyDto, [
   @ValidateNested({ each: true })
   @Type(() => OwnerPhotoDto)
   files?: OwnerPhotoDto[];
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @ArrayUnique((plan: OwnerFloorPlanDto) => plan.fileKey)
+  @ValidateNested({ each: true })
+  @Type(() => OwnerFloorPlanDto)
+  floorPlans?: OwnerFloorPlanDto[];
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)

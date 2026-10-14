@@ -604,9 +604,14 @@ export class AdminPropertiesService {
         await queryRunner.manager.save(faqs);
       }
 
-      // 8. Create Documents (stored as-is under their R2 temp keys)
+      // 8. Create Documents; owner uploads remain available until commit succeeds.
       if (payload.documents && payload.documents.length > 0) {
-        await this.saveDocuments(queryRunner.manager, savedProperty.id, payload.documents);
+        await this.saveDocuments(
+          queryRunner.manager,
+          savedProperty.id,
+          payload.documents,
+          payload.source === 'owner-post' ? ownerTempKeys : undefined,
+        );
       }
 
       await queryRunner.commitTransaction();
@@ -1184,11 +1189,17 @@ export class AdminPropertiesService {
     manager: EntityManager,
     propertyId: number,
     documents: { fileKey: string; fileName?: string; mimeType?: string; fileSizeBytes?: number; documentType?: string; title?: string; isPublic?: boolean }[],
+    deferredDeleteKeys?: string[],
   ): Promise<void> {
     const validTypes = new Set(Object.values(PropertyDocumentType));
     let sortOrder = 0;
     for (const doc of documents) {
       if (!doc.fileKey) continue;
+      const isTempKey = doc.fileKey.startsWith('uploads/temp/') || doc.fileKey.startsWith('local/temp/');
+      const finalKey = isTempKey
+        ? await this.storageService.moveFile(doc.fileKey, doc.mimeType || 'application/octet-stream', Boolean(deferredDeleteKeys))
+        : doc.fileKey;
+      if (isTempKey && deferredDeleteKeys) deferredDeleteKeys.push(doc.fileKey);
       const ext = (doc.fileName?.split('.').pop() || '').slice(0, 20) || null;
       const file = new FileEntity();
       Object.assign(file, {
@@ -1197,8 +1208,8 @@ export class AdminPropertiesService {
         fileExtension: ext,
         mimeType: doc.mimeType || 'application/octet-stream',
         fileSizeBytes: String(doc.fileSizeBytes ?? 0),
-        fileUrl: doc.fileKey,
-        fileKey: doc.fileKey,
+        fileUrl: finalKey,
+        fileKey: finalKey,
         storageProvider: StorageProvider.R2,
         checksumSha256: null,
       });

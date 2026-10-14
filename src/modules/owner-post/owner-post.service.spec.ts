@@ -3,7 +3,7 @@ jest.mock('bun', () => ({ S3Client: jest.fn(), S3File: jest.fn() }), {
 });
 jest.mock('meilisearch', () => ({ Meilisearch: jest.fn() }), { virtual: true });
 import { OwnerPostService } from './owner-post.service';
-import { assertOwnerPhotoKey, ownerPayload } from './owner-post-policy';
+import { assertOwnerMediaKey, ownerPayload } from './owner-post-policy';
 import { SubmitOwnerPropertyDto } from './dto/submit-owner-property.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -99,6 +99,40 @@ describe('owner property intake', () => {
       }),
     );
     expect(drafts.size).toBe(0);
+  });
+  it('persists owner floor plans as public floor_plan documents after checking ownership', async () => {
+    const { service, adminPropertiesService } = make();
+    const plan = {
+      fileKey:
+        'uploads/temp/123-owner-11-12345678-1234-1234-1234-123456789abc-plan.pdf',
+      fileName: 'plan.pdf',
+      mimeType: 'application/pdf',
+      fileSizeBytes: 1000,
+    };
+    await service.submit(11, 'plot', dto({ floorPlans: [plan] }));
+    expect(adminPropertiesService.create).toHaveBeenCalledWith(
+      'plot',
+      expect.objectContaining({
+        documents: [
+          expect.objectContaining({
+            ...plan,
+            documentType: 'floor_plan',
+            isPublic: true,
+          }),
+        ],
+      }),
+    );
+    await expect(
+      service.submit(
+        11,
+        'plot',
+        dto({
+          floorPlans: [
+            { ...plan, fileKey: plan.fileKey.replace('owner-11', 'owner-12') },
+          ],
+        }),
+      ),
+    ).rejects.toThrow('own account');
   });
   it('does not clear the draft when property creation fails', async () => {
     const { service, drafts, adminPropertiesService } = make();
@@ -207,14 +241,36 @@ describe('owner property intake', () => {
       ),
     ).toThrow('date');
     expect(() =>
-      assertOwnerPhotoKey('https://example.test/file.jpg', 11),
+      assertOwnerMediaKey('https://example.test/file.jpg', 11),
     ).toThrow('own account');
   });
   it('accepts selected land units at HTTP validation and keeps canonical area for persistence', async () => {
-    const payload = dto({ details: { areaSqft: 87120, plotArea: 2, areaUnit: 'Acres', plotSizeCents: 200 } });
-    expect(await validate(plainToInstance(SubmitOwnerPropertyDto, payload), { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
-    expect(ownerPayload('farmland', payload).details).toMatchObject({ areaSqft: 87120, plotArea: 2, areaUnit: 'Acres', plotSizeCents: 200 });
-    expect(() => ownerPayload('plot', dto({ details: { areaSqft: 1000, areaUnit: 'Unknown' } }))).toThrow('land area unit');
+    const payload = dto({
+      details: {
+        areaSqft: 87120,
+        plotArea: 2,
+        areaUnit: 'Acres',
+        plotSizeCents: 200,
+      },
+    });
+    expect(
+      await validate(plainToInstance(SubmitOwnerPropertyDto, payload), {
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    ).toEqual([]);
+    expect(ownerPayload('farmland', payload).details).toMatchObject({
+      areaSqft: 87120,
+      plotArea: 2,
+      areaUnit: 'Acres',
+      plotSizeCents: 200,
+    });
+    expect(() =>
+      ownerPayload(
+        'plot',
+        dto({ details: { areaSqft: 1000, areaUnit: 'Unknown' } }),
+      ),
+    ).toThrow('land area unit');
   });
   it('rejects staff controls, unknown nested fields and invalid photo arrays at HTTP validation', async () => {
     const instance = plainToInstance(
@@ -238,5 +294,34 @@ describe('owner property intake', () => {
         forbidNonWhitelisted: true,
       }),
     ).toEqual([]);
+  });
+  it('caps floor plans at five and accepts only supported floor-plan MIME types', async () => {
+    const plan = {
+      fileKey: 'uploads/temp/plan.pdf',
+      mimeType: 'application/pdf',
+    };
+    const tooMany = plainToInstance(
+      SubmitOwnerPropertyDto,
+      dto({
+        floorPlans: Array.from({ length: 6 }, (_, i) => ({
+          ...plan,
+          fileKey: `${plan.fileKey}-${i}`,
+        })),
+      }),
+    );
+    const errors = await validate(tooMany, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+    expect(errors.map((e) => e.property)).toContain('floorPlans');
+    const badType = plainToInstance(
+      SubmitOwnerPropertyDto,
+      dto({ floorPlans: [{ ...plan, mimeType: 'text/html' }] }),
+    );
+    expect(
+      (
+        await validate(badType, { whitelist: true, forbidNonWhitelisted: true })
+      ).map((e) => e.property),
+    ).toContain('floorPlans');
   });
 });
