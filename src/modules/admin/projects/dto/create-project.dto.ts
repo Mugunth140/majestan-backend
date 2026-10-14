@@ -182,6 +182,10 @@ export class CreateProjectDto {
 
 export class UpdateProjectDto {
   @IsOptional() @IsInt() @Min(1) expectedRevision?: number;
+  /** Fields this save changes. With it, a save from an older revision merges unless another save changed the same fields. */
+  @IsOptional() @IsArray() @IsString({ each: true }) @MaxLength(64, { each: true }) changedFields?: string[];
+  /** Units (by code) this save adds, edits or removes; only these are rewritten. */
+  @IsOptional() @IsArray() @IsString({ each: true }) @MaxLength(100, { each: true }) changedUnitCodes?: string[];
   @IsOptional() @IsString() @MaxLength(255) name?: string;
   @IsOptional() @IsString() @MaxLength(512) slug?: string;
   @ApiProperty({ enum: ProjectType, enumName: 'ProjectType', required: false })

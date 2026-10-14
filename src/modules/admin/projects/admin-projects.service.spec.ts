@@ -193,7 +193,7 @@ describe('project concurrency protection', () => {
     const { service, manager, queryRunner, storage } = makeService();
     manager.findOne.mockResolvedValue({ id: 11, revision: 2 } as any);
     await expect(service.update(11, { expectedRevision: 1, units: [], galleryImageUrls: ['uploads/temp/new.png'] } as any)).rejects.toThrow('has changed');
-    expect(manager.findOne).toHaveBeenCalledWith(Project, { where: { id: 11 }, lock: { mode: 'pessimistic_write' } });
+    expect(manager.findOne).toHaveBeenCalledWith(Project, expect.objectContaining({ where: { id: 11 }, lock: { mode: 'pessimistic_write' } }));
     expect(manager.delete).not.toHaveBeenCalled();
     expect(manager.update).not.toHaveBeenCalled();
     expect(storage.processAndUploadImage).not.toHaveBeenCalled();
@@ -211,5 +211,30 @@ describe('project concurrency protection', () => {
     const fields = manager.update.mock.calls[0][2];
     expect(fields).not.toHaveProperty('expectedRevision');
     expect(fields).not.toHaveProperty('revision');
+    expect(fields).not.toHaveProperty('changedFields');
+  });
+  it('merges a stale save that touches only fields nobody else changed', async () => {
+    const { service, manager, queryRunner } = makeService();
+    manager.findOne.mockResolvedValue({ id: 11, revision: 3, fieldRevisions: { name: 3 } } as any);
+    await service.update(11, { expectedRevision: 2, changedFields: ['description'], description: 'New copy', projectType: 'apartment' } as any);
+    expect(queryRunner.commitTransaction).toHaveBeenCalled();
+    const fields = (manager.update.mock.calls as any[])[0][2];
+    expect(fields.fieldRevisions).toEqual({ name: 3, description: 4 });
+  });
+  it('refuses a stale save to a field someone else changed', async () => {
+    const { service, manager } = makeService();
+    manager.findOne.mockResolvedValue({ id: 11, revision: 3, fieldRevisions: { name: 3 } } as any);
+    await expect(service.update(11, { expectedRevision: 2, changedFields: ['name'], name: 'Mine' } as any)).rejects.toThrow('Someone else changed name');
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+  it('rewrites only the units a save touched', async () => {
+    const { service, manager } = makeService();
+    manager.findOne.mockResolvedValue({ id: 11, revision: 3, fieldRevisions: { 'unit:A-1': 3 } } as any);
+    await service.update(11, {
+      expectedRevision: 2, changedFields: ['units'], changedUnitCodes: ['B-1'],
+      units: [{ unitCode: 'A-1' }, { unitCode: 'B-1' }],
+    } as any);
+    const deleteCall = (manager.delete.mock.calls as any[]).find((call) => call[0] === ProjectUnit);
+    expect(deleteCall[1].unitCode).toBeDefined();
   });
 });

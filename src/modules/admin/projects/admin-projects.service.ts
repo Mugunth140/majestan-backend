@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { readVideos, videoFields } from '../../projects/utils/project-videos.util';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, QueryRunner, Repository } from 'typeorm';
 import { Project } from '../../../database/entities/project.entity';
 import { Builder } from '../../../database/entities/builder.entity';
 import { ProjectUnit } from '../../../database/entities/project-unit.entity';
@@ -15,6 +15,7 @@ import { CreateProjectDto, CreateProjectUnitDto, UpdateProjectDto } from './dto/
 import { StorageService } from '../../storage/storage.service';
 import { readUnitFloorPlans, resolveUnitFloorPlans, validateUnitFloorPlans, type ProjectFloorPlan } from '../../projects/utils/project-floor-plans.util';
 import { SearchService } from '../../search/search.service';
+import { conflictMessage, findConflicts, nextFieldRevisions } from './project-merge.util';
 
 const DECIMAL_KEYS = ['price', 'monthlyRent', 'securityDeposit', 'maintenanceFee', 'carpetAreaSqft', 'builtupAreaSqft', 'superBuiltupAreaSqft', 'udsAreaSqft', 'plotAreaSqft', 'plotAreaCents'] as const;
 
@@ -291,6 +292,43 @@ export class AdminProjectsService {
     }
   }
 
+  /** Inserts units with their furnishing links, keeping named plans from `previousByCode` when a unit omits them. */
+  private async insertUnits(
+    queryRunner: QueryRunner,
+    id: number,
+    units: CreateProjectUnitDto[],
+    previousByCode: Map<string, ProjectUnit>,
+    pendingFloorPlanKeys: string[],
+  ) {
+    if (!units.length) return;
+    const rows: Record<string, unknown>[] = [];
+    for (const u of units) {
+      const previous = previousByCode.get(u.unitCode);
+      const planInput = u.floorPlans === undefined && previous?.floorPlans !== null && previous?.floorPlans !== undefined
+        ? { ...u, floorPlans: previous.floorPlans } : u;
+      rows.push(await this.finalizeUnit(planInput, id, pendingFloorPlanKeys));
+    }
+    const savedUnits = await queryRunner.manager.save(
+      ProjectUnit,
+      rows.map((r) => queryRunner.manager.create(ProjectUnit, r)),
+    );
+    const furnishingLinks: ProjectUnitFurnishing[] = [];
+    units.forEach((u, i) => {
+      const ids = Array.isArray(u.furnishingItemIds) ? u.furnishingItemIds : [];
+      const unitId = (savedUnits[i] as any)?.id;
+      if (unitId == null) return;
+      for (const furnishingItemId of ids) {
+        const link = new ProjectUnitFurnishing();
+        link.unitId = Number(unitId);
+        link.furnishingItemId = Number(furnishingItemId);
+        furnishingLinks.push(link);
+      }
+    });
+    if (furnishingLinks.length) {
+      await queryRunner.manager.save(ProjectUnitFurnishing, furnishingLinks);
+    }
+  }
+
   async update(id: number, payload: UpdateProjectDto) {
     const pendingFloorPlanKeys: string[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
@@ -301,11 +339,24 @@ export class AdminProjectsService {
       // media or deleting any units/relations. A preflight read alone races.
       const existing = await queryRunner.manager.findOne(Project, {
         where: { id }, lock: { mode: 'pessimistic_write' },
+        select: { id: true, revision: true, projectCode: true, fieldRevisions: true },
       });
       if (!existing) throw new NotFoundException('Project not found');
-      if ((payload.units !== undefined && payload.expectedRevision === undefined) ||
-          (payload.expectedRevision !== undefined && payload.expectedRevision !== existing.revision)) {
+      const { changedFields, changedUnitCodes } = payload;
+      // Unit codes must be unique for a unit-by-unit write; otherwise fall
+      // back to replacing the whole list.
+      const unitCodes = payload.units?.map((u) => u.unitCode) ?? [];
+      const unitByUnit = Boolean(changedUnitCodes && payload.units && new Set(unitCodes).size === unitCodes.length);
+      if (payload.units !== undefined && payload.expectedRevision === undefined) {
         throw new ConflictException('This project has changed since you opened it. Your changes were not saved. Reload the latest project before saving; your local draft has been kept.');
+      }
+      if (payload.expectedRevision !== undefined && payload.expectedRevision !== existing.revision) {
+        // Older clients send no field list: any later save blocks them, as before.
+        if (!changedFields) {
+          throw new ConflictException('This project has changed since you opened it. Your changes were not saved. Reload the latest project before saving; your local draft has been kept.');
+        }
+        const conflicts = findConflicts(existing.fieldRevisions, payload.expectedRevision, changedFields, unitByUnit ? changedUnitCodes : undefined);
+        if (conflicts.length) throw new ConflictException(conflictMessage(conflicts));
       }
       payload.units?.forEach((u) => validateUnitFloorPlans(readUnitFloorPlans(u)));
       let slugPatch: Partial<{ slug: string; canonicalSlug: string }> = {};
@@ -319,7 +370,7 @@ export class AdminProjectsService {
           canonicalSlug: existingCode ? `${newSlug}-${existingCode.toLowerCase()}` : newSlug,
         };
       }
-      const { expectedRevision: _expectedRevision, units, amenities, faqs, galleryImageUrls: _gallery, latitude, longitude, projectAreaSqft, ...scalars } = payload;
+      const { expectedRevision: _expectedRevision, changedFields: _changedFields, changedUnitCodes: _changedUnitCodes, units, amenities, faqs, galleryImageUrls: _gallery, latitude, longitude, projectAreaSqft, ...scalars } = payload;
       let builderName = scalars.builderName;
       if (scalars.builderId !== undefined) {
         if (scalars.builderId) {
@@ -341,48 +392,40 @@ export class AdminProjectsService {
         ...scalars,
         ...videoFields(payload.videos),
         ...(builderName !== undefined ? { builderName } : {}),
-        latitude: latitude !== undefined ? String(latitude) : undefined,
-        longitude: longitude !== undefined ? String(longitude) : undefined,
-        projectAreaSqft: projectAreaSqft !== undefined ? String(projectAreaSqft) : undefined,
+        // null clears the value; undefined leaves it untouched.
+        latitude: latitude == null ? (latitude as null | undefined) : String(latitude),
+        longitude: longitude == null ? (longitude as null | undefined) : String(longitude),
+        projectAreaSqft: projectAreaSqft == null ? (projectAreaSqft as null | undefined) : String(projectAreaSqft),
         coverImageUrl,
         mobileCoverImageUrl,
         galleryImageUrls,
         ...slugPatch,
+        // The update bumps the version column by one; stamp what it wrote.
+        fieldRevisions: nextFieldRevisions(
+          existing.fieldRevisions,
+          existing.revision + 1,
+          changedFields ?? Object.keys(payload).filter((key) => !['expectedRevision', 'changedFields', 'changedUnitCodes'].includes(key)),
+          units ? (unitByUnit ? changedUnitCodes! : unitCodes) : [],
+        ),
       });
-      if (units) {
+      if (units && unitByUnit) {
+        // Rewrite only the units this save touched; units other staff added
+        // or edited in the meantime stay as they are.
+        const touched = changedUnitCodes!;
+        if (touched.length) {
+          const previousUnits = await queryRunner.manager.find(ProjectUnit, { where: { projectId: id, unitCode: In(touched) } });
+          const previousByCode = new Map(previousUnits.map((u) => [u.unitCode, u]));
+          await queryRunner.manager.delete(ProjectUnit, { projectId: id, unitCode: In(touched) });
+          const incoming = units.filter((u) => touched.includes(u.unitCode));
+          await this.insertUnits(queryRunner, id, incoming, previousByCode, pendingFloorPlanKeys);
+        }
+      } else if (units) {
         // Older clients omit the new field; keep named plans for surviving units.
         const previousUnits = units.some((u) => u.floorPlans === undefined)
           ? await queryRunner.manager.find(ProjectUnit, { where: { projectId: id } }) : [];
         const previousByCode = new Map(previousUnits.map((u) => [u.unitCode, u]));
         await queryRunner.manager.delete(ProjectUnit, { projectId: id });
-        if (units.length) {
-          const rows: Record<string, unknown>[] = [];
-          for (const u of units) {
-            const previous = previousByCode.get(u.unitCode);
-            const planInput = u.floorPlans === undefined && previous?.floorPlans !== null && previous?.floorPlans !== undefined
-              ? { ...u, floorPlans: previous.floorPlans } : u;
-            rows.push(await this.finalizeUnit(planInput, id, pendingFloorPlanKeys));
-          }
-          const savedUnits = await queryRunner.manager.save(
-            ProjectUnit,
-            rows.map((r) => queryRunner.manager.create(ProjectUnit, r)),
-          );
-          const furnishingLinks: ProjectUnitFurnishing[] = [];
-          units.forEach((u, i) => {
-            const ids = Array.isArray(u.furnishingItemIds) ? u.furnishingItemIds : [];
-            const unitId = (savedUnits[i] as any)?.id;
-            if (unitId == null) return;
-            for (const furnishingItemId of ids) {
-              const link = new ProjectUnitFurnishing();
-              link.unitId = Number(unitId);
-              link.furnishingItemId = Number(furnishingItemId);
-              furnishingLinks.push(link);
-            }
-          });
-          if (furnishingLinks.length) {
-            await queryRunner.manager.save(ProjectUnitFurnishing, furnishingLinks);
-          }
-        }
+        await this.insertUnits(queryRunner, id, units, previousByCode, pendingFloorPlanKeys);
       }
       if (faqs !== undefined) {
         await queryRunner.manager.delete(ProjectFaq, { projectId: id });

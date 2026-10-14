@@ -48,6 +48,10 @@ export class Project {
   @VersionColumn({ type: 'int', unsigned: true, default: 1 })
   revision!: number;
 
+  /** Per field (and per unit, as `unit:<code>`), the revision that last changed it. See project-merge.util. */
+  @Column({ name: 'field_revisions', type: 'json', nullable: true, select: false })
+  fieldRevisions!: Record<string, number> | null;
+
   @Column({ name: 'name', type: 'varchar', length: 255, nullable: false })
   name!: string;
 
