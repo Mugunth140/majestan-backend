@@ -9,6 +9,7 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VersionColumn,
 } from 'typeorm';
 import { ProjectUnit } from './project-unit.entity';
 import { ProjectSeo } from './project-seo.entity';
@@ -43,6 +44,9 @@ export enum ProjectStatus {
 export class Project {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
+
+  @VersionColumn({ type: 'int', unsigned: true, default: 1 })
+  revision!: number;
 
   @Column({ name: 'name', type: 'varchar', length: 255, nullable: false })
   name!: string;

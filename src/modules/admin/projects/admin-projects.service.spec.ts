@@ -19,6 +19,7 @@ jest.mock(
   { virtual: true },
 );
 
+import { Project } from '../../../database/entities/project.entity';
 import { AdminProjectsService } from './admin-projects.service';
 
 function makeService() {
@@ -29,7 +30,7 @@ function makeService() {
       const v = args.length > 1 ? args[1] : args[0];
       return Array.isArray(v) ? v : { id: 11, ...v };
     }),
-    findOne: jest.fn(async () => null),
+    findOne: jest.fn(async (entity: any) => entity === Project ? { id: 11, revision: 1, projectCode: 'AP011' } : null),
     // EntityManager signature: update(target, criteria, partial)
     update: jest.fn(async () => ({})),
     delete: jest.fn(async () => ({})),
@@ -142,5 +143,31 @@ describe('AdminProjectsService gallery finalize', () => {
       11,
       expect.objectContaining({ galleryImageUrls: ['uploads/properties/old.webp'] }),
     );
+  });
+});
+
+describe('project concurrency protection', () => {
+  it('rejects a stale unit snapshot before deleting units or finalizing media', async () => {
+    const { service, manager, queryRunner, storage } = makeService();
+    manager.findOne.mockResolvedValue({ id: 11, revision: 2 } as any);
+    await expect(service.update(11, { expectedRevision: 1, units: [], galleryImageUrls: ['uploads/temp/new.png'] } as any)).rejects.toThrow('has changed');
+    expect(manager.findOne).toHaveBeenCalledWith(Project, { where: { id: 11 }, lock: { mode: 'pessimistic_write' } });
+    expect(manager.delete).not.toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalled();
+    expect(storage.processAndUploadImage).not.toHaveBeenCalled();
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
+  });
+  it('rejects legacy clients that replace units without a revision', async () => {
+    const { service, manager } = makeService();
+    await expect(service.update(11, { units: [] } as any)).rejects.toThrow('has changed');
+    expect(manager.delete).not.toHaveBeenCalled();
+  });
+  it('allows a matching revision and never persists the client precondition as a project field', async () => {
+    const { service, manager, queryRunner } = makeService();
+    await service.update(11, { expectedRevision: 1, name: 'Reviewed project', units: [] } as any);
+    expect(queryRunner.commitTransaction).toHaveBeenCalled();
+    const fields = manager.update.mock.calls[0][2];
+    expect(fields).not.toHaveProperty('expectedRevision');
+    expect(fields).not.toHaveProperty('revision');
   });
 });

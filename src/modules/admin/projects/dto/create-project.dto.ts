@@ -165,6 +165,7 @@ export class CreateProjectDto {
 }
 
 export class UpdateProjectDto {
+  @IsOptional() @IsInt() @Min(1) expectedRevision?: number;
   @IsOptional() @IsString() @MaxLength(255) name?: string;
   @IsOptional() @IsString() @MaxLength(512) slug?: string;
   @ApiProperty({ enum: ProjectType, enumName: 'ProjectType', required: false })

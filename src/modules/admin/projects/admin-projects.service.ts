@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { readVideos, videoFields } from '../../projects/utils/project-videos.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -273,7 +273,16 @@ export class AdminProjectsService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      const existing = await this.findOrFail(id);
+      // Serialize project edits and reject stale snapshots BEFORE processing
+      // media or deleting any units/relations. A preflight read alone races.
+      const existing = await queryRunner.manager.findOne(Project, {
+        where: { id }, lock: { mode: 'pessimistic_write' },
+      });
+      if (!existing) throw new NotFoundException('Project not found');
+      if ((payload.units !== undefined && payload.expectedRevision === undefined) ||
+          (payload.expectedRevision !== undefined && payload.expectedRevision !== existing.revision)) {
+        throw new ConflictException('This project has changed since you opened it. Your changes were not saved. Reload the latest project before saving; your local draft has been kept.');
+      }
       let slugPatch: Partial<{ slug: string; canonicalSlug: string }> = {};
       if (payload.slug) {
         const newSlug = toProjectSlug(payload.slug);
@@ -285,7 +294,7 @@ export class AdminProjectsService {
           canonicalSlug: existingCode ? `${newSlug}-${existingCode.toLowerCase()}` : newSlug,
         };
       }
-      const { units, amenities, faqs, galleryImageUrls: _gallery, latitude, longitude, projectAreaSqft, ...scalars } = payload;
+      const { expectedRevision: _expectedRevision, units, amenities, faqs, galleryImageUrls: _gallery, latitude, longitude, projectAreaSqft, ...scalars } = payload;
       let builderName = scalars.builderName;
       if (scalars.builderId !== undefined) {
         if (scalars.builderId) {
