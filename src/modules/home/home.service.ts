@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { Property, PropertyStatus } from '../../database/entities/property.entity';
-import { StorageService } from '../storage/storage.service';
+import { ShowcasesService } from '../showcases/showcases.service';
 
 type LocationRow = {
   id: number;
@@ -25,33 +24,11 @@ type BannerRow = {
   href: string | null;
 };
 
-type FeaturedPropertyRow = {
-  id: number;
-  slugUrl: string | null;
-  propertyName: string | null;
-  sublocation: string | null;
-  photo: string | null;
-  postType: string | null;
-  expectedSalePrice: string | number | null;
-  monthlyRent: string | number | null;
-  pricePerSqft: string | number | null;
-  bedrooms: number | null;
-  areaSqft: string | null;
-  possession: string | null;
-  facing: string | null;
-  propertyCondition: string | null;
-};
-
-type FeaturedProperty = FeaturedPropertyRow & {
-  propertyType: 'apartment' | 'villa';
-  detailPath: string;
-};
-
 @Injectable()
 export class HomeService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
-    private readonly storageService: StorageService,
+    private readonly showcasesService: ShowcasesService,
   ) {}
 
   async getHomePage() {
@@ -59,14 +36,16 @@ export class HomeService {
       sublocations,
       unitTypes,
       banners,
-      featuredApartments,
-      featuredVillas,
+      handpickedProperties,
+      featuredProjects,
     ] = await Promise.all([
       this.listSublocations(),
       this.listUnitTypes(),
       this.listBanners(),
-      this.listFeaturedProperties('apartment'),
-      this.listFeaturedProperties('villa'),
+      // Both curated in the CRM (Showcases); each falls back to the newest
+      // live records while its list is empty.
+      this.showcasesService.handpickedProperties(),
+      this.showcasesService.featuredProjects(),
     ]);
 
     return {
@@ -75,8 +54,8 @@ export class HomeService {
         unitTypes,
       },
       banners,
-      featuredApartments,
-      featuredVillas,
+      handpickedProperties,
+      featuredProjects,
     };
   }
 
@@ -167,88 +146,6 @@ export class HomeService {
         : `/assets/images/banner_image/${row.image}`,
       href: row.href && row.href.trim().length > 0 ? row.href : null,
     }));
-  }
-
-  private async listFeaturedProperties(
-    propertyType: 'apartment' | 'villa',
-  ): Promise<FeaturedProperty[]> {
-    const properties = await this.dataSource.getRepository(Property).find({
-      where: {
-        propertyType: propertyType as any,
-        status: PropertyStatus.AVAILABLE,
-        approvalStatus: 'Approved',
-      },
-      relations: ['propertyImages', 'propertyLocations', 'propertyLocations.sublocation', 'propertyDetails'],
-      order: { createdAt: 'DESC' },
-      take: 10,
-    });
-
-    const suffix = propertyType === 'apartment' ? 'ap' : 'v';
-
-    const mapped = await Promise.all(properties.map(async (p) => {
-      const slug = p.slug?.trim() || `${propertyType}-${p.id}`;
-      const images = await p.propertyImages;
-      let primaryImageUrl = images?.find(img => img.isPrimary)?.imageUrl || images?.[0]?.imageUrl || null;
-      
-      if (primaryImageUrl) {
-        primaryImageUrl = this.storageService.generateReadUrl(primaryImageUrl);
-      }
-
-      const locations = await p.propertyLocations;
-      const loc = locations?.[0];
-
-      let formattedLocation = p.city;
-      if (loc?.sublocation?.localityName) {
-        formattedLocation = `${loc.sublocation.localityName}, ${p.city}`;
-      }
-
-      const details = await p.propertyDetails;
-      const d = Array.isArray(details) ? details[0] : details;
-      // `area_sqft` is the canonical column; the others are type-specific
-      // fallbacks that are frequently null.
-      const areaSqft =
-        d?.areaSqft?.trim() ||
-        d?.carpetArea?.trim() ||
-        d?.builtUpArea?.trim() ||
-        d?.superBuiltUpArea?.trim() ||
-        d?.plotArea?.trim() ||
-        null;
-
-      const bedrooms =
-        typeof d?.bedrooms === "number" && d.bedrooms > 0 ? d.bedrooms : null;
-
-      // Price per sq.ft for the card's pricing row. Only apartments and villas
-      // reach this mapper, so area is always genuine built-up sq.ft.
-      const priceNumber = Number(p.price);
-      const areaNumber = Number(areaSqft);
-      const pricePerSqft =
-        Number.isFinite(priceNumber) &&
-        priceNumber > 0 &&
-        Number.isFinite(areaNumber) &&
-        areaNumber > 0
-          ? Math.round(priceNumber / areaNumber)
-          : null;
-
-      return {
-        id: p.id,
-        propertyType,
-        slugUrl: slug,
-        propertyName: p.title,
-        sublocation: formattedLocation,
-        photo: primaryImageUrl,
-        postType: p.listingType,
-        expectedSalePrice: p.price,
-        monthlyRent: p.price,
-        pricePerSqft,
-        bedrooms,
-        areaSqft,
-        possession: d?.possessionStatus?.trim() || null,
-        facing: d?.propertyFacing?.trim() || null,
-        propertyCondition: p.propertyCondition?.trim() || null,
-        detailPath: `/${slug}-${suffix}${p.id}`,
-      } as any;
-    }));
-    return mapped;
   }
 
   private async tableExists(tableName: string): Promise<boolean> {

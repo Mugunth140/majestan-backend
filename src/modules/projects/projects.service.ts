@@ -8,7 +8,7 @@ import { readVideos } from './utils/project-videos.util';
 import { StorageService } from '../storage/storage.service';
 import { resolveUnitFloorPlans } from './utils/project-floor-plans.util';
 
-const toProjectListItem = (project: Project, units: any[], readUrl: (key: string) => string) => {
+export const toProjectListItem = (project: Project, units: any[], readUrl: (key: string) => string) => {
   const { id, name, slug, canonicalSlug, projectCode, projectType, builderName, reraNumber, possessionDate, possessionStatus, city, state, sublocation, coverImageUrl, mobileCoverImageUrl, brochureKey, brochureName, status, createdAt, updatedAt, totalFloors, projectAreaSqft, towerDetails, pincode, latitude, longitude, highlights, specifications } = project;
   return {
     id, name, slug, canonicalSlug, projectCode, projectType, builderName, reraNumber,
