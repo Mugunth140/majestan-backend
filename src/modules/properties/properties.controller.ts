@@ -30,6 +30,13 @@ export class PropertiesController {
     return this.propertiesService.getAllSlugs();
   }
 
+  // Must stay above ':propertyType/:id' or Express matches it as a type slug.
+  @Public()
+  @Get('pseo-inventory')
+  async pseoInventory() {
+    return this.propertiesService.pseoInventory();
+  }
+
   @Public()
   @Get(':propertyType/:id')
   async details(

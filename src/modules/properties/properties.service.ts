@@ -586,4 +586,34 @@ export class PropertiesService {
     });
     return properties.map(p => p.slug || p.propertyCode).filter(Boolean) as string[];
   }
+
+  /**
+   * Bulk inventory for PSEO page gating (sitemap + generateStaticParams).
+   * Returns one slim row per live+approved property — the frontend counts
+   * combinations in memory instead of firing one heavyweight
+   * `GET /properties?limit=1` hydration query (5 LEFT JOINs, full column
+   * list) per candidate, which previously produced thousands of aggressive
+   * queries on every sitemap build/revalidation.
+   */
+  async pseoInventory(): Promise<Array<{
+    listingType: string;
+    propertyType: string;
+    city: string;
+    locality: string | null;
+    bedrooms: number | null;
+  }>> {
+    return this.propertyRepository
+      .createQueryBuilder('p')
+      .select('p.listingType', 'listingType')
+      .addSelect('p.propertyType', 'propertyType')
+      .addSelect('p.city', 'city')
+      .addSelect('subloc.localityName', 'locality')
+      .addSelect('details.bedrooms', 'bedrooms')
+      .leftJoin('p.propertyDetails', 'details')
+      .leftJoin('p.propertyLocations', 'locations')
+      .leftJoin('locations.sublocation', 'subloc')
+      .where('p.status = :status', { status: PropertyStatus.AVAILABLE })
+      .andWhere('p.approvalStatus = :approvalStatus', { approvalStatus: APPROVAL_GATE })
+      .getRawMany();
+  }
 }
