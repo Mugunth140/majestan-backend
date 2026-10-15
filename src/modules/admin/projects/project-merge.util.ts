@@ -66,5 +66,5 @@ function label(key: string): string {
 export function conflictMessage(conflicts: string[]): string {
   const names = conflicts.slice(0, 4).map(label);
   const more = conflicts.length > 4 ? ` and ${conflicts.length - 4} more` : '';
-  return `Someone else changed ${names.join(', ')}${more} since you opened this project. Nothing was saved. Reload to see their changes; your local draft has been kept.`;
+  return `Someone else changed ${names.join(', ')}${more} since you opened this project. Nothing was saved — load the latest version.`;
 }

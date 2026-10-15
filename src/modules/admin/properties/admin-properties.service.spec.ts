@@ -58,3 +58,56 @@ describe('AdminPropertiesService document storage', () => {
     ]);
   });
 });
+
+describe('AdminPropertiesService property details', () => {
+  it('returns saved furnishing selections and their master item names for CRM editing', async () => {
+    const furnishingItem = { id: 12, name: 'Wardrobe', icon: 'wardrobe' };
+    const record = {
+      id: 44,
+      propertyType: 'apartment',
+      propertyDetails: Promise.resolve(null),
+      propertyLocations: Promise.resolve([]),
+      propertyAmenities: Promise.resolve([]),
+      propertyFurnishings: Promise.resolve([
+        {
+          propertyId: 44,
+          furnishingItemId: furnishingItem.id,
+          furnishingItem: Promise.resolve(furnishingItem),
+        },
+      ]),
+      propertyUnits: Promise.resolve([]),
+      propertyFiles: Promise.resolve([]),
+      propertyImages: Promise.resolve([]),
+      faqs: Promise.resolve([]),
+    };
+    const findOne = jest.fn().mockResolvedValue(record);
+    const service = {
+      dataSource: { getRepository: jest.fn(() => ({ findOne })) },
+      storageService: {
+        resolveImageUrls: jest.fn((images) => images),
+        generateReadUrl: jest.fn((url) => url),
+      },
+    };
+
+    const result = await AdminPropertiesService.prototype.details.call(
+      service,
+      'apartment',
+      44,
+    );
+
+    expect(findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relations: expect.arrayContaining([
+          'propertyFurnishings',
+          'propertyFurnishings.furnishingItem',
+        ]),
+      }),
+    );
+    expect(result.propertyFurnishings).toEqual([
+      expect.objectContaining({
+        furnishingItemId: furnishingItem.id,
+        furnishingItem,
+      }),
+    ]);
+  });
+});

@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { isSameVersion } from './property-version';
 import { DataSource, EntityManager, In } from 'typeorm';
 
 /**
@@ -186,6 +187,8 @@ export class AdminPropertiesService {
         'propertyLocations',
         'propertyLocations.sublocation',
         'propertyAmenities',
+        'propertyFurnishings',
+        'propertyFurnishings.furnishingItem',
         'propertyUnits',
         'propertyFiles',
         'propertyImages',
@@ -201,6 +204,7 @@ export class AdminPropertiesService {
       propertyDetails,
       propertyLocations,
       propertyAmenitiesRaw,
+      propertyFurnishingsRaw,
       propertyUnits,
       propertyFiles,
       propertyImages,
@@ -209,6 +213,7 @@ export class AdminPropertiesService {
       record.propertyDetails,
       record.propertyLocations,
       record.propertyAmenities,
+      record.propertyFurnishings,
       record.propertyUnits,
       record.propertyFiles,
       record.propertyImages,
@@ -219,6 +224,13 @@ export class AdminPropertiesService {
       propertyAmenitiesRaw.map(async (pa) => {
         const amenity = await pa.amenity;
         return { ...pa, amenity };
+      })
+    ) : [];
+
+    const propertyFurnishings = propertyFurnishingsRaw ? await Promise.all(
+      propertyFurnishingsRaw.map(async (pf: any) => {
+        const furnishingItem = await pf.furnishingItem;
+        return { ...pf, furnishingItem };
       })
     ) : [];
 
@@ -243,6 +255,7 @@ export class AdminPropertiesService {
       propertyDetails,
       propertyLocations,
       propertyAmenities,
+      propertyFurnishings,
       propertyUnits,
       propertyFiles: propertyDocuments,
       propertyImages: this.storageService.resolveImageUrls(propertyImages || []),
@@ -636,12 +649,35 @@ export class AdminPropertiesService {
     }
   }
 
-  async update(propertyType: string, id: number, payload: Partial<CreatePropertyDto>) {
+  async update(
+    propertyType: string,
+    id: number,
+    payload: Partial<CreatePropertyDto> & { expectedUpdatedAt?: string },
+  ) {
+    const { expectedUpdatedAt, ...changes } = payload;
+    payload = changes;
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
+      // Version check: the editor sends the updatedAt it loaded. If the record
+      // was saved by someone else since, refuse instead of overwriting their
+      // work. The row lock makes two simultaneous saves take turns, so the
+      // second one always sees the first one's new version.
+      if (expectedUpdatedAt !== undefined) {
+        const current = await queryRunner.manager.findOne(Property, {
+          where: { id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!current) throw new NotFoundException(`Property with ID ${id} not found`);
+        if (!isSameVersion(current.updatedAt, expectedUpdatedAt)) {
+          throw new ConflictException(
+            'This record has been updated by another staff member. Your changes were not saved — load the latest version.',
+          );
+        }
+      }
+
       const shouldUpdateLocation =
         payload.cityId !== undefined ||
         payload.sublocationId !== undefined ||
@@ -1009,14 +1045,19 @@ export class AdminPropertiesService {
         const existingFiles = existingFileIds.length > 0
           ? await queryRunner.manager.find(FileEntity, { where: { id: In(existingFileIds) } })
           : [];
-        const orphanedKeys = existingFiles.map(f => f.fileKey).filter(Boolean) as string[];
+        const savedKeys = new Set(existingFiles.map(f => f.fileKey).filter(Boolean) as string[]);
+        // Only files dropped from the property are orphans. Documents sent back
+        // unchanged keep their storage object — deleting every old key here
+        // used to wipe the files of documents that were being kept.
+        const keptKeys = new Set(payload.documents.map(d => d.fileKey).filter(Boolean));
+        const orphanedKeys = [...savedKeys].filter(key => !keptKeys.has(key));
 
         await queryRunner.manager.delete(PropertyFile, { propertyId: id });
         if (existingFileIds.length > 0) {
           await queryRunner.manager.delete(FileEntity, { id: In(existingFileIds) });
         }
         if (payload.documents.length > 0) {
-          await this.saveDocuments(queryRunner.manager, id, payload.documents);
+          await this.saveDocuments(queryRunner.manager, id, payload.documents, undefined, savedKeys);
         }
 
         if (orphanedKeys.length > 0) {
@@ -1025,6 +1066,11 @@ export class AdminPropertiesService {
           );
         }
       }
+
+      // Any save — even one touching only details/images/files — marks the
+      // property as changed, so the CRM can tell staff editing it at the same
+      // time that someone else saved first.
+      await queryRunner.manager.update(Property, { id }, { updatedAt: new Date() });
 
       await queryRunner.commitTransaction();
       const prop = await this.details(propertyType, id);
@@ -1190,15 +1236,30 @@ export class AdminPropertiesService {
     propertyId: number,
     documents: { fileKey: string; fileName?: string; mimeType?: string; fileSizeBytes?: number; documentType?: string; title?: string; isPublic?: boolean }[],
     deferredDeleteKeys?: string[],
+    /** Keys already stored on this property — kept as-is, never re-moved. */
+    alreadySavedKeys: Set<string> = new Set(),
   ): Promise<void> {
     const validTypes = new Set(Object.values(PropertyDocumentType));
     let sortOrder = 0;
     for (const doc of documents) {
       if (!doc.fileKey) continue;
-      const isTempKey = doc.fileKey.startsWith('uploads/temp/') || doc.fileKey.startsWith('local/temp/');
-      const finalKey = isTempKey
-        ? await this.storageService.moveFile(doc.fileKey, doc.mimeType || 'application/octet-stream', Boolean(deferredDeleteKeys))
-        : doc.fileKey;
+      // A document saved earlier can still carry a temp key (its move was
+      // skipped back then). Its temp object may be long gone, so moving it on
+      // every later save would fail the whole save — keep the saved reference.
+      const isTempKey =
+        (doc.fileKey.startsWith('uploads/temp/') || doc.fileKey.startsWith('local/temp/')) &&
+        !alreadySavedKeys.has(doc.fileKey);
+      let finalKey = doc.fileKey;
+      if (isTempKey) {
+        try {
+          finalKey = await this.storageService.moveFile(doc.fileKey, doc.mimeType || 'application/octet-stream', Boolean(deferredDeleteKeys));
+        } catch (err) {
+          console.error(`[AdminProperties] Failed to move uploaded document ${doc.fileKey}`, err);
+          throw new BadRequestException(
+            `The upload "${doc.fileName || doc.title || 'document'}" is no longer available — please upload it again.`,
+          );
+        }
+      }
       if (isTempKey && deferredDeleteKeys) deferredDeleteKeys.push(doc.fileKey);
       const ext = (doc.fileName?.split('.').pop() || '').slice(0, 20) || null;
       const file = new FileEntity();

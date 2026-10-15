@@ -192,7 +192,7 @@ describe('project concurrency protection', () => {
   it('rejects a stale unit snapshot before deleting units or finalizing media', async () => {
     const { service, manager, queryRunner, storage } = makeService();
     manager.findOne.mockResolvedValue({ id: 11, revision: 2 } as any);
-    await expect(service.update(11, { expectedRevision: 1, units: [], galleryImageUrls: ['uploads/temp/new.png'] } as any)).rejects.toThrow('has changed');
+    await expect(service.update(11, { expectedRevision: 1, units: [], galleryImageUrls: ['uploads/temp/new.png'] } as any)).rejects.toThrow('updated by another staff member');
     expect(manager.findOne).toHaveBeenCalledWith(Project, expect.objectContaining({ where: { id: 11 }, lock: { mode: 'pessimistic_write' } }));
     expect(manager.delete).not.toHaveBeenCalled();
     expect(manager.update).not.toHaveBeenCalled();
@@ -201,7 +201,7 @@ describe('project concurrency protection', () => {
   });
   it('rejects legacy clients that replace units without a revision', async () => {
     const { service, manager } = makeService();
-    await expect(service.update(11, { units: [] } as any)).rejects.toThrow('has changed');
+    await expect(service.update(11, { units: [] } as any)).rejects.toThrow('updated by another staff member');
     expect(manager.delete).not.toHaveBeenCalled();
   });
   it('allows a matching revision and never persists the client precondition as a project field', async () => {

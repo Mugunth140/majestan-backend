@@ -348,12 +348,12 @@ export class AdminProjectsService {
       const unitCodes = payload.units?.map((u) => u.unitCode) ?? [];
       const unitByUnit = Boolean(changedUnitCodes && payload.units && new Set(unitCodes).size === unitCodes.length);
       if (payload.units !== undefined && payload.expectedRevision === undefined) {
-        throw new ConflictException('This project has changed since you opened it. Your changes were not saved. Reload the latest project before saving; your local draft has been kept.');
+        throw new ConflictException('This record has been updated by another staff member. Your changes were not saved — load the latest version.');
       }
       if (payload.expectedRevision !== undefined && payload.expectedRevision !== existing.revision) {
         // Older clients send no field list: any later save blocks them, as before.
         if (!changedFields) {
-          throw new ConflictException('This project has changed since you opened it. Your changes were not saved. Reload the latest project before saving; your local draft has been kept.');
+          throw new ConflictException('This record has been updated by another staff member. Your changes were not saved — load the latest version.');
         }
         const conflicts = findConflicts(existing.fieldRevisions, payload.expectedRevision, changedFields, unitByUnit ? changedUnitCodes : undefined);
         if (conflicts.length) throw new ConflictException(conflictMessage(conflicts));
