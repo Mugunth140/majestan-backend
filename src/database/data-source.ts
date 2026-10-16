@@ -38,6 +38,7 @@ import { AddProjectFaqSection1784100000000 } from './migrations/1784100000000-Ad
 import { AddProjectEnquiryToLeads1784200000000 } from './migrations/1784200000000-AddProjectEnquiryToLeads';
 import { AddProjectFieldRevisions1784300000000 } from './migrations/1784300000000-AddProjectFieldRevisions';
 import { CreateShowcaseItems1784400000000 } from './migrations/1784400000000-CreateShowcaseItems';
+import { CreateSavedListings1784500000000 } from './migrations/1784500000000-CreateSavedListings';
 
 const parseBoolean = (value: string | undefined, fallback = false): boolean => {
   if (!value) {
@@ -102,6 +103,7 @@ export default new DataSource({
     AddProjectEnquiryToLeads1784200000000,
     AddProjectFieldRevisions1784300000000,
     CreateShowcaseItems1784400000000,
+    CreateSavedListings1784500000000,
   ],
   extra: {
     connectionLimit: parseInteger(process.env.DB_POOL_SIZE, 10),

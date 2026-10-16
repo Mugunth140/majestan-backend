@@ -4,301 +4,250 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
-import { PropertyType } from '../../common/enums/property-type.enum';
+import { DataSource, In } from 'typeorm';
 import {
-  PROPERTY_TABLE_CONFIG,
-  getPropertyConfig,
-  resolvePropertyType,
-} from '../properties/constants/property-table.config';
+  Property,
+  PropertyStatus,
+} from '../../database/entities/property.entity';
+import { Project, ProjectStatus } from '../../database/entities/project.entity';
+import {
+  SavedListing,
+  SavedListingKind,
+} from '../../database/entities/saved-listing.entity';
+import { StorageService } from '../storage/storage.service';
+import { toProjectListItem } from '../projects/projects.service';
+import {
+  FEATURED_PROPERTY_RELATIONS,
+  toFeaturedProperty,
+} from '../showcases/featured-property.mapper';
 import { WishlistGuestQueryDto } from './dto/wishlist-guest-query.dto';
 import { ToggleWishlistDto } from './dto/toggle-wishlist.dto';
 
-type WishlistRow = {
+/** Only live listings can be saved or shown (same gate as the public pages). */
+const LIVE_PROPERTY = {
+  status: PropertyStatus.AVAILABLE,
+  approvalStatus: 'Approved',
+} as const;
+
+/**
+ * The card fields the wishlist page reads. Named to match the page's
+ * existing lookups (title, canonicalSlug, coverImageUrl, price, posttype…).
+ */
+export type WishlistCard = {
   id: number;
-  property_id: number;
-  property_type: string;
+  title: string;
+  canonicalSlug: string;
+  coverImageUrl: string | null;
+  sublocation: string | null;
+  city: string | null;
+  price: number | null;
+  posttype: string | null;
+  projectType?: string | null;
 };
 
-type WishlistListItem = {
+export type WishlistListItem = {
   id: number;
   propertyId: number;
-  propertyType: PropertyType;
+  /** DB property type ("apartment"…) or "project": the key the site's
+      wishlist store matches buttons on. */
+  propertyType: string;
   legacyPropertyType: string;
-  property: Record<string, unknown> | null;
+  /** null when the listing has since gone offline (still removable). */
+  property: WishlistCard | null;
 };
 
+const kindOf = (type: string): SavedListingKind =>
+  type.trim().toLowerCase() === 'project' ? 'project' : 'property';
+
+const toNumber = (v: unknown): number | null => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+/**
+ * Saved properties and projects ("wishlist"), keyed by the site's wishlist
+ * id. Reads the unified `properties` / `projects` tables.
+ */
 @Injectable()
 export class WishlistService {
-  private wishlistColumnsCache: Set<string> | null = null;
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly storageService: StorageService,
+  ) {}
 
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  private get saved() {
+    return this.dataSource.getRepository(SavedListing);
+  }
 
-  async list(query: WishlistGuestQueryDto) {
-    const columns = await this.getWishlistColumns();
+  private readUrl = (key: string): string =>
+    this.storageService.generateReadUrl(key);
 
-    const wishlistQuery = this.dataSource
-      .createQueryBuilder()
-      .select('wishlist.id', 'id')
-      .addSelect('wishlist.property_id', 'property_id')
-      .addSelect('wishlist.property_type', 'property_type')
-      .from('wishlist', 'wishlist')
-      .where('wishlist.user_id = :guestId', { guestId: query.guestId })
-      .orderBy('wishlist.id', 'DESC');
+  async list(
+    query: WishlistGuestQueryDto,
+  ): Promise<{ items: WishlistListItem[]; total: number }> {
+    const rows = await this.saved.find({
+      where: { ownerKey: query.guestId },
+      order: { id: 'DESC' },
+    });
 
-    if (columns.has('status')) {
-      wishlistQuery.andWhere('wishlist.status = :status', { status: 1 });
-    }
+    const propertyIds = rows
+      .filter((r) => r.listingKind === 'property')
+      .map((r) => r.listingId);
+    const projectIds = rows
+      .filter((r) => r.listingKind === 'project')
+      .map((r) => r.listingId);
+    const [properties, projects] = await Promise.all([
+      this.propertyCards(propertyIds),
+      this.projectCards(projectIds),
+    ]);
 
-    const wishlistRows = await wishlistQuery.getRawMany<WishlistRow>();
+    const items = rows.map((row): WishlistListItem => {
+      const card =
+        (row.listingKind === 'project' ? projects : properties).get(
+          row.listingId,
+        ) ?? null;
+      return {
+        id: row.id,
+        propertyId: row.listingId,
+        propertyType: row.listingType,
+        legacyPropertyType: row.listingType,
+        property: card,
+      };
+    });
 
-    const groupedRows = new Map<string, Array<WishlistRow>>();
-
-    for (const row of wishlistRows) {
-      const resolved = this.resolveLegacyType(row.property_type);
-
-      if (!resolved) {
-        continue;
-      }
-
-      const entries = groupedRows.get(resolved.config.table) ?? [];
-      entries.push({
-        ...row,
-      });
-      groupedRows.set(resolved.config.table, entries);
-    }
-
-    const propertiesByTable = new Map<
-      string,
-      Map<number, Record<string, unknown>>
-    >();
-
-    await Promise.all(
-      Array.from(groupedRows.entries()).map(async ([table, entries]) => {
-        const ids = entries.map((entry) => entry.property_id);
-        const properties = await this.dataSource
-          .createQueryBuilder()
-          .select('p.*')
-          .from(table, 'p')
-          .where('p.id IN (:...ids)', { ids })
-          .getRawMany<Record<string, unknown>>();
-
-        propertiesByTable.set(
-          table,
-          new Map(
-            properties.map((property) => [Number(property.id), property]),
-          ),
-        );
-      }),
-    );
-
-    const items: WishlistListItem[] = wishlistRows
-      .map((row) => {
-        const resolved = this.resolveLegacyType(row.property_type);
-
-        if (!resolved) {
-          return null;
-        }
-
-        // wishlist.property_id is VARCHAR while property PKs are numeric —
-        // normalize so the Map lookup actually hits.
-        const propertyId = Number(row.property_id);
-        const property =
-          propertiesByTable.get(resolved.config.table)?.get(propertyId) ??
-          null;
-
-        return {
-          id: row.id,
-          propertyId,
-          propertyType: resolved.propertyType,
-          legacyPropertyType: row.property_type,
-          property,
-        };
-      })
-      .filter((item): item is WishlistListItem => item !== null);
-
-    return {
-      items,
-      total: items.length,
-    };
+    return { items, total: items.length };
   }
 
   async count(query: WishlistGuestQueryDto) {
-    const columns = await this.getWishlistColumns();
-
-    const countQuery = this.dataSource
-      .createQueryBuilder()
-      .from('wishlist', 'wishlist')
-      .where('wishlist.user_id = :guestId', { guestId: query.guestId });
-
-    if (columns.has('status')) {
-      countQuery.andWhere('wishlist.status = :status', { status: 1 });
-    }
-
-    // NB: getCount() crashes on a raw .from() builder (no entity metadata),
-    // so count explicitly instead.
-    const countRow = await countQuery
-      .select('COUNT(1)', 'cnt')
-      .getRawOne<{ cnt: string | number }>();
-
     return {
-      total: Number(countRow?.cnt ?? 0),
+      total: await this.saved.count({ where: { ownerKey: query.guestId } }),
     };
   }
 
   async toggle(payload: ToggleWishlistDto) {
-    const propertyType = this.ensurePropertyType(payload.propertyType);
-    const config = getPropertyConfig(propertyType);
+    const kind = kindOf(payload.propertyType);
+    const existing = await this.saved.findOne({
+      where: {
+        ownerKey: payload.guestId,
+        listingKind: kind,
+        listingId: payload.propertyId,
+      },
+    });
 
-    const columns = await this.getWishlistColumns();
-
-    const existingQuery = this.dataSource
-      .createQueryBuilder()
-      .select('wishlist.id', 'id')
-      .from('wishlist', 'wishlist')
-      .where('wishlist.user_id = :guestId', { guestId: payload.guestId })
-      .andWhere('wishlist.property_id = :propertyId', {
-        propertyId: payload.propertyId,
-      })
-      .andWhere('wishlist.property_type = :propertyType', {
-        propertyType: config.legacyWishlistType,
-      })
-      .limit(1);
-
-    if (columns.has('status')) {
-      existingQuery.andWhere('wishlist.status = :status', { status: 1 });
-    }
-
-    const existing = await existingQuery.getRawOne<{ id: number }>();
-
-    // Removing an existing save always succeeds — even if the underlying
-    // property was deleted/unpublished since (stale rows must be removable).
+    // Removing always succeeds, even if the listing has since gone offline.
     if (existing) {
-      await this.dataSource
-        .createQueryBuilder()
-        .delete()
-        .from('wishlist')
-        .where('id = :id', { id: existing.id })
-        .execute();
-
-      const count = await this.count({ guestId: payload.guestId });
-
+      await this.saved.delete({ id: existing.id });
       return {
         wished: false,
-        total: count.total,
+        total: (await this.count({ guestId: payload.guestId })).total,
       };
     }
 
-    await this.ensurePropertyExists(config.table, payload.propertyId);
-
-    await this.insertWishlistRow(
-      columns,
-      payload.guestId,
-      payload.propertyId,
-      config.legacyWishlistType,
-    );
-
-    const count = await this.count({ guestId: payload.guestId });
+    const listingType = await this.liveListingType(kind, payload.propertyId);
+    // orIgnore: a double-click racing the first insert hits the unique key.
+    await this.saved
+      .createQueryBuilder()
+      .insert()
+      .values({
+        ownerKey: payload.guestId,
+        listingKind: kind,
+        listingId: payload.propertyId,
+        listingType,
+      })
+      .orIgnore()
+      .execute();
 
     return {
       wished: true,
-      total: count.total,
+      total: (await this.count({ guestId: payload.guestId })).total,
     };
   }
 
-  private ensurePropertyType(value: string): PropertyType {
-    const propertyType = resolvePropertyType(value);
-
-    if (!propertyType) {
-      throw new BadRequestException('Unsupported property type');
+  /** The type to store for a live listing; 404 when it isn't live. */
+  private async liveListingType(
+    kind: SavedListingKind,
+    id: number,
+  ): Promise<string> {
+    if (kind === 'project') {
+      const exists = await this.dataSource
+        .getRepository(Project)
+        .exist({ where: { id, status: ProjectStatus.PUBLISHED } });
+      if (!exists) throw new NotFoundException('Project not found');
+      return 'project';
     }
-
-    return propertyType;
+    const property = await this.dataSource.getRepository(Property).findOne({
+      where: { id, ...LIVE_PROPERTY },
+      select: { id: true, propertyType: true },
+    });
+    if (!property) throw new NotFoundException('Property not found');
+    const type = String(property.propertyType ?? '').trim();
+    if (!type) throw new BadRequestException('Unsupported property type');
+    return type;
   }
 
-  private async ensurePropertyExists(
-    table: string,
-    propertyId: number,
-  ): Promise<void> {
-    const publishedStatus =
-      Object.values(PROPERTY_TABLE_CONFIG).find((c) => c.table === table)
-        ?.publishedStatus ?? 1;
-    const row = await this.dataSource
-      .createQueryBuilder()
-      .select('p.id', 'id')
-      .from(table, 'p')
-      .where('p.id = :propertyId', { propertyId })
-      .andWhere('p.status = :status', { status: publishedStatus })
-      .limit(1)
-      .getRawOne<{ id: number }>();
-
-    if (!row) {
-      throw new NotFoundException('Property not found');
-    }
-  }
-
-  private async getWishlistColumns(): Promise<Set<string>> {
-    if (this.wishlistColumnsCache) {
-      return this.wishlistColumnsCache;
-    }
-
-    const queryRunner = this.dataSource.createQueryRunner();
-
-    try {
-      const table = await queryRunner.getTable('wishlist');
-      this.wishlistColumnsCache = new Set(
-        (table?.columns ?? []).map((column) => column.name.toLowerCase()),
-      );
-    } finally {
-      await queryRunner.release();
-    }
-
-    if (!this.wishlistColumnsCache) {
-      this.wishlistColumnsCache = new Set<string>();
-    }
-
-    return this.wishlistColumnsCache;
-  }
-
-  private async insertWishlistRow(
-    columns: Set<string>,
-    guestId: string,
-    propertyId: number,
-    legacyPropertyType: string,
-  ): Promise<void> {
-    const values: Record<string, unknown> = {
-      user_id: guestId,
-      property_id: propertyId,
-      property_type: legacyPropertyType,
-    };
-
-    if (columns.has('status')) {
-      values.status = 1;
-    }
-
-    await this.dataSource
-      .createQueryBuilder()
-      .insert()
-      .into('wishlist')
-      .values(values)
-      .execute();
-  }
-
-  private resolveLegacyType(legacyType: string): {
-    propertyType: PropertyType;
-    config: (typeof PROPERTY_TABLE_CONFIG)[PropertyType];
-  } | null {
-    const entry = Object.entries(PROPERTY_TABLE_CONFIG).find(
-      ([, config]) => config.legacyWishlistType === legacyType,
+  private async propertyCards(
+    ids: number[],
+  ): Promise<Map<number, WishlistCard>> {
+    if (ids.length === 0) return new Map();
+    const properties = await this.dataSource.getRepository(Property).find({
+      where: { id: In(ids), ...LIVE_PROPERTY },
+      relations: FEATURED_PROPERTY_RELATIONS,
+    });
+    const cards = await Promise.all(
+      properties.map(async (p): Promise<WishlistCard> => {
+        const f = await toFeaturedProperty(p, this.readUrl);
+        return {
+          id: p.id,
+          title: f.propertyName || `Property #${p.id}`,
+          canonicalSlug: f.detailPath.replace(/^\/+/, ''),
+          coverImageUrl: f.photo,
+          sublocation: f.sublocation,
+          city: p.city ?? null,
+          price: toNumber(p.price),
+          posttype: f.postType ? f.postType.toLowerCase() : null,
+        };
+      }),
     );
+    return new Map(cards.map((c) => [c.id, c]));
+  }
 
-    if (!entry) {
-      return null;
-    }
-
-    return {
-      propertyType: entry[0] as PropertyType,
-      config: entry[1],
-    };
+  private async projectCards(
+    ids: number[],
+  ): Promise<Map<number, WishlistCard>> {
+    if (ids.length === 0) return new Map();
+    const projects = await this.dataSource
+      .getRepository(Project)
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.units', 'u', 'u.status = :unitStatus', {
+        unitStatus: 'available',
+      })
+      .where('p.id IN (:...ids)', { ids })
+      .andWhere('p.status = :status', { status: ProjectStatus.PUBLISHED })
+      .getMany();
+    const cards = await Promise.all(
+      projects.map(async (project): Promise<WishlistCard> => {
+        const item = toProjectListItem(
+          project,
+          ((await project.units) ?? []) as any[],
+          this.readUrl,
+        );
+        return {
+          id: project.id,
+          title: item.name,
+          canonicalSlug: (item.canonicalSlug || item.slug || '').replace(
+            /^\/+/,
+            '',
+          ),
+          coverImageUrl: item.coverImageUrl ?? null,
+          sublocation:
+            [item.sublocation, item.city].filter(Boolean).join(', ') || null,
+          city: item.city ?? null,
+          price: toNumber(item.ranges?.minPrice),
+          posttype: null,
+          projectType: item.projectType ?? null,
+        };
+      }),
+    );
+    return new Map(cards.map((c) => [c.id, c]));
   }
 }
