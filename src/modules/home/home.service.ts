@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { ShowcasesService } from '../showcases/showcases.service';
+import { GoogleReviewsService } from '../reviews/google-reviews.service';
 
 type LocationRow = {
   id: number;
@@ -29,6 +30,7 @@ export class HomeService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly showcasesService: ShowcasesService,
+    private readonly googleReviews: GoogleReviewsService,
   ) {}
 
   async getHomePage() {
@@ -38,6 +40,7 @@ export class HomeService {
       banners,
       handpickedProperties,
       featuredProjects,
+      googleReviews,
     ] = await Promise.all([
       this.listSublocations(),
       this.listUnitTypes(),
@@ -46,6 +49,8 @@ export class HomeService {
       // live records while its list is empty.
       this.showcasesService.handpickedProperties(),
       this.showcasesService.featuredProjects(),
+      // Cached; null (section hidden) whenever Google can't be reached.
+      this.googleReviews.get(),
     ]);
 
     return {
@@ -56,6 +61,7 @@ export class HomeService {
       banners,
       handpickedProperties,
       featuredProjects,
+      googleReviews,
     };
   }
 
