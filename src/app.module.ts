@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { SiteThrottlerGuard } from './common/guards/site-throttler.guard';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import appConfig from './config/app.config';
 import authConfig from './config/auth.config';
@@ -103,7 +104,7 @@ import { RootController } from './root.controller';
   providers: [
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: SiteThrottlerGuard,
     },
     {
       provide: APP_GUARD,

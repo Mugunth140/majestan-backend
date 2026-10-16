@@ -93,7 +93,7 @@ function normFacing(v: string): string {
 }
 
 import { AdminPropertiesService } from '../admin/properties/admin-properties.service';
-import { parsePropertySlugSuffix } from './utils/property-slug.util';
+import { parsePropertySlugSuffix, slugDescribesProperty } from './utils/property-slug.util';
 import { CreatePropertyDto } from '../admin/properties/dto/create-property.dto';
 import { DataSource } from 'typeorm';
 import { StorageService } from '../storage/storage.service';
@@ -484,6 +484,11 @@ export class PropertiesService {
             'seo'
           ],
         });
+        // Old-website URLs reuse codes like -ap178 for unrelated listings;
+        // only recover when the slug's words match this property.
+        if (property && !slugDescribesProperty(slug, property.slug ?? '')) {
+          property = null;
+        }
       }
     }
 

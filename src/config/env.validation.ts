@@ -55,6 +55,9 @@ export const envValidationSchema = Joi.object({
 
   THROTTLE_TTL_MS: Joi.number().integer().min(1000).default(60000),
   THROTTLE_LIMIT: Joi.number().integer().min(1).default(120),
+  // Shared with the site frontend (same env file): marks its server-side
+  // calls so they aren't rate-limited as one IP. Empty = feature off.
+  INTERNAL_API_KEY: Joi.string().allow('').default(''),
 
   MEILI_HOST: Joi.string().uri().allow('').default('http://meilisearch:7700'),
   MEILI_MASTER_KEY: Joi.string().allow('').default(''),
