@@ -14,6 +14,25 @@ import { CrmForwardingService, propertyLabelFromPageUrl } from './crm-forwarding
  * admits compact-ISO ('20261005'), which breaks lexicographic date compares. */
 const VISIT_DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * CRM lead source for each general-enquiry form, keyed by the `source` the
+ * site frontend sends. Staff see this label on the lead, so it names the page
+ * the visitor filled the form on.
+ */
+const ENQUIRY_SOURCE_LABELS: Record<string, string> = {
+  liaisoning_cta: 'Website – Liaisoning page',
+  property_management_cta: 'Website – Property Management page',
+  brokerage_cta: 'Website – Brokerage page',
+  nri_cta: 'Website – NRI Services page',
+  financial_assistance_cta: 'Website – Financial Assistance page',
+  contact_page: 'Website – Contact page',
+};
+
+/** Label for a general enquiry; forms that send no known source get a generic one. */
+export function enquirySourceLabel(source?: string): string {
+  return (source && ENQUIRY_SOURCE_LABELS[source]) || 'Website – Enquiry form';
+}
+
 const ORPHAN_PROPERTY_ID = 999; // 'Legacy Unmapped Property' — designated fallback, see migration 1779100000000.
 
 /**
@@ -155,6 +174,22 @@ export class LeadsService {
             source: 'whatsapp_popup',
             whatsappOptIn: payload.whatsappOptIn ?? true,
           },
+        })
+        .catch(() => undefined);
+    } else if (normalizedMobile) {
+      // Every other general enquiry (service pages, contact page, home page
+      // listing cards) goes to the CRM too: before this they were only stored
+      // here, where staff never saw them. The visitor's message travels as
+      // `notes`, which the CRM keeps as a note on the lead.
+      void this.crmForwarding
+        .forwardEnquiry({
+          name: (payload.name ?? '').trim(),
+          mobile: normalizedMobile,
+          email: payload.email || undefined,
+          source: enquirySourceLabel(payload.source),
+          propertyType: payload.propertyType,
+          listingType: payload.listingType,
+          notes: payload.message?.trim() || undefined,
         })
         .catch(() => undefined);
     }
