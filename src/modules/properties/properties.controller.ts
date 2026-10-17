@@ -4,18 +4,20 @@ import { CreatePropertyDto } from '../admin/properties/dto/create-property.dto';
 import { PropertiesService } from './properties.service';
 import { PropertySearchQueryDto } from './dto/property-search.dto';
 import { StorageService } from '../storage/storage.service';
+import { PropertyListingsService } from './property-listings.service';
 
 @Controller('properties')
 export class PropertiesController {
   constructor(
     private readonly propertiesService: PropertiesService,
     private readonly storageService: StorageService,
+    private readonly propertyListingsService: PropertyListingsService,
   ) {}
 
   @Public()
   @Get()
   async search(@Query() query: PropertySearchQueryDto) {
-    return this.propertiesService.search(query);
+    return query.includeProjects ? this.propertyListingsService.search(query) : this.propertiesService.search(query);
   }
 
   @Public()

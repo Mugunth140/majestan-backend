@@ -6,11 +6,12 @@ import { Property } from '../../database/entities/property.entity';
 import { AdminPropertiesModule } from '../admin/properties/admin-properties.module';
 import { StorageModule } from '../storage/storage.module';
 import { SearchModule } from '../search/search.module';
+import { PropertyListingsService } from './property-listings.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Property]), AdminPropertiesModule, StorageModule, SearchModule],
   controllers: [PropertiesController],
-  providers: [PropertiesService],
+  providers: [PropertiesService, PropertyListingsService],
   exports: [PropertiesService],
 })
 export class PropertiesModule {}

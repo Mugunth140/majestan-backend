@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -20,6 +21,14 @@ export enum PropertySortOption {
 }
 
 export class PropertySearchQueryDto {
+  @IsOptional()
+  @Transform(({ value, obj, key }) => {
+    const raw = obj?.[key] ?? value;
+    return raw === true || raw === 'true' ? true : raw === false || raw === 'false' ? false : raw;
+  })
+  @IsBoolean()
+  includeProjects?: boolean;
+
   /**
    * Accepts both DB enum values ('commercial', 'industrial', 'individual_portion')
    * and API alias values ('commercial-space', 'industrial-space', 'independent-house').

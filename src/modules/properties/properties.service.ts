@@ -80,7 +80,7 @@ type SearchResult = {
 };
 
 // Best-known built-up area across the details columns (stored as strings).
-const AREA_EXPR = `COALESCE(CAST(NULLIF(TRIM(details.superBuiltUpArea), '') AS DECIMAL(12,2)), CAST(NULLIF(TRIM(details.areaSqft), '') AS DECIMAL(12,2)), CAST(NULLIF(TRIM(details.carpetArea), '') AS DECIMAL(12,2)))`;
+export const AREA_EXPR = `COALESCE(CAST(NULLIF(TRIM(details.superBuiltUpArea), '') AS DECIMAL(12,2)), CAST(NULLIF(TRIM(details.areaSqft), '') AS DECIMAL(12,2)), CAST(NULLIF(TRIM(details.carpetArea), '') AS DECIMAL(12,2)))`;
 
 function toStrList(v: unknown): string[] {
   if (v === undefined || v === null) return [];
@@ -243,47 +243,8 @@ export class PropertiesService {
     }
   }
 
-  async search(query: PropertySearchQueryDto): Promise<SearchResult> {
-    if (this.searchService?.isEnabled() && query.propertyName && query.propertyName.trim().length >= 2) {
-      try {
-        const dbPropertyType = query.propertyType ? normalizePropertyType(query.propertyType as string) : undefined;
-        const meili = await this.searchService.search(query.propertyName, {
-          propertyType: dbPropertyType,
-          listingType: query.listingType,
-          location: query.location,
-          city: query.city,
-          minPrice: numOrUndef(query.minPrice),
-          maxPrice: numOrUndef(query.maxPrice),
-          bedrooms: query.bedrooms,
-          sort: meiliSort(query.sort),
-        }, query.page || 1, query.limit || 14);
-        if (meili.hits.length > 0) {
-          const ids = meili.hits.map((h: any) => h.id);
-          const meiliQb = this.propertyRepository.createQueryBuilder('p')
-            .leftJoinAndSelect('p.propertyDetails', 'details')
-            .leftJoinAndSelect('p.propertyLocations', 'locations')
-            .leftJoinAndSelect('locations.sublocation', 'subloc')
-            .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
-            .leftJoinAndSelect('p.propertyUnits', 'units')
-            .where('p.id IN (:...ids)', { ids })
-            .andWhere('p.status = :status', { status: PropertyStatus.AVAILABLE })
-            .andWhere('p.approvalStatus = :approvalStatus', { approvalStatus: APPROVAL_GATE });
-          this.applyPlaceFilters(meiliQb, query);
-          this.applyListingFilters(meiliQb, query);
-          const props = await meiliQb.getMany();
-          const byId = new Map(props.map((p) => [p.id, p]));
-          const ordered = ids.map((id: number) => byId.get(id)).filter(Boolean) as Property[];
-          const mappedItems = await Promise.all(ordered.map(async (p) => {
-            const images = await p.propertyImages;
-            return { ...p, propertyImages: this.storageService.resolveImageUrls(images || []), images: this.storageService.resolveImageUrls(images || []), canonicalSlug: p.slug ? p.slug : null };
-          }));
-          return { items: mappedItems as any, total: meili.total, page: query.page || 1, limit: query.limit || 14 };
-        }
-        // No Meili hits (e.g. stale or not-yet-built index) — fall through to
-        // the DB search below instead of returning an empty page.
-      } catch {}
-    }
-
+  /** Shared DB filters for standalone and combined property/project listings. */
+  databaseSearchQuery(query: PropertySearchQueryDto): SelectQueryBuilder<Property> {
     const qb = this.propertyRepository.createQueryBuilder('p')
       .leftJoinAndSelect('p.propertyDetails', 'details')
       .leftJoinAndSelect('p.propertyLocations', 'locations')
@@ -334,6 +295,52 @@ export class PropertiesService {
     // Singular listing-UI filters (price/area bounds, bedrooms, facing,
     // furnishing, age) shared with the Meilisearch path above.
     this.applyListingFilters(qb, query);
+
+    return qb;
+  }
+
+  async search(query: PropertySearchQueryDto): Promise<SearchResult> {
+    if (this.searchService?.isEnabled() && query.propertyName && query.propertyName.trim().length >= 2) {
+      try {
+        const dbPropertyType = query.propertyType ? normalizePropertyType(query.propertyType as string) : undefined;
+        const meili = await this.searchService.search(query.propertyName, {
+          propertyType: dbPropertyType,
+          listingType: query.listingType,
+          location: query.location,
+          city: query.city,
+          minPrice: numOrUndef(query.minPrice),
+          maxPrice: numOrUndef(query.maxPrice),
+          bedrooms: query.bedrooms,
+          sort: meiliSort(query.sort),
+        }, query.page || 1, query.limit || 14);
+        if (meili.hits.length > 0) {
+          const ids = meili.hits.map((h: any) => h.id);
+          const meiliQb = this.propertyRepository.createQueryBuilder('p')
+            .leftJoinAndSelect('p.propertyDetails', 'details')
+            .leftJoinAndSelect('p.propertyLocations', 'locations')
+            .leftJoinAndSelect('locations.sublocation', 'subloc')
+            .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
+            .leftJoinAndSelect('p.propertyUnits', 'units')
+            .where('p.id IN (:...ids)', { ids })
+            .andWhere('p.status = :status', { status: PropertyStatus.AVAILABLE })
+            .andWhere('p.approvalStatus = :approvalStatus', { approvalStatus: APPROVAL_GATE });
+          this.applyPlaceFilters(meiliQb, query);
+          this.applyListingFilters(meiliQb, query);
+          const props = await meiliQb.getMany();
+          const byId = new Map(props.map((p) => [p.id, p]));
+          const ordered = ids.map((id: number) => byId.get(id)).filter(Boolean) as Property[];
+          const mappedItems = await Promise.all(ordered.map(async (p) => {
+            const images = await p.propertyImages;
+            return { ...p, propertyImages: this.storageService.resolveImageUrls(images || []), images: this.storageService.resolveImageUrls(images || []), canonicalSlug: p.slug ? p.slug : null };
+          }));
+          return { items: mappedItems as any, total: meili.total, page: query.page || 1, limit: query.limit || 14 };
+        }
+        // No Meili hits (e.g. stale or not-yet-built index) — fall through to
+        // the DB search below instead of returning an empty page.
+      } catch {}
+    }
+
+    const qb = this.databaseSearchQuery(query);
 
     if (query.sort === PropertySortOption.PriceLowToHigh) {
       qb.orderBy('p.price', 'ASC');
