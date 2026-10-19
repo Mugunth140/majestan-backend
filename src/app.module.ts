@@ -38,6 +38,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { AdminBuildersModule } from './modules/admin/builders/admin-builders.module';
 import { OwnerPostModule } from './modules/owner-post/owner-post.module';
 import { RootController } from './root.controller';
+import { SeoEngineModule } from './modules/seo-engine/seo-engine.module';
 
 @Module({
   imports: [
@@ -71,7 +72,7 @@ import { RootController } from './root.controller';
           password: configService.getOrThrow<string>('database.password'),
           database: configService.getOrThrow<string>('database.database'),
           entities: [__dirname + '/**/*.entity{.ts,.js}'],
-          synchronize: true,
+          synchronize: false,
           logging: process.env.NODE_ENV !== 'production' ? true : ['error', 'warn'],
           extra: {
             connectionLimit: configService.getOrThrow<number>(
@@ -99,6 +100,7 @@ import { RootController } from './root.controller';
     ProjectsModule,
     AdminBuildersModule,
     OwnerPostModule,
+    SeoEngineModule,
   ],
   controllers: [RootController],
   providers: [

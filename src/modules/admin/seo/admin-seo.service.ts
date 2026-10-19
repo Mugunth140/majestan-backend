@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { Property, PropertyStatus } from '../../../database/entities/property.entity';
+import { Property } from '../../../database/entities/property.entity';
 import { PropertyLocation } from '../../../database/entities/property-location.entity';
 import { PropertySeo } from '../../../database/entities/property-seo.entity';
 import { UpsertPropertySeoDto } from './dto/upsert-property-seo.dto';
@@ -100,23 +100,12 @@ export class AdminSeoService {
       seo.verificationStatus = verificationStatus;
     }
 
-    let statusChanged = false;
     if (approvalStatus !== undefined) {
       seo.approvalStatus = approvalStatus;
-      if (approvalStatus === 'published' && property.status !== PropertyStatus.AVAILABLE) {
-        property.status = PropertyStatus.AVAILABLE;
-        statusChanged = true;
-      } else if (approvalStatus === 'unpublished' && property.status !== PropertyStatus.UNAVAILABLE) {
-        property.status = PropertyStatus.UNAVAILABLE;
-        statusChanged = true;
-      }
     }
 
-    // Wrap both saves atomically
+    // Legacy callers can save SEO, but inventory remains owned by CRM.
     const saved = await this.dataSource.transaction(async (manager) => {
-      if (statusChanged) {
-        await manager.save(property);
-      }
       return manager.save(seo!);
     });
 

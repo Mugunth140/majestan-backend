@@ -1,3 +1,5 @@
+import { SeoCommandCenter1784600000000 } from './migrations/1784600000000-SeoCommandCenter';
+import { SeoSaleRentTemplates1784700000000 } from './migrations/1784700000000-SeoSaleRentTemplates';
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { CreateMajestanLegacySchema1778544000000 } from './migrations/1778544000000-CreateMajestanLegacySchema';
@@ -66,6 +68,8 @@ export default new DataSource({
   logging: parseBoolean(process.env.TYPEORM_LOGGING, false),
   migrationsTableName: 'migrations',
   migrations: [
+    SeoCommandCenter1784600000000,
+    SeoSaleRentTemplates1784700000000,
     CreateMajestanLegacySchema1778544000000,
     SeedMajestanReferenceData1778544001000,
     RefactorLegacyToUnifiedSchema1779100000000,
