@@ -32,6 +32,18 @@ docker compose run --rm db-migrate
 
 Run these in their respective directories; use normal deployment backups. The local implementation applied only the SEO migration and permission migration, leaving unrelated pending migrations alone.
 
+## Production SEO migrations
+
+Deploying the application image does not apply database migrations. For the SEO feature only, run this in the site backend container after deploying its image:
+
+```bash
+docker exec site-site-backend-1 bun run migration:seo
+```
+
+This runs only migrations `1784600000000`, `1784700000000`, and `1784800000000`, using TypeORM migration history to skip already applied ones. It leaves unrelated pending inventory migrations alone. CRM permission migration `infra/migrations/035_add_seo_permission.sql` must also be applied through the infrastructure migration process; it adds the assignable permission without granting it to staff.
+
+On 20 October 2026, production returned HTTP 500 because all three SEO tables were absent after image deployment. The three SEO migrations were applied, 44 legacy property SEO records were backfilled, and 37 templates, 12 core pages and the technical config were provisioned. The CRM SEO permission was added idempotently. Inventory hashes were unchanged; no inventory/sync routes were modified. Legacy SEO and migration history were backed up on the server before the repair.
+
 ## Authentication configuration
 
 The site backend reads existing `majestan_crm.users`, bcrypt hashes, active status, roles and user permissions. Admin/Super Admin have access. Other staff need `seo.manage`, assigned through CRM's existing user permissions UI.
