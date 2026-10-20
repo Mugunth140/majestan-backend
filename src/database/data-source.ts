@@ -1,3 +1,4 @@
+import { SeoFieldProvisioning1784800000000 } from './migrations/1784800000000-SeoFieldProvisioning';
 import { SeoCommandCenter1784600000000 } from './migrations/1784600000000-SeoCommandCenter';
 import { SeoSaleRentTemplates1784700000000 } from './migrations/1784700000000-SeoSaleRentTemplates';
 import 'reflect-metadata';
@@ -70,6 +71,7 @@ export default new DataSource({
   migrations: [
     SeoCommandCenter1784600000000,
     SeoSaleRentTemplates1784700000000,
+    SeoFieldProvisioning1784800000000,
     CreateMajestanLegacySchema1778544000000,
     SeedMajestanReferenceData1778544001000,
     RefactorLegacyToUnifiedSchema1779100000000,

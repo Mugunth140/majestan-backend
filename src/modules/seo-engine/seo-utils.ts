@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { exposeSeoFields } from './seo-fields';
 
 export const PROPERTY_TYPES = [
   'apartment',
@@ -82,7 +83,7 @@ export function hydrate(row: any) {
     'section_seo',
   ])
     row[key] = json(row[key], key === 'faqs' || key === 'highlights' ? [] : {});
-  return row;
+  return exposeSeoFields(row);
 }
 export function renderTemplate(
   input: string | null,

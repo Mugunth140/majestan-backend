@@ -87,12 +87,26 @@ bun scripts/verify-seo-engine.ts
 bun run build
 ```
 
-The database scripts verify backfill, MySQL 8 indexes, rollback/reapply, all four transaction intents, statistics, immediate updates, thin-content rules, stale writes, redirects, nested paths, and unchanged inventory. Expiry and deletion behavior is tested only on isolated database copies.
+The database scripts verify backfill, MySQL 8 indexes, rollback/reapply, Sale/Rent intents, statistics, immediate updates, thin-content rules, stale writes, redirects, nested paths, and unchanged inventory. Expiry and deletion behavior is tested only on isolated database copies.
 
-Frontend validation covers production build, TypeScript, existing API/SEO/listing tests, responsive admin rendering, fixture-account login and a temporary rule saved through the UI. Raw HTML checks verify the custom title, description, one H1, H2, intro/bottom content, live stats, JSON-LD and noindex behavior. All temporary accounts and test rules are removed afterward.
+Run `bun run scripts/verify-seo-http.ts` from the backend for real admin-proxy saves, fixture-account login and production SSR checks against disposable site/CRM database copies. It verifies titles/descriptions, one H1, H2, copy, live stats, JSON-LD, robots, default/custom social images, templates, custom paths and technical settings. Editor interactions also have component tests. Browser automation was unavailable for the latest run. See [the verification report](seo-admin-verification-2026-10-20.md) for coverage, existing image-data problems and the wider test-suite results.
 
 ## Individual page editor
 
 The Admin Panel provides five tabs: core search/sub-pages, local entity/schema, AI search/FAQs, media descriptions, and indexing/social/redirects. Overrides live only in SEO tables. `settings.entity` stores locality, postal code, builder, RERA, price range, coordinates and landmarks. `settings.ai_summary` and highlights render as semantic content and schema description; focus/secondary keywords feed schema keywords. Raw graph overrides merge matching `@id` or `@type` nodes recursively; unmatched nodes extend the graph. Image alt overrides use source URLs so photo and floor-plan identifiers cannot collide.
 
 Main and child route metadata uses absolute titles. Section metadata inherits template values and supports individual title, description, H1 and canonical overrides. A changed slug creates a 301 by default; the editor can disable automatic redirects. Off-market redirects apply to both projects and properties and must point to a saved locality listing page.
+
+## Full field provisioning (1784800000000)
+
+The three SEO tables remain the only SEO storage. `seo_configs` retains scalar metadata and JSON section/media/schema/settings payloads; new listing `show_live_market_snapshot` is a dedicated default-true boolean. Canonical API field names are exposed directly, while entity facts live under `settings.entity`, AI/keyword/lifecycle/core-copy fields under `settings`, and structured media under `image_alt_overrides` (also exposed as `image_alts`). Legacy string alt values and camelCase/hyphenated section names remain readable. New API saves normalize them to canonical snake_case section fields and preserve unchanged editorial fields.
+
+Inventory manual titles are limited to 60 characters and descriptions to 160. Automatic templates retain their full patterns. Project children are `floor_plans`, `photos`, `amenities`, and `locality`; property children include `floor_plan` and `photos`. Each has dedicated metadata, H1, introduction, canonical, and index control. The public resolver supports child paths and generated sitemaps include eligible children. Root noindex takes precedence. The template token set includes `Max_Price`, `Builder_Name`, `RERA_ID`, and per-image `Index` in addition to existing tokens.
+
+Social images fall back to the primary property image or project cover, resolved through the existing storage service. The same images appear as admin inventory thumbnails. Optional alt, title, and caption values bind to stable media keys with URL compatibility aliases. Property/schema overrides never write CRM facts or inventory status. Unknown builder and approval details remain blank; a project name is never used as an inferred builder name. Commercial/industrial/coworking categories use Schema.org `Place` plus `additionalType`; villas use `GatedResidenceCommunity` for project developments.
+
+Listing rules support Sale and Rent (including rental project units), with 4 bedrooms meaning 4 or more. Project prices and price-per-area statistics use matching available units and the appropriate sale-price or monthly-rent field. Turning off the market snapshot hides its HTML table; automatic count/price FAQs remain independently configurable.
+
+A property can retain a read-only off-market page with its public facts, media, and an availability banner. Those pages emit no active offer. Hard deletion still redirects to the configured locality page, or returns Gone if no destination exists. Snapshots are allowlisted public fields and never expose CRM owner/contact or internal verification records. Sign out and Cancel use the red action treatment.
+
+The core NRI alias `/services/nri-services` is provisioned separately; the existing `/services/nri-property-investment` route stays available. Core copy and custom FAQs render before the website footer. Markdown is rendered as escaped semantic headings, paragraphs, and lists; raw HTML is not injected.

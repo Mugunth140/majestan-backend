@@ -8,6 +8,15 @@ import {
 import { DataSource, EntityManager } from 'typeorm';
 import { StorageService } from '../storage/storage.service';
 import {
+  normalizeSeoInput,
+  validateSeoFields,
+  entityFields,
+  sections,
+  defaultSections,
+  imageFields,
+  sectionKey,
+} from './seo-fields';
+import {
   filterKey,
   hydrate,
   intentWhere,
@@ -118,18 +127,30 @@ export class SeoEngineService {
         `SELECT p.id,p.${scope === 'project' ? 'name' : 'title'} AS name,p.city,p.status,
         p.${scope === 'project' ? 'project_type' : 'property_type'} AS type,
         ${scope === 'project' ? `p.canonical_slug,p.builder_name,p.possession_status,p.sublocation,(SELECT MIN(u.price) FROM project_units u WHERE u.project_id=p.id AND u.status='available' AND u.price>0) AS min_price,(SELECT MAX(u.price) FROM project_units u WHERE u.project_id=p.id AND u.status='available' AND u.price>0) AS max_price,(SELECT GROUP_CONCAT(DISTINCT u.bedrooms ORDER BY u.bedrooms SEPARATOR ', ') FROM project_units u WHERE u.project_id=p.id AND u.bedrooms>0) AS configurations` : 'p.slug AS canonical_slug,p.listing_type,p.property_condition,p.price'},
+        ${scope === 'project' ? 'p.cover_image_url' : '(SELECT i.image_url FROM property_images i WHERE i.property_id=p.id ORDER BY i.is_primary DESC,i.id LIMIT 1)'} AS thumbnail_url,
         c.id AS seo_id,c.updated_at AS seo_updated_at ${join} WHERE ${where} ORDER BY p.id DESC LIMIT ? OFFSET ?`,
         [...args, limit, (page - 1) * limit],
       ),
     ]);
-    return { items, total: Number(count.total), page, limit };
+    return {
+      items: items.map((item: any) => ({
+        ...item,
+        thumbnail_url:
+          item.thumbnail_url && this.storage
+            ? this.storage.generateReadUrl(item.thumbnail_url)
+            : item.thumbnail_url,
+      })),
+      total: Number(count.total),
+      page,
+      limit,
+    };
   }
 
   async inventoryConfig(scope: string, id: number) {
     if (!['project', 'property'].includes(scope))
       throw new BadRequestException('Invalid scope');
     const target = await this.one(
-      `SELECT * FROM ${scope === 'project' ? 'projects' : 'properties'} WHERE id=?`,
+      `SELECT ${scope === 'project' ? "*,DATE_FORMAT(possession_date,'%Y-%m-%d') AS seo_possession_date" : '*'} FROM ${scope === 'project' ? 'projects' : 'properties'} WHERE id=?`,
       [id],
     );
     if (!target) throw new NotFoundException('Inventory no longer exists');
@@ -149,7 +170,21 @@ export class SeoEngineService {
       section_seo: {},
     };
     const source = target.canonical_slug || target.slug;
-    const effective = await this.resolve('/' + source);
+    const effective = await this.resolve(config.public_path || '/' + source);
+    const images = await this.inventoryMedia(scope, target, config);
+    return {
+      config,
+      target,
+      images,
+      effective,
+      entity: effective?.entity || {},
+      default_og_image_url:
+        (await this.defaultSocialImage(scope, target)) || images[0]?.image_url,
+    };
+  }
+
+  private async inventoryMedia(scope: string, target: any, config: any = {}) {
+    const id = target.id;
     const images: any[] = [];
     const addImage = (
       image_url: string,
@@ -167,15 +202,22 @@ export class SeoEngineService {
           key,
           kind,
           id,
-          alt:
-            config.image_alt_overrides?.[image_url] ||
-            config.image_alt_overrides?.[key] ||
-            '',
+          ...(() => {
+            const value =
+              imageFields(config.image_alt_overrides)[image_url] ||
+              imageFields(config.image_alt_overrides)[key] ||
+              {};
+            return {
+              alt: value.alt_text || '',
+              title_text: value.title_text || '',
+              caption: value.caption || '',
+            };
+          })(),
         });
     };
     if (scope === 'property') {
       for (const row of await this.db.query(
-        'SELECT id,image_url FROM property_images WHERE property_id=? ORDER BY id',
+        'SELECT id,image_url FROM property_images WHERE property_id=? ORDER BY is_primary DESC,id',
         [id],
       ))
         addImage(row.image_url, `property-image:${row.id}`, 'Photo', row.id);
@@ -237,13 +279,7 @@ export class SeoEngineService {
         );
       }
     }
-    return {
-      config,
-      target,
-      images,
-      effective,
-      entity: effective?.entity || {},
-    };
+    return images;
   }
 
   private validateConfig(body: any) {
@@ -335,7 +371,6 @@ export class SeoEngineService {
         ['longitude', -180, 180],
         ['lowPrice', 0, 1e15],
         ['highPrice', 0, 1e15],
-        ['pricePerSqFt', 0, 1e15],
       ] as const) {
         if (
           entity[key] !== undefined &&
@@ -438,6 +473,8 @@ export class SeoEngineService {
       ].includes(scope)
     )
       throw new BadRequestException('Invalid scope');
+    body = normalizeSeoInput(body, existing || { scope });
+    validateSeoFields(body, scope);
     const data = this.validateConfig(body);
     if (
       scope === 'page' &&
@@ -626,12 +663,20 @@ export class SeoEngineService {
   async listingPages() {
     return (
       await this.db
-        .query(`SELECT c.*, l.id AS listing_id,l.transaction_intent,l.inventory_kind,l.property_type,l.project_type,l.city_id,l.sublocation_id,l.bedrooms,l.filter_key,l.intro_content,l.bottom_content,l.faqs AS locality_faqs,l.auto_stats_faqs,l.thin_content_guard_enabled,l.minimum_active_listings,l.pinned_indexable,ct.city_name,s.locality_name
+        .query(`SELECT c.*, l.id AS listing_id,l.transaction_intent,l.inventory_kind,l.property_type,l.project_type,l.city_id,l.sublocation_id,l.bedrooms,l.filter_key,l.intro_content,l.bottom_content,l.faqs AS locality_faqs,l.auto_stats_faqs,l.thin_content_guard_enabled,l.minimum_active_listings,l.pinned_indexable,l.show_live_market_snapshot,ct.city_name,s.locality_name
       FROM seo_listing_pages l JOIN seo_configs c ON c.id=l.seo_config_id JOIN cities ct ON ct.id=l.city_id LEFT JOIN sublocations s ON s.id=l.sublocation_id ORDER BY c.updated_at DESC`)
     ).map((r) => ({ ...hydrate(r), locality_faqs: json(r.locality_faqs, []) }));
   }
 
   async saveListing(body: any, actor: number) {
+    body = { ...body };
+    if (body.property_or_project_type !== undefined)
+      body[
+        body.inventory_kind === 'project' ? 'project_type' : 'property_type'
+      ] = body.property_or_project_type;
+    if (body.property_type === 'independent_house')
+      body.property_type = 'individual_portion';
+    if (body.bedrooms === '4+') body.bedrooms = 4;
     const rule: any = {};
     rule.transaction_intent = body.transaction_intent;
     rule.inventory_kind = body.inventory_kind;
@@ -640,8 +685,6 @@ export class SeoEngineService {
       !['property', 'project'].includes(rule.inventory_kind)
     )
       throw new BadRequestException('Choose a valid intent and inventory');
-    if (rule.inventory_kind === 'project' && rule.transaction_intent !== 'buy')
-      throw new BadRequestException('Projects support Sale only');
     rule.property_type =
       rule.inventory_kind === 'property' ? body.property_type || null : null;
     rule.project_type =
@@ -695,8 +738,12 @@ export class SeoEngineService {
       'auto_stats_faqs',
       'thin_content_guard_enabled',
       'pinned_indexable',
-    ])
+      'show_live_market_snapshot',
+    ]) {
+      if (body[key] !== undefined && ![true, false, 0, 1].includes(body[key]))
+        throw new BadRequestException(`Invalid ${key}`);
       rule[key] = Boolean(body[key] ?? key !== 'pinned_indexable');
+    }
     rule.minimum_active_listings = Number(body.minimum_active_listings ?? 2);
     if (
       !Number.isInteger(rule.minimum_active_listings) ||
@@ -837,6 +884,11 @@ export class SeoEngineService {
       const settings = json<any>(c.settings, {});
       if (
         settings.expired_redirect_path &&
+        !(
+          c.scope === 'property' &&
+          c.property_status &&
+          settings.expired_redirect_policy === 'keep_live_sold_banner'
+        ) &&
         ((c.scope === 'property' &&
           (c.property_status !== 'available' || c.is_expired)) ||
           (c.scope === 'project' && c.project_status !== 'published'))
@@ -941,7 +993,14 @@ export class SeoEngineService {
     const args: any[] = [];
     let sql: string;
     if (rule.inventory_kind === 'project') {
-      const where = ["p.status='published'", 'LOWER(p.city)=LOWER(?)'];
+      const mode = rule.transaction_intent === 'rent' ? 'rent' : 'sale';
+      const priceColumn = mode === 'rent' ? 'monthly_rent' : 'price';
+      const unitWhere = `u.project_id=p.id AND u.status='available' AND u.listing_mode='${mode}'${rule.bedrooms ? ` AND u.bedrooms${Number(rule.bedrooms) === 4 ? '>=' : '='}${Number(rule.bedrooms)}` : ''}`;
+      const where = [
+        "p.status='published'",
+        'LOWER(p.city)=LOWER(?)',
+        `EXISTS(SELECT 1 FROM project_units u WHERE ${unitWhere})`,
+      ];
       args.push(rule.city_name);
       if (rule.locality_name) {
         where.push('LOWER(p.sublocation)=LOWER(?)');
@@ -951,16 +1010,10 @@ export class SeoEngineService {
         where.push('p.project_type=?');
         args.push(rule.project_type);
       }
-      if (rule.bedrooms) {
-        where.push(
-          "EXISTS(SELECT 1 FROM project_units u WHERE u.project_id=p.id AND u.status='available' AND u.bedrooms=?)",
-        );
-        args.push(rule.bedrooms);
-      }
       sql = `SELECT p.id,p.name AS title,TRIM(LEADING '/' FROM COALESCE(c.public_path,p.canonical_slug)) AS slug,p.project_type AS type,
-        (SELECT MIN(u.price) FROM project_units u WHERE u.project_id=p.id AND u.status='available' AND u.price>0) AS price,
-        (SELECT MAX(u.price) FROM project_units u WHERE u.project_id=p.id AND u.status='available' AND u.price>0) AS max_price,
-        NULL AS area_sqft,p.cover_image_url AS image_url,p.updated_at FROM projects p LEFT JOIN seo_configs c ON c.project_id=p.id WHERE ${where.join(' AND ')}`;
+        (SELECT MIN(u.${priceColumn}) FROM project_units u WHERE ${unitWhere} AND u.${priceColumn}>0) AS price,
+        (SELECT MAX(u.${priceColumn}) FROM project_units u WHERE ${unitWhere} AND u.${priceColumn}>0) AS max_price,
+        (SELECT AVG(u.${priceColumn}/NULLIF(COALESCE(u.builtup_area_sqft,u.carpet_area_sqft,u.plot_area_sqft),0)) FROM project_units u WHERE ${unitWhere} AND u.${priceColumn}>0) AS price_sqft,NULL AS area_sqft,p.cover_image_url AS image_url,p.updated_at FROM projects p LEFT JOIN seo_configs c ON c.project_id=p.id WHERE ${where.join(' AND ')}`;
     } else {
       const where = [
         LIVE_PROPERTY,
@@ -979,7 +1032,9 @@ export class SeoEngineService {
         args.push(rule.sublocation_id);
       }
       if (rule.bedrooms) {
-        where.push('d.bedrooms=?');
+        where.push(
+          Number(rule.bedrooms) === 4 ? 'd.bedrooms>=?' : 'd.bedrooms=?',
+        );
         args.push(rule.bedrooms);
       }
       sql = `SELECT p.id,p.title,TRIM(LEADING '/' FROM COALESCE(c.public_path,p.slug)) AS slug,p.property_type AS type,p.price,p.price AS max_price,d.area_sqft,p.updated_at,
@@ -994,8 +1049,14 @@ export class SeoEngineService {
       .map((p: any) => Number(p.max_price))
       .filter((n: number) => Number.isFinite(n) && n > 0);
     const ratios = items
-      .filter((p: any) => Number(p.price) > 0 && Number(p.area_sqft) > 0)
-      .map((p: any) => Number(p.price) / Number(p.area_sqft));
+      .map((p: any) =>
+        rule.inventory_kind === 'project'
+          ? Number(p.price_sqft)
+          : Number(p.area_sqft) > 0 && Number(p.price) > 0
+            ? Number(p.price) / Number(p.area_sqft)
+            : 0,
+      )
+      .filter((value: number) => Number.isFinite(value) && value > 0);
     return {
       items,
       stats: {
@@ -1036,9 +1097,10 @@ export class SeoEngineService {
         : null;
     if (scope === 'project')
       target = config.project_id
-        ? await this.one('SELECT * FROM projects WHERE id=?', [
-            config.project_id,
-          ])
+        ? await this.one(
+            "SELECT *,DATE_FORMAT(possession_date,'%Y-%m-%d') AS seo_possession_date FROM projects WHERE id=?",
+            [config.project_id],
+          )
         : null;
     if (!config) {
       target = await this.one('SELECT * FROM properties WHERE slug=?', [
@@ -1053,7 +1115,7 @@ export class SeoEngineService {
         );
       } else {
         target = await this.one(
-          'SELECT * FROM projects WHERE canonical_slug=? OR slug=?',
+          "SELECT *,DATE_FORMAT(possession_date,'%Y-%m-%d') AS seo_possession_date FROM projects WHERE canonical_slug=? OR slug=?",
           [path.slice(1), path.slice(1)],
         );
         if (target) {
@@ -1084,7 +1146,18 @@ export class SeoEngineService {
         rule = inferred;
       }
     }
-    if (!scope) return null;
+    if (!scope) {
+      const match = path.match(
+        /^(.*)\/(floor-plans|floor-plan|photos|amenities|locality)$/,
+      );
+      if (match && match[1]) {
+        const root = await this.resolve(match[1], includeRedirect);
+        if (root?.redirect) return { redirect: root.redirect + '/' + match[2] };
+        if (root && !root.gone && ['project', 'property'].includes(root.scope))
+          return this.resolveSection(root, match[2]);
+      }
+      return null;
+    }
     if (['technical', 'template'].includes(scope)) return null;
     const sourcePath = target
       ? '/' + (target.canonical_slug || target.slug)
@@ -1107,12 +1180,19 @@ export class SeoEngineService {
             )?.expired,
           )
         : 0;
-    if (
+    const offMarket = Boolean(
       target &&
       (expired ||
         (scope === 'property'
           ? target.status !== 'available'
-          : target.status !== 'published'))
+          : target.status !== 'published')),
+    );
+    if (
+      offMarket &&
+      !(
+        scope === 'property' &&
+        config?.settings?.expired_redirect_policy === 'keep_live_sold_banner'
+      )
     ) {
       if (config?.settings?.expired_redirect_path)
         return { redirect: config.settings.expired_redirect_path };
@@ -1136,7 +1216,7 @@ export class SeoEngineService {
       if (scope === 'property') {
         extra =
           (await this.one(
-            `SELECT d.bedrooms,d.area_sqft,s.locality_name,pl.latitude,pl.longitude,pl.pincode,pl.landmark FROM properties p LEFT JOIN property_details d ON d.property_id=p.id LEFT JOIN property_locations pl ON pl.property_id=p.id LEFT JOIN sublocations s ON s.id=pl.location_id WHERE p.id=? ORDER BY s.id LIMIT 1`,
+            `SELECT d.*,s.locality_name,pl.latitude,pl.longitude,pl.pincode,pl.landmark FROM properties p LEFT JOIN property_details d ON d.property_id=p.id LEFT JOIN property_locations pl ON pl.property_id=p.id LEFT JOIN sublocations s ON s.id=pl.location_id WHERE p.id=? ORDER BY s.id LIMIT 1`,
             [target.id],
           )) || {};
         locality = extra.locality_name || '';
@@ -1149,32 +1229,122 @@ export class SeoEngineService {
             [target.id],
           )
         : {};
-    const entity = {
-      locality,
-      pincode: extra.pincode || target?.pincode || '',
-      builder_entity_name: target?.builder_name || '',
-      rera_id: target?.rera_number || '',
-      lowPrice: defaults?.lowPrice || target?.price || '',
-      highPrice: defaults?.highPrice || target?.price || '',
-      latitude: extra.latitude || target?.latitude || '',
-      longitude: extra.longitude || target?.longitude || '',
-      landmarks: extra.landmark || '',
-      ...config?.settings?.entity,
+    const builder =
+      scope === 'project' && target?.builder_id
+        ? await this.one('SELECT name FROM builders WHERE id=?', [
+            target.builder_id,
+          ])
+        : null;
+    const builderName =
+      builder?.name ||
+      (target?.builder_name && target.builder_name !== target?.name
+        ? target.builder_name
+        : '');
+    const typeSchema: Record<string, string> = {
+      apartment: 'Apartment',
+      villa: 'SingleFamilyResidence',
+      individual_portion: 'House',
+      plot: 'Landform',
+      farmland: 'Landform',
+      commercial: 'CommercialProperty',
+      industrial: 'Industrial',
+      coworking: 'CoworkingSpace',
     };
+    const entity = entityFields({
+      sub_locality_override: locality,
+      pincode: extra.pincode || target?.pincode || '',
+      builder_name: builderName,
+      rera_number: target?.rera_number || '',
+      approval_authority: target?.approvals || '',
+      low_price: defaults?.lowPrice || target?.price || '',
+      high_price: defaults?.highPrice || target?.price || '',
+      price_override: target?.price || '',
+      price_per_sqft:
+        Number(extra.area_sqft) > 0 && Number(target?.price) > 0
+          ? Math.round(Number(target.price) / Number(extra.area_sqft))
+          : '',
+      unit_configurations: defaults?.bedrooms
+        ? `${String(defaults.bedrooms).split(',').join(', ')} BHK ${TYPE_LABELS[type] || ''}`
+        : '',
+      total_units: target?.total_units || '',
+      total_area_acres:
+        Number(target?.project_area_sqft) > 0
+          ? Number((Number(target.project_area_sqft) / 43560).toFixed(4))
+          : '',
+      possession_status:
+        target?.possession_status || extra.possession_status || '',
+      possession_date: target?.seo_possession_date || '',
+      latitude: extra.latitude ?? target?.latitude ?? '',
+      longitude: extra.longitude ?? target?.longitude ?? '',
+      builtup_area_sqft: extra.built_up_area || extra.area_sqft || '',
+      plot_area: extra.plot_area
+        ? {
+            value: Number(extra.plot_area),
+            unit: /cent/i.test(extra.area_unit)
+              ? 'Cent'
+              : /acre/i.test(extra.area_unit)
+                ? 'Acre'
+                : 'Sq.Ft',
+          }
+        : extra.plot_size_cents
+          ? { value: Number(extra.plot_size_cents), unit: 'Cent' }
+          : undefined,
+      bhk_config: extra.bedrooms ? `${extra.bedrooms} BHK` : '',
+      approval_status: target?.approvals || '',
+      furnishing_status:
+        extra.furnishing_status ||
+        (extra.furnished === true || extra.furnished === 1 ? 'Furnished' : ''),
+      facing_direction: extra.property_facing || '',
+      commercial_specs: ['commercial', 'industrial', 'coworking'].includes(type)
+        ? Object.fromEntries(
+            Object.entries({
+              power_load: extra.power_supply_2 || extra.power_supply_3,
+              ceiling_height_ft: extra.ceiling_height_ft,
+              zoning: extra.suitable_for,
+            }).filter(([, v]) => v != null && v !== ''),
+          )
+        : undefined,
+      land_specs: ['plot', 'farmland'].includes(type)
+        ? Object.fromEntries(
+            Object.entries({
+              water_source: extra.water_supply,
+              road_width: extra.road_width,
+              fencing: extra.boundary_wall === 1 ? 'Boundary wall' : undefined,
+            }).filter(([, v]) => v != null && v !== ''),
+          )
+        : undefined,
+      ...Object.fromEntries(
+        Object.entries(entityFields(config?.settings?.entity || {})).filter(
+          ([, v]) => v !== undefined && v !== null && v !== '',
+        ),
+      ),
+      transaction_display: intent === 'rent' ? 'Rent' : 'Sale',
+      property_type_schema:
+        config?.settings?.entity?.property_type_schema ||
+        typeSchema[type] ||
+        'Place',
+    });
     locality = entity.locality || locality;
     const city = target?.city || rule?.city_name || 'Coimbatore';
     const variables: any = {
-      BHK: extra.bedrooms
-        ? `${extra.bedrooms} BHK`
-        : defaults?.bedrooms
-          ? `${String(defaults.bedrooms).split(',').join(', ')} BHK`
+      BHK:
+        scope === 'property' && entity.bhk_config
+          ? entity.bhk_config
+          : extra.bedrooms
+            ? `${extra.bedrooms} BHK`
+            : defaults?.bedrooms
+              ? `${String(defaults.bedrooms).split(',').join(', ')} BHK`
+              : '',
+      SqFt:
+        entity.builtup_area_sqft || extra.area_sqft
+          ? Number(entity.builtup_area_sqft || extra.area_sqft).toLocaleString(
+              'en-IN',
+              {
+                maximumFractionDigits: 2,
+                useGrouping: false,
+              },
+            )
           : '',
-      SqFt: extra.area_sqft
-        ? Number(extra.area_sqft).toLocaleString('en-IN', {
-            maximumFractionDigits: 2,
-            useGrouping: false,
-          })
-        : '',
       Property_Type:
         scope === 'property'
           ? SINGULAR_TYPES[type] || 'Property'
@@ -1184,8 +1354,12 @@ export class SeoEngineService {
       Sub_Locality: locality || city,
       City: city,
       Location: locality ? `${locality}, ${city}` : city,
-      Price: priceLabel(target?.price),
+      Price: priceLabel(entity.price_override || target?.price),
       Min_Price: priceLabel(entity.lowPrice),
+      Max_Price: priceLabel(entity.highPrice),
+      Builder_Name: entity.builder_name,
+      RERA_ID: entity.rera_number,
+      Index: 1,
       Project_Name: target?.name || '',
       Property_Name: target?.title || target?.name || '',
       Builder: entity.builder_entity_name,
@@ -1219,7 +1393,8 @@ export class SeoEngineService {
       canonical_url: config?.canonical_url || SITE + publicPath,
       og_title: config?.og_title,
       og_description: config?.og_description,
-      og_image_url: config?.og_image_url || target?.cover_image_url,
+      og_image_url:
+        config?.og_image_url || (await this.defaultSocialImage(scope, target)),
       robots_index: config ? Boolean(config.robots_index) : true,
       robots_follow: config ? Boolean(config.robots_follow) : true,
       highlights: config?.highlights || [],
@@ -1227,13 +1402,12 @@ export class SeoEngineService {
       image_alt_overrides: config?.image_alt_overrides || {},
       schema_overrides: config?.schema_overrides || {},
       section_seo: Object.fromEntries(
-        Object.entries({
-          ...template?.section_seo,
-          ...config?.section_seo,
-        }).map(([key, value]) => [
+        Object.entries(
+          this.mergeSections(scope, template?.section_seo, config?.section_seo),
+        ).map(([key, value]: [string, any]) => [
           key,
           Object.fromEntries(
-            Object.entries(value as any).map(([field, text]) => [
+            Object.entries(value).map(([field, text]) => [
               field,
               typeof text === 'string' ? renderTemplate(text, variables) : text,
             ]),
@@ -1242,11 +1416,123 @@ export class SeoEngineService {
       ),
       variables,
       entity,
-      settings: config?.settings || {},
+      settings: { ...config?.settings },
       ...data,
       rule,
     };
+    const defaultSummary = target
+      ? `${variables.Property_Name || variables.Project_Name} is ${variables.BHK ? 'a ' + variables.BHK + ' ' : 'a '}${(SINGULAR_TYPES[type] || 'property').toLowerCase()} ${scope === 'project' ? 'project ' : ''}in ${variables.Location}.${Number(entity.price_override) > 0 ? ` The ${offMarket ? 'recorded price was' : intent === 'rent' ? 'monthly rent is' : 'asking price is'} ${priceLabel(entity.price_override)}.` : ''}`
+      : '';
+    resolved.settings.ai_summary =
+      config?.settings?.ai_summary || defaultSummary;
+    resolved.ai_summary = resolved.settings.ai_summary;
+    resolved.focus_keyword = config?.settings?.focus_keyword || '';
+    resolved.secondary_keywords = config?.settings?.secondary_keywords || [];
+    resolved.expired_redirect_policy =
+      config?.settings?.expired_redirect_policy || 'redirect_to_locality';
+    const routeLocality =
+      scope === 'project' ? target?.sublocation : extra.locality_name;
+    const candidate =
+      TYPE_SLUGS[type] && target
+        ? `/${TYPE_SLUGS[type]}-for-${intent === 'rent' ? 'rent' : 'sale'}-in-${routeLocality ? slug(routeLocality) + '-' : ''}${slug(city)}`
+        : '';
+    const fallbackRedirect =
+      candidate && (await this.inferRule(candidate))
+        ? candidate
+        : target &&
+            TYPE_SLUGS[type] &&
+            (await this.inferRule(
+              `/${TYPE_SLUGS[type]}-for-${intent === 'rent' ? 'rent' : 'sale'}-in-${slug(city)}`,
+            ))
+          ? `/${TYPE_SLUGS[type]}-for-${intent === 'rent' ? 'rent' : 'sale'}-in-${slug(city)}`
+          : '';
+    resolved.redirect_target_path =
+      config?.settings?.expired_redirect_path || fallbackRedirect;
+    resolved.off_market = offMarket;
+    resolved.image_alts = imageFields(config?.image_alt_overrides);
+    resolved.image_alt_overrides = Object.fromEntries(
+      Object.entries(resolved.image_alts).map(([key, value]: [string, any]) => [
+        key,
+        value.alt_text || '',
+      ]),
+    );
+    resolved.image_alt_template =
+      config?.settings?.image_alt_template ||
+      template?.settings?.image_alt_template ||
+      '{Property_Name} - {BHK} {Property_Type} in {Sub_Locality}, {City} - View {Index}';
+    const crmLandmarks =
+      scope === 'project'
+        ? json<any[]>(target?.nearby_categories, [])
+            .flatMap((category) =>
+              (category.places || [])
+                .filter(
+                  (place: any) =>
+                    typeof place.name === 'string' && place.name.trim(),
+                )
+                .map((place: any) => {
+                  const match = String(place.distance || '').match(
+                    /([0-9]+(?:\.[0-9]+)?)\s*(km|m)\b/i,
+                  );
+                  return {
+                    name: place.name,
+                    ...(category.title ? { category: category.title } : {}),
+                    ...(match
+                      ? {
+                          distance_km:
+                            Number(match[1]) /
+                            (match[2].toLowerCase() === 'm' ? 1000 : 1),
+                        }
+                      : {}),
+                  };
+                }),
+            )
+            .slice(0, 50)
+        : extra.landmark
+          ? [{ name: extra.landmark }]
+          : [];
+    resolved.nearby_landmarks =
+      config?.settings?.nearby_landmarks || crmLandmarks;
+    resolved.settings.nearby_landmarks = resolved.nearby_landmarks;
+    resolved.intro_content = config?.settings?.intro_content || '';
+    resolved.bottom_content = config?.settings?.bottom_content || '';
+    resolved.custom_schema_json = resolved.schema_overrides;
+    resolved.key_highlights = resolved.highlights;
+    if (target && offMarket) {
+      resolved.target_snapshot = Object.fromEntries(
+        [
+          'id',
+          'title',
+          'name',
+          'slug',
+          'canonical_slug',
+          'property_type',
+          'project_type',
+          'city',
+          'state',
+          'description',
+          'status',
+          'listing_type',
+          'price',
+          'sublocation',
+          'cover_image_url',
+          'rera_number',
+          'builder_name',
+          'possession_status',
+          'possession_date',
+        ]
+          .filter((k) => target[k] != null)
+          .map((k) => [k, target[k]]),
+      );
+      const image = await this.defaultSocialImage(scope, target);
+      resolved.media = await this.inventoryMedia(scope, target, config || {});
+      resolved.target_snapshot.media = resolved.media;
+      if (!resolved.media.length && image)
+        resolved.media = [{ image_url: image, key: 'primary', kind: 'Photo' }];
+    }
     if (scope === 'listing') {
+      resolved.show_live_market_snapshot =
+        rule?.show_live_market_snapshot !== false &&
+        rule?.show_live_market_snapshot !== 0;
       if (
         rule?.thin_content_guard_enabled &&
         !rule.pinned_indexable &&
@@ -1296,7 +1582,7 @@ export class SeoEngineService {
   }
 
   private structuredData(seo: any, target: any) {
-    const url = SITE + seo.path,
+    const url = seo.canonical_url || SITE + seo.path,
       graph: any[] = [];
     const pageName =
       seo.h1 ||
@@ -1366,7 +1652,29 @@ export class SeoEngineService {
               .join(' ')
           : seo.meta_description,
         mainEntity: {
-          '@type': placeType,
+          '@type': [
+            'Apartment',
+            'SingleFamilyResidence',
+            'House',
+            'Landform',
+            'Place',
+            'Residence',
+          ].includes(seo.entity?.property_type_schema)
+            ? seo.entity.property_type_schema
+            : seo.entity?.property_type_schema
+              ? 'Place'
+              : placeType,
+          ...(seo.entity?.property_type_schema &&
+          ![
+            'Apartment',
+            'SingleFamilyResidence',
+            'House',
+            'Landform',
+            'Place',
+            'Residence',
+          ].includes(seo.entity.property_type_schema)
+            ? { additionalType: seo.entity.property_type_schema }
+            : {}),
           name: target.title,
           ...(seo.entity?.rera_id ? { identifier: seo.entity.rera_id } : {}),
           address: {
@@ -1388,11 +1696,15 @@ export class SeoEngineService {
               },
             }
           : {}),
-        ...(Number(seo.entity?.lowPrice || target.price) > 0
+        ...(!seo.off_market &&
+        Number(
+          seo.entity?.price_override || seo.entity?.lowPrice || target.price,
+        ) > 0
           ? {
               offers: {
-                ...(Number(seo.entity?.highPrice) >
-                Number(seo.entity?.lowPrice || target.price)
+                ...(!seo.settings.entity?.price_override &&
+                Number(seo.entity?.highPrice) >
+                  Number(seo.entity?.lowPrice || target.price)
                   ? {
                       '@type': 'AggregateOffer',
                       lowPrice: Number(seo.entity.lowPrice || target.price),
@@ -1400,7 +1712,11 @@ export class SeoEngineService {
                     }
                   : {
                       '@type': 'Offer',
-                      price: Number(seo.entity?.lowPrice || target.price),
+                      price: Number(
+                        seo.entity?.price_override ||
+                          seo.entity?.lowPrice ||
+                          target.price,
+                      ),
                     }),
                 priceCurrency: 'INR',
                 availability: 'https://schema.org/InStock',
@@ -1454,10 +1770,7 @@ export class SeoEngineService {
           {
             '@type': 'PropertyValue',
             name: 'Builder',
-            value:
-              seo.entity?.builder_entity_name ||
-              seo.settings.builder_entity_name ||
-              target.builder_name,
+            value: seo.entity?.builder_name || undefined,
           },
         ],
         ...(seo.geo
@@ -1475,10 +1788,7 @@ export class SeoEngineService {
       development['@id'] = url + '#development';
       const offers = development.offers;
       delete development.offers;
-      const builder =
-        seo.entity?.builder_entity_name ||
-        seo.settings.builder_entity_name ||
-        target.builder_name;
+      const builder = seo.entity?.builder_name;
       if (builder)
         graph.push({
           '@type': 'Organization',
@@ -1499,7 +1809,7 @@ export class SeoEngineService {
         ...(builder ? { provider: { '@id': url + '#builder' } } : {}),
       });
     }
-    if (seo.scope === 'page' && Object.keys(seo.settings || {}).length === 0)
+    if (seo.scope === 'page')
       graph.push({ '@type': 'WebPage', name: pageName, url });
     if (seo.config_key && seo.scope === 'page' && seo.settings.schema)
       graph.push(seo.settings.schema);
@@ -1523,16 +1833,88 @@ export class SeoEngineService {
               value: seo.entity.landmarks,
             },
           ];
-        if (seo.entity?.pricePerSqFt)
-          node.additionalProperty = [
-            ...(node.additionalProperty || []),
-            {
-              '@type': 'PropertyValue',
-              name: 'Price per square foot',
-              value: Number(seo.entity.pricePerSqFt),
-            },
-          ];
       }
+    }
+    const entity = seo.entity || {};
+    const labels: Record<string, string> = {
+      approval_authority: 'Approval authority',
+      unit_configurations: 'Unit configurations',
+      total_area_acres: 'Total area (acres)',
+      possession_status: 'Possession status',
+      possession_date: 'Possession date',
+      price_per_sqft: 'Price per square foot',
+      bhk_config: 'BHK configuration',
+      approval_status: 'Approvals',
+      furnishing_status: 'Furnishing',
+      facing_direction: 'Facing',
+      commercial_specs: 'Commercial specifications',
+      land_specs: 'Land specifications',
+    };
+    for (const node of graph) {
+      const subject =
+        node['@type'] === 'RealEstateListing' && node.mainEntity?.['@type']
+          ? node.mainEntity
+          : ['ApartmentComplex', 'GatedResidenceCommunity', 'Place'].includes(
+                node['@type'],
+              )
+            ? node
+            : null;
+      if (!subject) continue;
+      subject.additionalProperty = [
+        ...(subject.additionalProperty || []),
+        ...Object.entries(labels)
+          .filter(
+            ([key]) =>
+              entity[key] !== undefined &&
+              entity[key] !== null &&
+              entity[key] !== '',
+          )
+          .map(([key, name]) => ({
+            '@type': 'PropertyValue',
+            name,
+            value:
+              typeof entity[key] === 'object'
+                ? JSON.stringify(entity[key])
+                : entity[key],
+          })),
+      ];
+      if (
+        Number(entity.total_units) > 0 &&
+        subject['@type'] === 'ApartmentComplex'
+      )
+        subject.numberOfAccommodationUnits = {
+          '@type': 'QuantitativeValue',
+          value: Number(entity.total_units),
+        };
+      if (Number(entity.builtup_area_sqft) > 0)
+        subject.floorSize = {
+          '@type': 'QuantitativeValue',
+          value: Number(entity.builtup_area_sqft),
+          unitCode: 'FTK',
+        };
+      if (entity.plot_area)
+        subject.additionalProperty.push({
+          '@type': 'PropertyValue',
+          name: 'Plot area',
+          value: entity.plot_area.value,
+          unitText: entity.plot_area.unit,
+        });
+      if (seo.nearby_landmarks?.length)
+        subject.additionalProperty.push(
+          ...seo.nearby_landmarks.map((landmark: any) => ({
+            '@type': 'PropertyValue',
+            name: landmark.category || 'Nearby landmark',
+            value: [
+              landmark.name,
+              landmark.distance_km !== undefined && landmark.distance_km !== ''
+                ? `${landmark.distance_km} km`
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' - '),
+          })),
+        );
+      if (seo.og_image_url) subject.image = seo.og_image_url;
     }
     const override = seo.schema_overrides || {};
     // Match an explicit @id or @type to override generated nodes; unmatched nodes extend the graph.
@@ -1554,7 +1936,112 @@ export class SeoEngineService {
       if (index >= 0) graph[index] = this.mergeSchema(graph[index], patch);
       else graph.push(patch);
     }
+    if (seo.off_market) {
+      const stripOffers = (value: any): any =>
+        Array.isArray(value)
+          ? value
+              .filter(
+                (node) =>
+                  !['Offer', 'AggregateOffer'].includes(node?.['@type']),
+              )
+              .map(stripOffers)
+          : value && typeof value === 'object'
+            ? Object.fromEntries(
+                Object.entries(value)
+                  .filter(([key]) => !['offers', 'availability'].includes(key))
+                  .map(([key, child]) => [key, stripOffers(child)]),
+              )
+            : value;
+      return { '@context': 'https://schema.org', '@graph': stripOffers(graph) };
+    }
     return { '@context': 'https://schema.org', '@graph': graph };
+  }
+
+  private async defaultSocialImage(scope: string, target: any) {
+    if (!target) return undefined;
+    const image =
+      scope === 'project'
+        ? target.cover_image_url
+        : scope === 'property'
+          ? (
+              await this.one(
+                'SELECT image_url FROM property_images WHERE property_id=? ORDER BY is_primary DESC,id LIMIT 1',
+                [target.id],
+              )
+            )?.image_url
+          : undefined;
+    return image && this.storage ? this.storage.generateReadUrl(image) : image;
+  }
+  private mergeSections(scope: string, template: any = {}, config: any = {}) {
+    const result: any = ['property', 'project'].includes(scope)
+      ? defaultSections(scope)
+      : {};
+    for (const layer of [sections(template), sections(config)])
+      for (const [key, value] of Object.entries(layer))
+        result[key] = {
+          ...result[key],
+          ...Object.fromEntries(
+            Object.entries(value as any).filter(
+              ([, v]) => v !== '' && v !== null && v !== undefined,
+            ),
+          ),
+        };
+    return result;
+  }
+  private resolveSection(root: any, suffix: string) {
+    const value = root.section_seo?.[sectionKey(suffix)];
+    if (!value) return null;
+    const path = root.path + '/' + suffix,
+      canonical = value.canonical_url || SITE + path;
+    const h1 = value.h1 || root.h1;
+    return {
+      ...root,
+      path,
+      source_path: root.source_path + '/' + suffix,
+      meta_title: value.meta_title || root.meta_title,
+      meta_description: value.meta_description || root.meta_description,
+      h1,
+      intro_content: value.intro_text || '',
+      canonical_url: canonical,
+      robots_index: Boolean(
+        root.robots_index &&
+        value.robots_index !== false &&
+        value.robots_index !== 0,
+      ),
+      robots_follow:
+        root.robots_follow &&
+        value.robots_follow !== false &&
+        value.robots_follow !== 0,
+      json_ld: {
+        '@context': 'https://schema.org',
+        '@graph': [
+          {
+            '@type': 'WebPage',
+            name: h1,
+            url: canonical,
+            description: value.meta_description || root.meta_description,
+          },
+          {
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              {
+                '@type': 'ListItem',
+                position: 1,
+                name: 'Home',
+                item: SITE + '/',
+              },
+              {
+                '@type': 'ListItem',
+                position: 2,
+                name: root.h1,
+                item: SITE + root.path,
+              },
+              { '@type': 'ListItem', position: 3, name: h1, item: canonical },
+            ],
+          },
+        ],
+      },
+    };
   }
 
   private mergeSchema(base: any, patch: any): any {
@@ -1606,7 +2093,7 @@ export class SeoEngineService {
       );
     else if (['properties-buy', 'properties-rent'].includes(group))
       entries = await this.db.query(
-        `SELECT COALESCE(c.public_path,CONCAT('/',p.slug)) AS path,COALESCE(c.updated_at,p.updated_at) AS updated_at,c.canonical_url FROM properties p LEFT JOIN seo_configs c ON c.property_id=p.id WHERE ${LIVE_PROPERTY} AND p.slug IS NOT NULL AND p.listing_type=? AND COALESCE(c.robots_index,1)=1`,
+        `SELECT COALESCE(c.public_path,CONCAT('/',p.slug)) AS path,COALESCE(c.updated_at,p.updated_at) AS updated_at,c.canonical_url FROM properties p LEFT JOIN seo_configs c ON c.property_id=p.id WHERE (${LIVE_PROPERTY} OR JSON_UNQUOTE(JSON_EXTRACT(c.settings,'$.expired_redirect_policy'))='keep_live_sold_banner') AND p.slug IS NOT NULL AND p.listing_type=? AND COALESCE(c.robots_index,1)=1`,
         [group === 'properties-rent' ? 'Rent' : 'Sell'],
       );
     else if (group === 'pages')
@@ -1642,6 +2129,39 @@ export class SeoEngineService {
           entries.push({ path, canonical_url: seo.canonical_url });
       }
     } else throw new NotFoundException('Unknown sitemap');
+    if (group === 'projects' || group.startsWith('properties-')) {
+      const scope = group === 'projects' ? 'project' : 'property';
+      const configs = await this.db.query(
+        'SELECT public_path,section_seo FROM seo_configs WHERE scope=?',
+        [scope],
+      );
+      const byPath = new Map(
+        configs.map((c: any) => [
+          c.public_path,
+          sections(json(c.section_seo, {})),
+        ]),
+      );
+      const children: any[] = [];
+      for (const parent of entries) {
+        if (parent.canonical_url && parent.canonical_url !== SITE + parent.path)
+          continue;
+        const childSections = byPath.get(parent.path) || {};
+        for (const suffix of scope === 'project'
+          ? ['floor-plans', 'photos', 'amenities', 'locality']
+          : ['floor-plan', 'photos']) {
+          const section = (childSections as any)[sectionKey(suffix)] || {};
+          if (section.robots_index === false || section.robots_index === 0)
+            continue;
+          const path = parent.path + '/' + suffix;
+          children.push({
+            path,
+            updated_at: parent.updated_at,
+            canonical_url: section.canonical_url || SITE + path,
+          });
+        }
+      }
+      entries.push(...children);
+    }
     const redirects = new Set(
       (
         await this.db.query(

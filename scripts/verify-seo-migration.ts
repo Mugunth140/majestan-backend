@@ -2,6 +2,7 @@ import { DataSource, type DataSourceOptions } from 'typeorm';
 import source from '../src/database/data-source';
 import { SeoCommandCenter1784600000000 } from '../src/database/migrations/1784600000000-SeoCommandCenter';
 import { SeoSaleRentTemplates1784700000000 } from '../src/database/migrations/1784700000000-SeoSaleRentTemplates';
+import { SeoFieldProvisioning1784800000000 } from '../src/database/migrations/1784800000000-SeoFieldProvisioning';
 async function verify() {
   await source.initialize();
   const database = 'majestan_seo_verify_' + Date.now();
@@ -32,6 +33,7 @@ async function verify() {
       migrations: [
         SeoCommandCenter1784600000000,
         SeoSaleRentTemplates1784700000000,
+        SeoFieldProvisioning1784800000000,
       ],
       logging: false,
     } as DataSourceOptions);
