@@ -122,3 +122,13 @@ Listing rules support Sale and Rent (including rental project units), with 4 bed
 A property can retain a read-only off-market page with its public facts, media, and an availability banner. Those pages emit no active offer. Hard deletion still redirects to the configured locality page, or returns Gone if no destination exists. Snapshots are allowlisted public fields and never expose CRM owner/contact or internal verification records. Sign out and Cancel use the red action treatment.
 
 The core NRI alias `/services/nri-services` is provisioned separately; the existing `/services/nri-property-investment` route stays available. Core copy and custom FAQs render before the website footer. Markdown is rendered as escaped semantic headings, paragraphs, and lists; raw HTML is not injected.
+
+## Public layout correction — 21 October 2026
+
+The visitor-facing listing and main property/project overview routes no longer inject separate SEO fact grids, AI summary blocks, market snapshot tables, intro/bottom guides or automatic listing FAQs. Existing gallery, search results, inventory details and native FAQ sections remain the page content. Titles, descriptions, canonical/robots, OpenGraph, media SEO and JSON-LD continue to use the SEO engine. Stored editorial fields are retained; this change does not delete SEO records or alter inventory.
+
+Listing JSON-LD keeps the current visible ItemList and page/breadcrumb nodes. It removes the additional FAQPage node because the corresponding listing FAQ block is no longer shown. Existing property/project FAQs still render in their regular sections and retain their markup. The same content is served to browsers and crawlers; there is no crawler user-agent branch or hidden keyword block.
+
+`/[slug]/[...section]` now explicitly uses per-request rendering (`force-dynamic`). Previously its empty static-params list combined with ISR made direct child routes fail at runtime when uncached organization/SEO requests executed. The verification runner now tests all project/property direct child routes before creating an SEO config, so SEO rewrites cannot conceal this regression.
+
+Verification: 27 isolated HTTP integration groups; 55 targeted frontend content/schema/gallery tests; TypeScript and a production Docker build. Live deployment is verified separately against the reported listing and Alamo Turin/property child routes.

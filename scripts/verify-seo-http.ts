@@ -253,6 +253,17 @@ async function verify() {
         )
       )[0];
       assert(target, `${scope} fixture`);
+      const directSections =
+        scope === 'project'
+          ? ['floor-plans', 'photos', 'amenities', 'locality']
+          : ['floor-plan', 'photos', 'amenities', 'locality'];
+      for (const section of directSections) {
+        const direct = await html('/' + target.slug + '/' + section);
+        assert(!direct.includes('Page changed from static to dynamic'));
+      }
+      passed(
+        `${scope}: direct child routes render before an SEO config exists`,
+      );
       const editor = await admin(`inventory/${scope}/${target.id}`);
       const image = editor.images.find((m: any) => m.kind === 'Photo');
       const path = '/' + target.slug;
@@ -358,15 +369,11 @@ async function verify() {
       assert.equal(meta(page, 'og:image'), editor.default_og_image_url);
       assert.equal(meta(page, 'twitter:image'), editor.default_og_image_url);
       assert(meta(page, 'robots')?.includes('nofollow'));
-      for (const text of [
-        `Verified ${scope} H1`,
-        `Verified ${scope} H2`,
-        `Verified ${scope} factual summary`,
-        `Verified ${scope} highlight`,
-        `Verified ${scope} answer.`,
-        'Verified landmark',
-      ])
-        assert(body.includes(text), `${scope} visible ${text}`);
+      assert(body.includes(`Verified ${scope} H1`));
+      assert(body.includes(`Verified ${scope} answer.`));
+      assert(!body.includes(`Verified ${scope} factual summary`));
+      assert(!body.includes('aria-label="Property facts"'));
+      assert(!body.includes('aria-label="Key highlights"'));
       if (image) {
         assert(body.includes(`alt="Verified ${scope} alt"`));
         assert(body.includes(`title="Verified ${scope} image title"`));
@@ -376,8 +383,11 @@ async function verify() {
       assert(nodes.some((n: any) => n['@type'] === 'FAQPage'));
       assert(JSON.stringify(nodes).includes('Verified locality'));
       assert(JSON.stringify(nodes).includes('641035'));
+      assert(
+        JSON.stringify(nodes).includes(`Verified ${scope} factual summary`),
+      );
       passed(
-        `${scope}: saved editor-shaped payload -> SSR title/description/H1/H2/copy/highlights/FAQ/media/robots/entity JSON-LD and automatic OG/Twitter image`,
+        `${scope}: saved editor-shaped payload -> SSR metadata/media/FAQ and source JSON-LD without extra visitor-facing SEO blocks and automatic OG/Twitter image`,
       );
       for (const section of children) {
         const suffix = section.replaceAll('_', '-'),
@@ -601,22 +611,26 @@ async function verify() {
       );
       let page = await html(`/verified-${intent}-listing`),
         body = visible(page);
+      assert(body.includes('Verified listing H1'));
       for (const text of [
-        'Verified listing H1',
-        'Verified listing H2',
         'Verified listing introduction',
-        '<li>Verified listing detail</li>',
+        'Verified listing detail',
         'Verified market answer.',
         'Live inventory snapshot',
+        'Local market at a glance',
       ])
-        assert(body.includes(text), `${intent} listing ${text}`);
+        assert(
+          !body.includes(text),
+          `${intent} listing must not display extra SEO block: ${text}`,
+        );
       assert.equal(
         (body.match(/<h1(?:\s|>)/g) || []).length,
         1,
         `${intent} listing must render one H1`,
       );
       assert(page.includes(`<title>Verified ${intent} listing</title>`));
-      assert(graphs(page).some((n: any) => n['@type'] === 'FAQPage'));
+      assert(!graphs(page).some((n: any) => n['@type'] === 'FAQPage'));
+      assert(graphs(page).some((n: any) => n['@type'] === 'ItemList'));
       const rules = await admin('listing-pages'),
         rule = rules.find((r: any) => r.config_key === listing.config_key);
       await admin(
@@ -630,7 +644,7 @@ async function verify() {
         201,
       );
       page = await html(`/verified-${intent}-listing`);
-      assert(!visible(page).includes('Live inventory snapshot'));
+      assert(!visible(page).includes('Local market at a glance'));
       assert(page.includes(`<title>Updated ${intent} listing</title>`));
       const response = await fetch(
         api +
@@ -647,7 +661,7 @@ async function verify() {
       )[0].n;
       assert.equal(resolved.stats.total, Number(count));
       passed(
-        `${intent} listing: real SQL inventory count, title/H1/H2/intro/Markdown/FAQ/schema and immediate snapshot toggle`,
+        `${intent} listing: real SQL inventory count and edited metadata; visible results without extra SEO copy/stats/FAQ; matching ItemList schema`,
       );
     }
     assert(options);
