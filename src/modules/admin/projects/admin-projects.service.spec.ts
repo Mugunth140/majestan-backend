@@ -1,3 +1,5 @@
+jest.mock('../../../common/frontend-revalidation', () => ({ revalidatePublicInventory: jest.fn().mockResolvedValue(true) }));
+import { revalidatePublicInventory } from '../../../common/frontend-revalidation';
 jest.mock(
   'bun',
   () => ({
@@ -236,5 +238,26 @@ describe('project concurrency protection', () => {
     } as any);
     const deleteCall = (manager.delete.mock.calls as any[]).find((call) => call[0] === ProjectUnit);
     expect(deleteCall[1].unitCode).toBeDefined();
+  });
+});
+
+
+describe('project cache freshness', () => {
+  beforeEach(() => jest.mocked(revalidatePublicInventory).mockClear());
+  it('refreshes public pages after a committed save and after status changes', async () => {
+    const { service, queryRunner } = makeService();
+    await service.create(validCreate() as any);
+    expect(queryRunner.commitTransaction).toHaveBeenCalled();
+    expect(revalidatePublicInventory).toHaveBeenCalledTimes(1);
+    await service.updateStatus(11, 'published');
+    expect(revalidatePublicInventory).toHaveBeenCalledTimes(2);
+    await service.remove(11);
+    expect(revalidatePublicInventory).toHaveBeenCalledTimes(3);
+  });
+  it('does not expire pages for a rolled-back transaction', async () => {
+    const { service, manager } = makeService();
+    manager.save.mockRejectedValueOnce(new Error('save failed'));
+    await expect(service.create(validCreate() as any)).rejects.toThrow('save failed');
+    expect(revalidatePublicInventory).not.toHaveBeenCalled();
   });
 });

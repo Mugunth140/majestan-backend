@@ -1,3 +1,4 @@
+import { revalidatePublicInventory } from "../../../common/frontend-revalidation";
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { readVideos, videoFields } from '../../projects/utils/project-videos.util';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -281,6 +282,7 @@ export class AdminProjectsService {
       saved.canonicalSlug = `${saved.slug}-${projectCode.toLowerCase()}`;
       await queryRunner.manager.save(Project, saved);
       await queryRunner.commitTransaction();
+      void revalidatePublicInventory({ tag: "public-inventory" });
       if (pendingFloorPlanKeys.length) this.storageService.deleteFiles(pendingFloorPlanKeys).catch(() => {});
       this.searchService.indexProject(saved.id).catch(() => {});
       return this.findOrFail(saved.id);
@@ -454,6 +456,7 @@ export class AdminProjectsService {
         }
       }
       await queryRunner.commitTransaction();
+      void revalidatePublicInventory({ tag: "public-inventory" });
       if (pendingFloorPlanKeys.length) this.storageService.deleteFiles(pendingFloorPlanKeys).catch(() => {});
       this.searchService.indexProject(id).catch(() => {});
       return this.findOrFail(id);
@@ -469,6 +472,7 @@ export class AdminProjectsService {
     await this.findOrFail(id);
     await this.projectRepository.update(id, { status: status as any });
     this.searchService.indexProject(id).catch(() => {});
+    void revalidatePublicInventory({ tag: "public-inventory" });
     return this.findOrFail(id);
   }
 
@@ -476,6 +480,7 @@ export class AdminProjectsService {
     await this.findOrFail(id);
     await this.projectRepository.delete(id);
     this.searchService.deleteProject(id).catch(() => {});
+    void revalidatePublicInventory({ tag: "public-inventory" });
     return { deleted: true };
   }
 

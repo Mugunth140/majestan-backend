@@ -1,3 +1,4 @@
+import { revalidatePublicInventory } from "../../../common/frontend-revalidation";
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { isSameVersion } from './property-version';
 import { DataSource, EntityManager, In } from 'typeorm';
@@ -1291,46 +1292,10 @@ export class AdminPropertiesService {
   }
 
   private triggerListingRevalidation(localitySlug: string) {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    fetch(`${frontendUrl}/api/revalidate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tag: localitySlug,
-        secret: process.env.REVALIDATE_SECRET || 'majestan-isr-secret',
-      }),
-      signal: controller.signal as any,
-    })
-      .then(() => clearTimeout(timeoutId))
-      .catch(error => {
-        clearTimeout(timeoutId);
-        console.error(`Failed to revalidate listing pages for locality: ${localitySlug}`, error);
-      });
+    void revalidatePublicInventory({ tag: localitySlug });
   }
 
   private triggerFrontendRevalidation(slug: string) {
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    if (!frontendUrl) {
-      console.warn('[AdminProperties] FRONTEND_URL is not set — skipping ISR revalidation');
-      return;
-    }
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    fetch(`${frontendUrl}/api/revalidate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        slug,
-        secret: process.env.REVALIDATE_SECRET || 'majestan-isr-secret',
-      }),
-      signal: controller.signal as any,
-    })
-      .then(() => clearTimeout(timeoutId))
-      .catch(error => {
-        clearTimeout(timeoutId);
-        console.error(`Failed to revalidate frontend for slug: ${slug}`, error);
-      });
+    void revalidatePublicInventory({ slug });
   }
 }
