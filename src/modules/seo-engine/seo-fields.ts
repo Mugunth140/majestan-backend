@@ -78,7 +78,7 @@ export function sections(raw: any = {}) {
     for (const [name, old] of Object.entries({
       meta_title: ['metaTitle', 'title'],
       meta_description: ['metaDescription', 'description'],
-      canonical_url: ['canonicalUrl', 'canonical'],
+      canonical_url: ['canonicalUrl', 'canonical', 'custom_canonical_url'],
       intro_text: ['introText'],
     })) {
       if (next[name] === undefined)
@@ -89,6 +89,8 @@ export function sections(raw: any = {}) {
           }
       for (const alias of old) delete next[alias];
     }
+    if (next.canonical_type === undefined)
+      next.canonical_type = next.canonical_url ? 'custom' : 'self';
     result[sectionKey(key)] = { ...result[sectionKey(key)], ...next };
   }
   return result;
@@ -104,6 +106,11 @@ export function imageFields(raw: any = {}) {
 }
 export function normalizeSeoInput(input: any, existing: any = {}) {
   const body = { ...input };
+  if (input.custom_canonical_url !== undefined)
+    body.canonical_url = input.custom_canonical_url;
+  if (body.canonical_type === undefined)
+    body.canonical_type =
+      existing.canonical_type || (body.canonical_url ? 'custom' : 'self');
   for (const key of [
     'settings',
     'section_seo',
@@ -193,8 +200,20 @@ export function normalizeSeoInput(input: any, existing: any = {}) {
     const previous = sections(existing?.section_seo),
       next = sections(input.section_seo);
     body.section_seo = { ...previous };
-    for (const [key, value] of Object.entries(next))
+    for (const [key, value] of Object.entries(next)) {
+      const supplied = Object.entries(input.section_seo).find(
+        ([raw]) => sectionKey(raw) === key,
+      )?.[1] as any;
+      if (
+        supplied &&
+        supplied.canonical_type === undefined &&
+        supplied.canonical_url === undefined &&
+        supplied.custom_canonical_url === undefined &&
+        previous[key]?.canonical_type
+      )
+        (value as any).canonical_type = previous[key].canonical_type;
       body.section_seo[key] = { ...previous[key], ...(value as any) };
+    }
   }
   for (const [alias, field] of Object.entries({
     meta_title_template: 'meta_title',
@@ -251,6 +270,11 @@ export function exposeSeoFields(row: any) {
   return row;
 }
 export function validateSeoFields(body: any, scope: string) {
+  if (
+    body.canonical_type !== undefined &&
+    !['self', 'parent', 'custom'].includes(body.canonical_type)
+  )
+    throw new BadRequestException('Invalid canonical_type');
   const fail = (field: string) => {
     throw new BadRequestException(`Invalid ${field}`);
   };
@@ -263,11 +287,11 @@ export function validateSeoFields(body: any, scope: string) {
       fail(key);
   };
   if (scope === 'project' || scope === 'property') {
-    text(body.meta_title, 60, 'meta_title (maximum 60 characters)');
+    text(body.meta_title, 80, 'meta_title (maximum 80 characters)');
     text(
       body.meta_description,
-      160,
-      'meta_description (maximum 160 characters)',
+      200,
+      'meta_description (maximum 200 characters)',
     );
   }
   const s = body.settings || {},
@@ -334,7 +358,7 @@ export function validateSeoFields(body: any, scope: string) {
       fail(key);
   if (
     s.expired_redirect_policy !== undefined &&
-    !['redirect_to_locality', 'keep_live_sold_banner'].includes(
+    !['redirect_to_locality', 'keep_live_sold_banner', 'gone'].includes(
       s.expired_redirect_policy,
     )
   )
@@ -365,6 +389,11 @@ export function validateSeoFields(body: any, scope: string) {
   if (body.section_seo)
     for (const [key, value] of Object.entries(body.section_seo)) {
       const v: any = value;
+      if (
+        v?.canonical_type !== undefined &&
+        !['self', 'parent', 'custom'].includes(v.canonical_type)
+      )
+        fail('canonical_type');
       if (!v || typeof v !== 'object' || Array.isArray(v)) fail('section_seo');
       for (const field of [
         'meta_title',

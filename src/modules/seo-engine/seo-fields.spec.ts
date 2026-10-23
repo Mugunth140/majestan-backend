@@ -117,6 +117,7 @@ describe('SEO field normalization', () => {
         meta_title: 'Floor plans',
         meta_description: 'Layouts and areas',
         canonical_url: '/projects/example/floor-plans',
+        canonical_type: 'custom',
       },
     });
   });
@@ -187,16 +188,16 @@ describe('SEO field normalization', () => {
 });
 
 describe('SEO field validation', () => {
-  it('enforces 60-character titles and 160-character descriptions for inventory', () => {
+  it('enforces 80-character titles and 200-character descriptions for inventory', () => {
     expect(() =>
-      validateSeoFields({ meta_title: 't'.repeat(61) }, 'property'),
+      validateSeoFields({ meta_title: 't'.repeat(81) }, 'property'),
     ).toThrow(/meta_title/);
     expect(() =>
-      validateSeoFields({ meta_description: 'd'.repeat(161) }, 'project'),
+      validateSeoFields({ meta_description: 'd'.repeat(201) }, 'project'),
     ).toThrow(/meta_description/);
     expect(() =>
       validateSeoFields(
-        { meta_title: 't'.repeat(60), meta_description: 'd'.repeat(160) },
+        { meta_title: 't'.repeat(80), meta_description: 'd'.repeat(200) },
         'property',
       ),
     ).not.toThrow();

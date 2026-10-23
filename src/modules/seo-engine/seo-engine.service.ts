@@ -1,3 +1,4 @@
+import { resolveCanonical } from './canonical';
 import {
   BadRequestException,
   ConflictException,
@@ -179,7 +180,8 @@ export class SeoEngineService {
       effective,
       entity: effective?.entity || {},
       default_og_image_url:
-        (await this.defaultSocialImage(scope, target)) || images[0]?.image_url,
+        (await this.defaultSocialImage(scope, target)) ||
+        (scope === 'project' ? undefined : images[0]?.image_url),
     };
   }
 
@@ -192,10 +194,7 @@ export class SeoEngineService {
       kind: string,
       id: any,
     ) => {
-      image_url =
-        image_url && this.storage
-          ? this.storage.generateReadUrl(image_url)
-          : image_url;
+      image_url = image_url ? this.mediaReadUrl(image_url) : image_url;
       if (image_url && !images.some((i) => i.image_url === image_url))
         images.push({
           image_url,
@@ -305,6 +304,8 @@ export class SeoEngineService {
           throw new BadRequestException(`Invalid ${key}`);
         data[key] = body[key] || null;
       }
+    if (body.canonical_type !== undefined)
+      data.canonical_type = body.canonical_type;
     for (const field of ['canonical_url', 'og_image_url'])
       if (data[field]) {
         let url: URL;
@@ -1190,10 +1191,18 @@ export class SeoEngineService {
     if (
       offMarket &&
       !(
-        scope === 'property' &&
+        ['project', 'property'].includes(scope) &&
         config?.settings?.expired_redirect_policy === 'keep_live_sold_banner'
       )
     ) {
+      if (config?.settings?.expired_redirect_policy === 'gone')
+        return {
+          gone: true,
+          scope,
+          config,
+          robots_index: false,
+          robots_follow: true,
+        };
       if (config?.settings?.expired_redirect_path)
         return { redirect: config.settings.expired_redirect_path };
       return { gone: true, scope, config, robots_index: false };
@@ -1314,15 +1323,16 @@ export class SeoEngineService {
           )
         : undefined,
       ...Object.fromEntries(
-        Object.entries(entityFields(config?.settings?.entity || {})).filter(
-          ([, v]) => v !== undefined && v !== null && v !== '',
-        ),
+        Object.entries(
+          entityFields(
+            ['project', 'property'].includes(scope)
+              ? {}
+              : config?.settings?.entity || {},
+          ),
+        ).filter(([, v]) => v !== undefined && v !== null && v !== ''),
       ),
       transaction_display: intent === 'rent' ? 'Rent' : 'Sale',
-      property_type_schema:
-        config?.settings?.entity?.property_type_schema ||
-        typeSchema[type] ||
-        'Place',
+      property_type_schema: typeSchema[type] || 'Place',
     });
     locality = entity.locality || locality;
     const city = target?.city || rule?.city_name || 'Coimbatore';
@@ -1390,17 +1400,29 @@ export class SeoEngineService {
         target?.title ||
         target?.name,
       h2: config?.h2 || '',
-      canonical_url: config?.canonical_url || SITE + publicPath,
+      canonical_type: config?.canonical_type || 'self',
+      canonical_url: resolveCanonical(
+        config?.canonical_type,
+        config?.canonical_url,
+        publicPath,
+        undefined,
+        SITE,
+      ),
       og_title: config?.og_title,
       og_description: config?.og_description,
       og_image_url:
-        config?.og_image_url || (await this.defaultSocialImage(scope, target)),
+        scope === 'project'
+          ? await this.defaultSocialImage(scope, target)
+          : config?.og_image_url ||
+            (await this.defaultSocialImage(scope, target)),
       robots_index: config ? Boolean(config.robots_index) : true,
       robots_follow: config ? Boolean(config.robots_follow) : true,
       highlights: config?.highlights || [],
       faqs: config?.faqs || [],
       image_alt_overrides: config?.image_alt_overrides || {},
-      schema_overrides: config?.schema_overrides || {},
+      schema_overrides: ['project', 'property'].includes(scope)
+        ? {}
+        : config?.schema_overrides || {},
       section_seo: Object.fromEntries(
         Object.entries(
           this.mergeSections(scope, template?.section_seo, config?.section_seo),
@@ -1420,6 +1442,19 @@ export class SeoEngineService {
       ...data,
       rule,
     };
+    for (const [key, child] of Object.entries(resolved.section_seo) as [
+      string,
+      any,
+    ][]) {
+      child.canonical_type = child.canonical_type || 'self';
+      child.canonical_url = resolveCanonical(
+        child.canonical_type,
+        child.canonical_url,
+        publicPath + '/' + key.replaceAll('_', '-'),
+        publicPath,
+        SITE,
+      );
+    }
     const defaultSummary = target
       ? `${variables.Property_Name || variables.Project_Name} is ${variables.BHK ? 'a ' + variables.BHK + ' ' : 'a '}${(SINGULAR_TYPES[type] || 'property').toLowerCase()} ${scope === 'project' ? 'project ' : ''}in ${variables.Location}.${Number(entity.price_override) > 0 ? ` The ${offMarket ? 'recorded price was' : intent === 'rent' ? 'monthly rent is' : 'asking price is'} ${priceLabel(entity.price_override)}.` : ''}`
       : '';
@@ -1957,6 +1992,16 @@ export class SeoEngineService {
     return { '@context': 'https://schema.org', '@graph': graph };
   }
 
+  private mediaReadUrl(value: string): string {
+    // Same bucket/object, now served through its active public CDN hostname.
+    const legacy = 'https://pub-44562b4995ca49a4bda808ad32940003.r2.dev/';
+    if (value.startsWith(legacy)) value = value.slice(legacy.length);
+    return this.storage
+      ? this.storage.generateReadUrl(value)
+      : value.startsWith('http')
+        ? value
+        : 'https://cdn.majestanrealty.com/' + value.replace(/^\//, '');
+  }
   private async defaultSocialImage(scope: string, target: any) {
     if (!target) return undefined;
     const image =
@@ -1970,7 +2015,7 @@ export class SeoEngineService {
               )
             )?.image_url
           : undefined;
-    return image && this.storage ? this.storage.generateReadUrl(image) : image;
+    return image ? this.mediaReadUrl(image) : image;
   }
   private mergeSections(scope: string, template: any = {}, config: any = {}) {
     const result: any = ['property', 'project'].includes(scope)
@@ -1992,7 +2037,13 @@ export class SeoEngineService {
     const value = root.section_seo?.[sectionKey(suffix)];
     if (!value) return null;
     const path = root.path + '/' + suffix,
-      canonical = value.canonical_url || SITE + path;
+      canonical = resolveCanonical(
+        value.canonical_type,
+        value.canonical_url,
+        path,
+        root.path,
+        SITE,
+      );
     const h1 = value.h1 || root.h1;
     return {
       ...root,
@@ -2002,6 +2053,7 @@ export class SeoEngineService {
       meta_description: value.meta_description || root.meta_description,
       h1,
       intro_content: value.intro_text || '',
+      canonical_type: value.canonical_type || 'self',
       canonical_url: canonical,
       robots_index: Boolean(
         root.robots_index &&
@@ -2089,16 +2141,16 @@ export class SeoEngineService {
     let entries: any[] = [];
     if (group === 'projects')
       entries = await this.db.query(
-        `SELECT COALESCE(c.public_path,CONCAT('/',p.canonical_slug)) AS path,COALESCE(c.updated_at,p.updated_at) AS updated_at,c.canonical_url FROM projects p LEFT JOIN seo_configs c ON c.project_id=p.id WHERE p.status='published' AND COALESCE(c.robots_index,1)=1`,
+        `SELECT COALESCE(c.public_path,CONCAT('/',p.canonical_slug)) AS path,COALESCE(c.updated_at,p.updated_at) AS updated_at,c.canonical_url,c.canonical_type,p.project_type AS seo_type FROM projects p LEFT JOIN seo_configs c ON c.project_id=p.id WHERE p.status='published' AND COALESCE(c.robots_index,1)=1`,
       );
     else if (['properties-buy', 'properties-rent'].includes(group))
       entries = await this.db.query(
-        `SELECT COALESCE(c.public_path,CONCAT('/',p.slug)) AS path,COALESCE(c.updated_at,p.updated_at) AS updated_at,c.canonical_url FROM properties p LEFT JOIN seo_configs c ON c.property_id=p.id WHERE (${LIVE_PROPERTY} OR JSON_UNQUOTE(JSON_EXTRACT(c.settings,'$.expired_redirect_policy'))='keep_live_sold_banner') AND p.slug IS NOT NULL AND p.listing_type=? AND COALESCE(c.robots_index,1)=1`,
+        `SELECT COALESCE(c.public_path,CONCAT('/',p.slug)) AS path,COALESCE(c.updated_at,p.updated_at) AS updated_at,c.canonical_url,c.canonical_type,p.property_type AS seo_type FROM properties p LEFT JOIN seo_configs c ON c.property_id=p.id WHERE (${LIVE_PROPERTY} OR JSON_UNQUOTE(JSON_EXTRACT(c.settings,'$.expired_redirect_policy'))='keep_live_sold_banner') AND p.slug IS NOT NULL AND p.listing_type=? AND COALESCE(c.robots_index,1)=1`,
         [group === 'properties-rent' ? 'Rent' : 'Sell'],
       );
     else if (group === 'pages')
       entries = await this.db.query(
-        "SELECT public_path AS path,updated_at,canonical_url FROM seo_configs WHERE scope='page' AND robots_index=1 AND public_path IS NOT NULL",
+        "SELECT public_path AS path,updated_at,canonical_url,canonical_type FROM seo_configs WHERE scope='page' AND robots_index=1 AND public_path IS NOT NULL",
       );
     else if (group === 'localities') {
       const paths = new Set<string>(
@@ -2126,7 +2178,11 @@ export class SeoEngineService {
       for (const path of paths) {
         const seo = await this.resolve(path);
         if (seo && !seo.redirect && !seo.gone && seo.robots_index)
-          entries.push({ path, canonical_url: seo.canonical_url });
+          entries.push({
+            path,
+            canonical_url: seo.canonical_url,
+            canonical_type: seo.canonical_type,
+          });
       }
     } else throw new NotFoundException('Unknown sitemap');
     if (group === 'projects' || group.startsWith('properties-')) {
@@ -2141,15 +2197,42 @@ export class SeoEngineService {
           sections(json(c.section_seo, {})),
         ]),
       );
+      const templates = await this.db.query(
+        "SELECT config_key,section_seo FROM seo_configs WHERE scope='template'",
+      );
+      const templateSections = new Map(
+        templates.map((t: any) => [
+          t.config_key,
+          sections(json(t.section_seo, {})),
+        ]),
+      );
       const children: any[] = [];
       for (const parent of entries) {
         if (parent.canonical_url && parent.canonical_url !== SITE + parent.path)
           continue;
-        const childSections = byPath.get(parent.path) || {};
+        if (
+          parent.canonical_type === 'parent' ||
+          parent.canonical_type === 'custom'
+        )
+          continue;
+        const inherited =
+          templateSections.get(
+            `template:${scope}:${parent.seo_type}:${group === 'properties-rent' ? 'rent' : 'buy'}`,
+          ) || {};
+        const childSections = this.mergeSections(
+          scope,
+          inherited,
+          byPath.get(parent.path) || {},
+        );
         for (const suffix of scope === 'project'
           ? ['floor-plans', 'photos', 'amenities', 'locality']
           : ['floor-plan', 'photos']) {
           const section = (childSections as any)[sectionKey(suffix)] || {};
+          if (
+            section.canonical_type === 'parent' ||
+            section.canonical_type === 'custom'
+          )
+            continue;
           if (section.robots_index === false || section.robots_index === 0)
             continue;
           const path = parent.path + '/' + suffix;
@@ -2171,6 +2254,8 @@ export class SeoEngineService {
     );
     return entries.filter(
       (e) =>
+        e.canonical_type !== 'parent' &&
+        e.canonical_type !== 'custom' &&
         e.path &&
         !redirects.has(e.path) &&
         (!e.canonical_url || e.canonical_url === SITE + e.path),
