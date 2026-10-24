@@ -1,3 +1,4 @@
+import { usableArea } from '../seo-engine/seo-quality';
 import { Property } from '../../database/entities/property.entity';
 import { getPropertyTypeCode } from '../properties/utils/property-slug.util';
 
@@ -54,13 +55,9 @@ export async function toFeaturedProperty(
   const d = Array.isArray(details) ? details[0] : details;
   // `area_sqft` is the canonical column; the others are type-specific
   // fallbacks that are frequently null.
-  const areaSqft =
-    d?.areaSqft?.trim() ||
-    d?.carpetArea?.trim() ||
-    d?.builtUpArea?.trim() ||
-    d?.superBuiltUpArea?.trim() ||
-    d?.plotArea?.trim() ||
-    null;
+  const candidates = [d?.areaSqft, d?.builtUpArea, d?.superBuiltUpArea, d?.carpetArea];
+  const verifiedArea = candidates.map(value => usableArea(value, propertyType)).find(value => value !== null);
+  const areaSqft = verifiedArea == null ? null : String(verifiedArea);
 
   const bedrooms = typeof d?.bedrooms === 'number' && d.bedrooms > 0 ? d.bedrooms : null;
 
@@ -87,6 +84,6 @@ export async function toFeaturedProperty(
     possession: d?.possessionStatus?.trim() || null,
     facing: d?.propertyFacing?.trim() || null,
     propertyCondition: p.propertyCondition?.trim() || null,
-    detailPath: `/${slug}-${getPropertyTypeCode(propertyType)}${p.id}`,
+    detailPath: p.slug?.trim() ? `/${p.slug.trim()}` : `/${slug}-${getPropertyTypeCode(propertyType)}${p.id}`,
   };
 }

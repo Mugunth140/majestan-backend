@@ -1,3 +1,4 @@
+import { validateRobotsPolicy, cleanSeoText, usableArea } from './seo-quality';
 import { resolveCanonical } from './canonical';
 import {
   BadRequestException,
@@ -36,7 +37,7 @@ import {
 
 // Listing expiry uses Coimbatore's calendar day, independent of server timezone.
 const LIVE_PROPERTY =
-  "p.status='available' AND (p.available_until IS NULL OR p.available_until>=DATE(CONVERT_TZ(UTC_TIMESTAMP(),'+00:00','+05:30')))";
+  "p.status='available' AND p.approval_status='Approved' AND (p.available_until IS NULL OR p.available_until>=DATE(CONVERT_TZ(UTC_TIMESTAMP(),'+00:00','+05:30')))";
 
 @Injectable()
 export class SeoEngineService {
@@ -44,6 +45,7 @@ export class SeoEngineService {
     private readonly db: DataSource,
     @Optional() private readonly storage?: StorageService,
   ) {}
+  private routingCache?: { expires: number; value: any };
   private async one(
     sql: string,
     args: any[] = [],
@@ -363,6 +365,8 @@ export class SeoEngineService {
     if (body.highlights?.some((s: any) => typeof s !== 'string'))
       throw new BadRequestException('Highlights must contain text');
     const settings = body.settings;
+    if (settings?.publish_editorial_content !== undefined && typeof settings.publish_editorial_content !== 'boolean')
+      throw new BadRequestException('Editorial publication must be a boolean');
     const entity = settings?.entity;
     if (entity) {
       if (typeof entity !== 'object' || Array.isArray(entity))
@@ -419,13 +423,7 @@ export class SeoEngineService {
 
     if (settings?.expired_redirect_path)
       pathValue(settings.expired_redirect_path);
-    if (
-      settings?.robots_txt !== undefined &&
-      (typeof settings.robots_txt !== 'string' ||
-        !/Disallow:\s*\/admin/i.test(settings.robots_txt) ||
-        !/Disallow:\s*\/api/i.test(settings.robots_txt))
-    )
-      throw new BadRequestException('robots.txt must block /admin and /api');
+    if (settings?.robots_txt !== undefined) validateRobotsPolicy(settings.robots_txt);
     return data;
   }
 
@@ -439,6 +437,7 @@ export class SeoEngineService {
     const saved = await this.db.transaction((m) =>
       this.persistConfig(m, key, body, actor),
     );
+    this.routingCache = undefined;
     await this.notifyIndexing(saved);
     return saved;
   }
@@ -601,6 +600,11 @@ export class SeoEngineService {
       if (scope !== 'page' && reserved.includes(data.public_path))
         throw new ConflictException('This is a reserved public route');
     }
+    if (existing) {
+      const listing = scope === 'listing' ? await this.one('SELECT * FROM seo_listing_pages WHERE seo_config_id=?', [existing.id], m) : null;
+      await m.query('INSERT INTO seo_config_versions (config_key,revision,snapshot,actor_id) VALUES (?,?,?,?)',
+        [key, existing.revision, JSON.stringify({ config: existing, listing }), actor]);
+    }
     data.updated_by_crm_id = actor;
     try {
       const columns = Object.keys(data);
@@ -659,6 +663,26 @@ export class SeoEngineService {
         actor,
       );
     return saved;
+  }
+
+  async history(key: string) {
+    return this.db.query('SELECT id,revision,actor_id,created_at,snapshot FROM seo_config_versions WHERE config_key=? ORDER BY id DESC LIMIT 30', [key]);
+  }
+
+  async restore(key: string, versionId: number, revision: number, actor: number) {
+    const row = await this.one('SELECT snapshot FROM seo_config_versions WHERE config_key=? AND id=?', [key, versionId]);
+    if (!row) throw new NotFoundException('SEO version not found');
+    const snapshot = json<any>(row.snapshot, {});
+    const current = await this.one('SELECT * FROM seo_configs WHERE config_key=?', [key]);
+    if (!current) throw new NotFoundException('The configuration was removed; restore a version of an existing page');
+    if (Number(revision) !== Number(current.revision)) throw new ConflictException('Reload before restoring this SEO');
+    // Route identity belongs to the current record; only its editable fields are restored.
+    const body = { ...snapshot.config, config_key: key, revision, public_path: current.public_path };
+    if (snapshot.listing) {
+      return this.saveListing({ ...body, ...snapshot.listing, listing_id: snapshot.listing.id,
+        revision, public_path: current.public_path, locality_faqs: json(snapshot.listing.faqs, []) }, actor);
+    }
+    return this.saveConfig(key, body, actor);
   }
 
   async listingPages() {
@@ -794,6 +818,7 @@ export class SeoEngineService {
       }
       return config;
     });
+    this.routingCache = undefined;
     await this.notifyIndexing(saved);
     return saved;
   }
@@ -807,6 +832,7 @@ export class SeoEngineService {
     await this.db.query('DELETE FROM seo_configs WHERE id=?', [
       row.seo_config_id,
     ]);
+    this.routingCache = undefined;
     return { removed: true };
   }
 
@@ -816,7 +842,9 @@ export class SeoEngineService {
     );
   }
   async saveRedirect(body: any, actor: number) {
-    return this.db.transaction((m) => this.persistRedirect(m, body, actor));
+    const saved = await this.db.transaction((m) => this.persistRedirect(m, body, actor));
+    this.routingCache = undefined;
+    return saved;
   }
   private async persistRedirect(m: EntityManager, body: any, actor: number) {
     const source = pathValue(body.source_path),
@@ -868,10 +896,12 @@ export class SeoEngineService {
   }
   async removeRedirect(id: number) {
     await this.db.query('DELETE FROM seo_redirects WHERE id=?', [id]);
+    this.routingCache = undefined;
     return { removed: true };
   }
 
   async routing() {
+    if (this.routingCache && this.routingCache.expires > Date.now()) return this.routingCache.value;
     const [redirects, configs] = await Promise.all([
       this.db.query(
         'SELECT source_path AS source,destination_path AS destination FROM seo_redirects WHERE is_active=1',
@@ -899,7 +929,7 @@ export class SeoEngineService {
           destination: settings.expired_redirect_path,
         });
     }
-    return {
+    const value = {
       redirects,
       inventory_paths: configs
         .filter((c: any) => ['property', 'project'].includes(c.scope))
@@ -908,6 +938,8 @@ export class SeoEngineService {
         .filter((c: any) => c.public_path.split('/').filter(Boolean).length > 1)
         .map((c: any) => c.public_path),
     };
+    this.routingCache = { expires: Date.now() + 5000, value };
+    return value;
   }
 
   async technical() {
@@ -947,10 +979,10 @@ export class SeoEngineService {
       .slice(1)
       .match(/^(?:(\d+)-bhk-)?(.+?)-for-(sale|rent)-in-(.+)$/);
     if (!match) return null;
-    const type = Object.entries(TYPE_SLUGS).find(
+    const type = match[2] === 'properties' ? '' : Object.entries(TYPE_SLUGS).find(
       ([, value]) => value === match[2],
     )?.[0];
-    if (!type) return null;
+    if (type === undefined) return null;
     const cities = await this.db.query(
       'SELECT id,city_name FROM cities WHERE is_active=1',
     );
@@ -966,7 +998,7 @@ export class SeoEngineService {
         : match[4].slice(0, -slug(city.city_name).length - 1);
     const sublocations = locSlug
       ? await this.db.query(
-          'SELECT id,locality_name FROM sublocations WHERE city_id=?',
+          'SELECT id,locality_name FROM sublocations WHERE city_id=? AND is_active=1',
           [city.id],
         )
       : [];
@@ -977,7 +1009,7 @@ export class SeoEngineService {
     return {
       inventory_kind: 'property',
       transaction_intent: match[3] === 'rent' ? 'rent' : 'buy',
-      property_type: type,
+      property_type: type || null,
       city_id: city.id,
       city_name: city.city_name,
       sublocation_id: sub?.id || null,
@@ -1053,7 +1085,7 @@ export class SeoEngineService {
       .map((p: any) =>
         rule.inventory_kind === 'project'
           ? Number(p.price_sqft)
-          : Number(p.area_sqft) > 0 && Number(p.price) > 0
+          : usableArea(p.area_sqft, p.type) !== null && Number(p.price) > 0
             ? Number(p.price) / Number(p.area_sqft)
             : 0,
       )
@@ -1129,6 +1161,8 @@ export class SeoEngineService {
         }
       }
     }
+    if (scope === 'property' && target && String(target.approval_status).toLowerCase() !== 'approved')
+      return { gone: true, scope, robots_index: false };
     if ((scope === 'property' || scope === 'project') && !target)
       return config?.settings?.expired_redirect_path
         ? { redirect: config.settings.expired_redirect_path }
@@ -1255,9 +1289,9 @@ export class SeoEngineService {
       individual_portion: 'House',
       plot: 'Landform',
       farmland: 'Landform',
-      commercial: 'CommercialProperty',
-      industrial: 'Industrial',
-      coworking: 'CoworkingSpace',
+      commercial: 'Place',
+      industrial: 'Place',
+      coworking: 'Place',
     };
     const entity = entityFields({
       sub_locality_override: locality,
@@ -1269,7 +1303,7 @@ export class SeoEngineService {
       high_price: defaults?.highPrice || target?.price || '',
       price_override: target?.price || '',
       price_per_sqft:
-        Number(extra.area_sqft) > 0 && Number(target?.price) > 0
+        usableArea(extra.area_sqft, type) !== null && Number(target?.price) > 0
           ? Math.round(Number(target.price) / Number(extra.area_sqft))
           : '',
       unit_configurations: defaults?.bedrooms
@@ -1285,7 +1319,7 @@ export class SeoEngineService {
       possession_date: target?.seo_possession_date || '',
       latitude: extra.latitude ?? target?.latitude ?? '',
       longitude: extra.longitude ?? target?.longitude ?? '',
-      builtup_area_sqft: extra.built_up_area || extra.area_sqft || '',
+      builtup_area_sqft: usableArea(extra.built_up_area || extra.area_sqft, type) || '',
       plot_area: extra.plot_area
         ? {
             value: Number(extra.plot_area),
@@ -1346,7 +1380,7 @@ export class SeoEngineService {
               ? `${String(defaults.bedrooms).split(',').join(', ')} BHK`
               : '',
       SqFt:
-        entity.builtup_area_sqft || extra.area_sqft
+        usableArea(entity.builtup_area_sqft || extra.area_sqft, type) !== null
           ? Number(entity.builtup_area_sqft || extra.area_sqft).toLocaleString(
               'en-IN',
               {
@@ -1612,6 +1646,8 @@ export class SeoEngineService {
         latitude: Number(entity.latitude),
         longitude: Number(entity.longitude),
       };
+    for (const field of ['meta_title', 'meta_description', 'h1', 'h2', 'og_title', 'og_description'])
+      if (resolved[field]) resolved[field] = cleanSeoText(resolved[field], city);
     resolved.json_ld = this.structuredData(resolved, target);
     return resolved;
   }
@@ -2141,17 +2177,18 @@ export class SeoEngineService {
     let entries: any[] = [];
     if (group === 'projects')
       entries = await this.db.query(
-        `SELECT COALESCE(c.public_path,CONCAT('/',p.canonical_slug)) AS path,COALESCE(c.updated_at,p.updated_at) AS updated_at,c.canonical_url,c.canonical_type,p.project_type AS seo_type FROM projects p LEFT JOIN seo_configs c ON c.project_id=p.id WHERE p.status='published' AND COALESCE(c.robots_index,1)=1`,
+        `SELECT COALESCE(c.public_path,CONCAT('/',p.canonical_slug)) AS path,GREATEST(p.updated_at,COALESCE(c.updated_at,p.updated_at)) AS updated_at,c.canonical_url,c.canonical_type,p.project_type AS seo_type,p.id AS target_id FROM projects p LEFT JOIN seo_configs c ON c.project_id=p.id WHERE p.status='published' AND p.canonical_slug IS NOT NULL AND p.canonical_slug<>'' AND COALESCE(c.robots_index,1)=1`,
       );
     else if (['properties-buy', 'properties-rent'].includes(group))
       entries = await this.db.query(
-        `SELECT COALESCE(c.public_path,CONCAT('/',p.slug)) AS path,COALESCE(c.updated_at,p.updated_at) AS updated_at,c.canonical_url,c.canonical_type,p.property_type AS seo_type FROM properties p LEFT JOIN seo_configs c ON c.property_id=p.id WHERE (${LIVE_PROPERTY} OR JSON_UNQUOTE(JSON_EXTRACT(c.settings,'$.expired_redirect_policy'))='keep_live_sold_banner') AND p.slug IS NOT NULL AND p.listing_type=? AND COALESCE(c.robots_index,1)=1`,
+        `SELECT COALESCE(c.public_path,CONCAT('/',p.slug)) AS path,GREATEST(p.updated_at,COALESCE(c.updated_at,p.updated_at)) AS updated_at,c.canonical_url,c.canonical_type,p.property_type AS seo_type,p.id AS target_id FROM properties p LEFT JOIN seo_configs c ON c.property_id=p.id WHERE (${LIVE_PROPERTY} OR (p.approval_status='Approved' AND JSON_UNQUOTE(JSON_EXTRACT(c.settings,'$.expired_redirect_policy'))='keep_live_sold_banner')) AND p.slug IS NOT NULL AND p.slug<>'' AND p.listing_type=? AND COALESCE(c.robots_index,1)=1`,
         [group === 'properties-rent' ? 'Rent' : 'Sell'],
       );
-    else if (group === 'pages')
-      entries = await this.db.query(
-        "SELECT public_path AS path,updated_at,canonical_url,canonical_type FROM seo_configs WHERE scope='page' AND robots_index=1 AND public_path IS NOT NULL",
-      );
+    else if (group === 'pages') {
+      const configured = await this.db.query("SELECT public_path AS path,updated_at,canonical_url,canonical_type,robots_index FROM seo_configs WHERE scope='page' AND public_path IS NOT NULL");
+      const tools = ['/emi-calculator', '/affordability-calculator'].filter(path => !configured.some((row: any) => row.path === path));
+      entries = [...configured.filter((row: any) => Number(row.robots_index) === 1), ...tools.map(path => ({ path }))];
+    }
     else if (group === 'localities') {
       const paths = new Set<string>(
         (
@@ -2206,6 +2243,20 @@ export class SeoEngineService {
           sections(json(t.section_seo, {})),
         ]),
       );
+      const contentRows = scope === 'project'
+        ? await this.db.query(`SELECT p.id,
+            (NULLIF(p.cover_image_url,'') IS NOT NULL OR NULLIF(p.mobile_cover_image_url,'') IS NOT NULL OR JSON_SEARCH(p.gallery_image_urls,'one','_%') IS NOT NULL) AS photos,
+            EXISTS(SELECT 1 FROM project_units u WHERE u.project_id=p.id AND (NULLIF(u.floor_plan_image_url,'') IS NOT NULL OR NULLIF(u.floor_plan_image_key,'') IS NOT NULL OR JSON_SEARCH(u.floor_plans,'one','_%',NULL,'$[*].imageKey','$[*].imageUrl') IS NOT NULL)) AS floor_plans,
+            EXISTS(SELECT 1 FROM project_amenities a WHERE a.project_id=p.id) AS amenities,
+            (NULLIF(p.address,'') IS NOT NULL OR NULLIF(p.sublocation,'') IS NOT NULL OR (p.latitude IS NOT NULL AND p.longitude IS NOT NULL)) AS locality
+            FROM projects p WHERE p.status='published'`)
+        : await this.db.query(`SELECT p.id,
+            EXISTS(SELECT 1 FROM property_images i WHERE i.property_id=p.id AND NULLIF(i.image_url,'') IS NOT NULL) AS photos,
+            (EXISTS(SELECT 1 FROM property_units u WHERE u.property_id=p.id AND NULLIF(u.floor_plan_image_url,'') IS NOT NULL)
+              OR EXISTS(SELECT 1 FROM property_files pf JOIN files f ON f.id=pf.file_id WHERE pf.property_id=p.id AND pf.document_type='floor_plan' AND pf.is_public=1 AND (NULLIF(f.file_key,'') IS NOT NULL OR NULLIF(f.file_url,'') IS NOT NULL))
+              OR EXISTS(SELECT 1 FROM property_details d WHERE d.property_id=p.id AND JSON_SEARCH(d.floor_plan_images,'one','_%',NULL,'$[*].imageUrl') IS NOT NULL)) AS floor_plan
+            FROM properties p WHERE p.approval_status='Approved'`);
+      const content = new Map(contentRows.map((row: any) => [Number(row.id), row]));
       const children: any[] = [];
       for (const parent of entries) {
         if (parent.canonical_url && parent.canonical_url !== SITE + parent.path)
@@ -2227,6 +2278,7 @@ export class SeoEngineService {
         for (const suffix of scope === 'project'
           ? ['floor-plans', 'photos', 'amenities', 'locality']
           : ['floor-plan', 'photos']) {
+          if (!Number((content.get(Number(parent.target_id)) as any)?.[suffix.replaceAll('-', '_')])) continue;
           const section = (childSections as any)[sectionKey(suffix)] || {};
           if (
             section.canonical_type === 'parent' ||

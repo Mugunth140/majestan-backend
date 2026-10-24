@@ -67,8 +67,8 @@ describe('ShowcasesService', () => {
     const items = await service.handpickedProperties();
 
     expect(items.map((i) => i.id)).toEqual([3, 1]);
-    // Any property type maps, with the matching detail-route suffix.
-    expect(items[0].detailPath).toBe('/land-p3');
+    // Existing canonical slugs are used directly; do not append a second suffix.
+    expect(items[0].detailPath).toBe('/land');
   });
 
   it('replaces a section in the given order', async () => {

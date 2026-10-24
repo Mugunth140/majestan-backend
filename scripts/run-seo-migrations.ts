@@ -1,3 +1,4 @@
+import { SeoAuditRemediation1785200000000 } from '../src/database/migrations/1785200000000-SeoAuditRemediation';
 import { PropertyTypeSeoTemplates1785100000000 } from '../src/database/migrations/1785100000000-PropertyTypeSeoTemplates';
 import { SeoCanonicalType1785000000000 } from '../src/database/migrations/1785000000000-SeoCanonicalType';
 import dataSource from '../src/database/data-source';
@@ -9,6 +10,7 @@ import { SeoFieldProvisioning1784800000000 } from '../src/database/migrations/17
 async function run(): Promise<void> {
   dataSource.setOptions({
     migrations: [
+      SeoAuditRemediation1785200000000,
       SeoCanonicalType1785000000000,
       PropertyTypeSeoTemplates1785100000000,
       SeoCommandCenter1784600000000,

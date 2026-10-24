@@ -108,6 +108,17 @@ export class SeoAdminController {
   ) {
     return this.seo.saveConfig(key, body, req.seoActor.id);
   }
+  @Get('history/:key')
+  @UseGuards(SeoSessionGuard)
+  history(@Param('key') key: string) { return this.seo.history(key); }
+
+  @Post('history/:key/:version/restore')
+  @UseGuards(SeoSessionGuard)
+  restore(@Param('key') key: string, @Param('version', ParseIntPipe) version: number,
+    @Body() body: { revision: number }, @Req() req: SeoRequest) {
+    return this.seo.restore(key, version, body.revision, req.seoActor.id);
+  }
+
   @Get('listing-pages')
   @UseGuards(SeoSessionGuard)
   listings() {

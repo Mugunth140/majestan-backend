@@ -57,9 +57,10 @@ import { SeoEngineService } from './seo-engine.service';
 it('excludes parent and custom canonical pages and inherits template section rules in sitemap', async () => {
   const db = {
     query: jest.fn(async (sql: string) => {
+      if (sql.includes('SELECT p.id,')) return [{ id: 1, photos: 1, floor_plans: 1, amenities: 1, locality: 1 }];
       if (sql.includes('FROM projects p'))
         return [
-          { path: '/live', seo_type: 'apartment', canonical_type: 'self' },
+          { target_id: 1, path: '/live', seo_type: 'apartment', canonical_type: 'self' },
           {
             path: '/duplicate',
             seo_type: 'apartment',
