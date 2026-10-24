@@ -1454,9 +1454,7 @@ export class SeoEngineService {
       highlights: config?.highlights || [],
       faqs: config?.faqs || [],
       image_alt_overrides: config?.image_alt_overrides || {},
-      schema_overrides: ['project', 'property'].includes(scope)
-        ? {}
-        : config?.schema_overrides || {},
+      schema_overrides: config?.schema_overrides || {},
       section_seo: Object.fromEntries(
         Object.entries(
           this.mergeSections(scope, template?.section_seo, config?.section_seo),
@@ -1988,25 +1986,7 @@ export class SeoEngineService {
       if (seo.og_image_url) subject.image = seo.og_image_url;
     }
     const override = seo.schema_overrides || {};
-    // Match an explicit @id or @type to override generated nodes; unmatched nodes extend the graph.
-    const patches = Array.isArray(override['@graph'])
-      ? override['@graph']
-      : Object.keys(override).length
-        ? [override]
-        : [];
-    for (const patch of patches) {
-      if (!patch || typeof patch !== 'object' || Array.isArray(patch)) continue;
-      const index = graph.findIndex((node) =>
-        patch['@id']
-          ? node['@id'] === patch['@id']
-          : patch['@type']
-            ? node['@type'] === patch['@type']
-            : node['@type'] === 'RealEstateListing' ||
-              node['@type'] === 'WebPage',
-      );
-      if (index >= 0) graph[index] = this.mergeSchema(graph[index], patch);
-      else graph.push(patch);
-    }
+    this.applySchemaOverrides(graph, override);
     if (seo.off_market) {
       const stripOffers = (value: any): any =>
         Array.isArray(value)
@@ -2081,8 +2061,10 @@ export class SeoEngineService {
         SITE,
       );
     const h1 = value.h1 || root.h1;
-    return {
+    const resolved = {
       ...root,
+      schema_overrides: value.schema_overrides || {},
+      custom_schema_json: value.schema_overrides || {},
       path,
       source_path: root.source_path + '/' + suffix,
       meta_title: value.meta_title || root.meta_title,
@@ -2130,6 +2112,33 @@ export class SeoEngineService {
         ],
       },
     };
+    this.applySchemaOverrides(
+      resolved.json_ld['@graph'],
+      resolved.schema_overrides,
+    );
+    return resolved;
+  }
+
+  private applySchemaOverrides(graph: any[], override: any = {}) {
+    // Match an explicit @id or @type to override generated nodes; unmatched nodes extend the graph.
+    const patches = Array.isArray(override['@graph'])
+      ? override['@graph']
+      : Object.keys(override).length
+        ? [override]
+        : [];
+    for (const patch of patches) {
+      if (!patch || typeof patch !== 'object' || Array.isArray(patch)) continue;
+      const index = graph.findIndex((node) =>
+        patch['@id']
+          ? node['@id'] === patch['@id']
+          : patch['@type']
+            ? node['@type'] === patch['@type']
+            : node['@type'] === 'RealEstateListing' ||
+              node['@type'] === 'WebPage',
+      );
+      if (index >= 0) graph[index] = this.mergeSchema(graph[index], patch);
+      else graph.push(patch);
+    }
   }
 
   private mergeSchema(base: any, patch: any): any {

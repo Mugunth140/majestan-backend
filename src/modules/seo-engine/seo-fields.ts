@@ -80,6 +80,7 @@ export function sections(raw: any = {}) {
       meta_description: ['metaDescription', 'description'],
       canonical_url: ['canonicalUrl', 'canonical', 'custom_canonical_url'],
       intro_text: ['introText'],
+      schema_overrides: ['custom_schema_json', 'json_ld', 'jsonLd'],
     })) {
       if (next[name] === undefined)
         for (const alias of old)
@@ -88,6 +89,13 @@ export function sections(raw: any = {}) {
             break;
           }
       for (const alias of old) delete next[alias];
+    }
+    if (typeof next.schema_overrides === 'string') {
+      try {
+        next.schema_overrides = JSON.parse(next.schema_overrides);
+      } catch {
+        // Keep legacy invalid text visible for repair; validation rejects saving it.
+      }
     }
     if (next.canonical_type === undefined)
       next.canonical_type = next.canonical_url ? 'custom' : 'self';
@@ -411,6 +419,13 @@ export function validateSeoFields(body: any, scope: string) {
               : 320,
           `${key}.${field}`,
         );
+      if (
+        v.schema_overrides !== undefined &&
+        (!v.schema_overrides ||
+          typeof v.schema_overrides !== 'object' ||
+          Array.isArray(v.schema_overrides))
+      )
+        fail(`${key}.schema_overrides`);
       for (const field of ['robots_index', 'robots_follow'])
         if (v[field] !== undefined && ![true, false, 0, 1].includes(v[field]))
           fail(`${key}.${field}`);

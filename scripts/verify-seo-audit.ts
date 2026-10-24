@@ -282,6 +282,24 @@ async function verify() {
     saved = await admin('configs/' + encodeURIComponent(saved.config_key), { ...saved, settings: { ...saved.settings, publish_editorial_content: true } });
     assert(visible(await html('/' + project.slug)).includes('Reviewed public project guide'));
     passed('Inventory editorial notes publish only after explicit opt in');
+    const rootSchema = { '@type': 'Service', name: 'Audit overview schema only' };
+    const childSchema = { '@context': 'https://schema.org', '@type': 'ImageGallery', name: 'Audit photos schema only' };
+    saved = await admin('configs/' + encodeURIComponent(saved.config_key), { ...saved, schema_overrides: rootSchema, custom_schema_json: rootSchema, section_seo: { ...saved.section_seo, photos: { ...saved.section_seo?.photos, schema_overrides: childSchema } } });
+    const reopened = await admin('inventory/project/' + project.id);
+    assert.deepEqual(reopened.config.schema_overrides, rootSchema);
+    assert.deepEqual(reopened.config.section_seo.photos.schema_overrides, childSchema);
+    saved = await admin('configs/' + encodeURIComponent(saved.config_key), { ...reopened.config, meta_title: 'Schema retained after unrelated edit' });
+    assert.deepEqual(saved.section_seo.photos.schema_overrides, childSchema);
+    const overviewHtml = await html('/' + project.slug);
+    const photosHtml = await html('/' + project.slug + '/photos');
+    assert(JSON.stringify(graphs(overviewHtml)).includes('Audit overview schema only'));
+    assert(!JSON.stringify(graphs(overviewHtml)).includes('Audit photos schema only'));
+    assert(photosHtml.includes('Audit photos schema only'));
+    // Check executable JSON-LD, excluding embedded React payload data.
+    const scripts = [...photosHtml.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
+    assert(JSON.stringify(scripts).includes('Audit photos schema only'));
+    assert(!JSON.stringify(scripts).includes('Audit overview schema only'));
+    passed('JSON-LD saves, reloads, survives unrelated edits and renders only on the intended page');
     const renamed = '/audit-renamed-project-' + runId;
     saved = await admin('configs/' + encodeURIComponent(saved.config_key), { ...saved, public_path: renamed });
     const direct = await html(renamed + '/photos');

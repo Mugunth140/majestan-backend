@@ -280,3 +280,46 @@ describe('default child SEO sections', () => {
     ]);
   });
 });
+
+describe('subpage JSON-LD round trips', () => {
+  it.each(['schema_overrides', 'custom_schema_json', 'json_ld', 'jsonLd'])(
+    'normalizes %s and preserves schema on unrelated edits',
+    (key) => {
+      const schema = {
+        '@graph': [{ '@type': 'ImageGallery', name: 'Saved gallery' }],
+      };
+      const saved = normalizeSeoInput({
+        section_seo: { photos: { [key]: schema } },
+      });
+      validateSeoFields(saved, 'project');
+      const reopened = exposeSeoFields({ ...saved });
+      expect(reopened.section_seo.photos.schema_overrides).toEqual(schema);
+      const edited = normalizeSeoInput(
+        { section_seo: { photos: { meta_title: 'New title' } } },
+        reopened,
+      );
+      expect(edited.section_seo.photos.schema_overrides).toEqual(schema);
+      const cleared = normalizeSeoInput(
+        { section_seo: { photos: { schema_overrides: {} } } },
+        edited,
+      );
+      expect(cleared.section_seo.photos.schema_overrides).toEqual({});
+    },
+  );
+  it('rejects malformed schema instead of storing invisible data', () => {
+    for (const value of [[], null, 42, 'broken']) {
+      expect(() =>
+        validateSeoFields(
+          normalizeSeoInput({
+            section_seo: { photos: { schema_overrides: value } },
+          }),
+          'project',
+        ),
+      ).toThrow();
+    }
+  });
+});
+
+it('keeps invalid legacy JSON-LD readable so an administrator can repair it', () => {
+  expect(sections({ photos: { json_ld: '{broken' } }).photos.schema_overrides).toBe('{broken');
+});
