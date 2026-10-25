@@ -247,6 +247,9 @@ export function normalizeSeoInput(input: any, existing: any = {}) {
       }
     }
   }
+  if (['property', 'project'].includes(input.scope || existing.scope))
+    for (const key of ['expired_redirect_policy', 'expired_redirect_path', 'redirect_target_path'])
+      delete settings[key];
   body.settings = settings;
   return body;
 }

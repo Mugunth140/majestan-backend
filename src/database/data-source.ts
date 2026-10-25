@@ -1,3 +1,4 @@
+import { AddArchivedPropertyStatus1785300000000 } from './migrations/1785300000000-AddArchivedPropertyStatus';
 import { SeoAuditRemediation1785200000000 } from './migrations/1785200000000-SeoAuditRemediation';
 import { PropertyTypeSeoTemplates1785100000000 } from './migrations/1785100000000-PropertyTypeSeoTemplates';
 import { SeoCanonicalType1785000000000 } from './migrations/1785000000000-SeoCanonicalType';
@@ -72,6 +73,7 @@ export default new DataSource({
   logging: parseBoolean(process.env.TYPEORM_LOGGING, false),
   migrationsTableName: 'migrations',
   migrations: [
+    AddArchivedPropertyStatus1785300000000,
     SeoAuditRemediation1785200000000,
     SeoCanonicalType1785000000000,
     PropertyTypeSeoTemplates1785100000000,

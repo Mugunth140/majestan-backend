@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import { Meilisearch, Index } from 'meilisearch';
 import { Property, PropertyStatus } from '../../database/entities/property.entity';
 import { Project, ProjectStatus } from '../../database/entities/project.entity';
@@ -254,7 +254,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
         return;
       }
       // Only live AND approved properties belong in the public index.
-      if (prop.status !== PropertyStatus.AVAILABLE || (prop as any).approvalStatus !== 'Approved') {
+      if (![PropertyStatus.AVAILABLE, PropertyStatus.SOLD, PropertyStatus.RENTED].includes(prop.status) || (prop as any).approvalStatus !== 'Approved') {
         await this.deleteProperty(propertyId);
         return;
       }
@@ -312,7 +312,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
         return;
       }
       // Only published projects belong in the public index.
-      if (proj.status !== ProjectStatus.PUBLISHED) {
+      if (![ProjectStatus.PUBLISHED, ProjectStatus.BOOKED].includes(proj.status)) {
         await this.deleteProject(projectId);
         return;
       }
@@ -342,7 +342,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
 
     while (true) {
       const projects = await repo.find({
-        where: { status: ProjectStatus.PUBLISHED },
+        where: { status: In([ProjectStatus.PUBLISHED, ProjectStatus.BOOKED]) },
         take: BATCH_SIZE,
         skip: offset,
         order: { id: 'ASC' },
@@ -375,7 +375,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
 
     while (true) {
       const props = await repo.find({
-        where: { status: PropertyStatus.AVAILABLE, approvalStatus: 'Approved' },
+        where: { status: In([PropertyStatus.AVAILABLE, PropertyStatus.SOLD, PropertyStatus.RENTED]), approvalStatus: 'Approved' },
         relations: ['propertyLocations', 'propertyLocations.sublocation', 'propertyDetails'],
         take: BATCH_SIZE,
         skip: offset,
@@ -418,7 +418,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     if (scope === 'projects') return this.searchProjects(query, filters, page, limit);
     if (!this.index) throw new Error('Meilisearch not enabled');
     // Public visibility gate (mirrors the DB path): live AND approved.
-    const filterParts: string[] = ['status = available', 'approvalStatus = Approved'];
+    const filterParts: string[] = ['(status = available OR status = sold OR status = rented)', 'approvalStatus = Approved'];
     if (filters.propertyType) filterParts.push(`propertyType = "${filters.propertyType}"`);
     if (filters.listingType) filterParts.push(`listingType = "${filters.listingType}"`);
     // Slug-based place matching — case-proof on both sides.
@@ -462,7 +462,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
   ) {
     if (!this.projectIndex) throw new Error('Meilisearch not enabled');
     // Public visibility gate: published only.
-    const filterParts: string[] = ['status = published'];
+    const filterParts: string[] = ['(status = published OR status = booked)'];
     if (filters.propertyType) filterParts.push(`projectType = "${filters.propertyType}"`);
     if (filters.city) filterParts.push(`citySlug = "${toSlug(filters.city)}"`);
     const place = filters.locality || filters.location;

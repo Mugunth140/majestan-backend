@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import { Project, ProjectStatus } from '../../database/entities/project.entity';
 import { ProjectSearchQueryDto } from './dto/project-search.dto';
 import { computeProjectRanges } from './utils/project-ranges.util';
@@ -21,7 +21,7 @@ export const toProjectListItem = (project: Project, units: any[], readUrl: (key:
     videoUrls: project.videoUrls ?? null,
     videos: readVideos(project),
     status, createdAt, updatedAt,
-    ranges: computeProjectRanges(units),
+    ranges: computeProjectRanges(units, status === ProjectStatus.BOOKED),
   };
 };
 
@@ -48,8 +48,8 @@ export class ProjectsService {
     const limit = query.limit || 12;
     const qb = this.projectRepository
       .createQueryBuilder('p')
-      .leftJoinAndSelect('p.units', 'u', 'u.status = :unitStatus', { unitStatus: 'available' })
-      .where('p.status = :status', { status: ProjectStatus.PUBLISHED });
+      .leftJoinAndSelect('p.units', 'u', "(u.status = :unitStatus OR p.status = 'booked')", { unitStatus: 'available' })
+      .where('p.status IN (:...publicStatuses)', { publicStatuses: [ProjectStatus.PUBLISHED, ProjectStatus.BOOKED] });
     if (query.city) qb.andWhere('(p.city LIKE :city OR p.sublocation LIKE :city)', { city: `%${query.city}%` });
     if (query.projectType) qb.andWhere('p.projectType = :projectType', { projectType: query.projectType });
     if (query.possession) qb.andWhere('p.possessionStatus = :possession', { possession: query.possession });
@@ -75,7 +75,7 @@ export class ProjectsService {
       where: [{ slug }, { canonicalSlug: slug }],
       relations: ['builder'],
     });
-    if (!project || project.status !== ProjectStatus.PUBLISHED) {
+    if (!project || project.status === ProjectStatus.DRAFT) {
       throw new NotFoundException('Project not found');
     }
     const rawUnits = ((await project.units) ?? []) as any[];
@@ -141,7 +141,7 @@ export class ProjectsService {
 
   async getAllSlugs(): Promise<string[]> {
     const projects = await this.projectRepository.find({
-      where: { status: ProjectStatus.PUBLISHED },
+      where: { status: Not(ProjectStatus.DRAFT) },
       select: ['canonicalSlug'],
     });
     return projects.map((p) => p.canonicalSlug).filter(Boolean);

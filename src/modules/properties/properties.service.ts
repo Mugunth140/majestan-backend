@@ -251,7 +251,7 @@ export class PropertiesService {
       .leftJoinAndSelect('locations.sublocation', 'subloc')
       .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
       .leftJoinAndSelect('p.propertyUnits', 'units')
-      .where('p.status = :status', { status: PropertyStatus.AVAILABLE })
+      .where('p.status IN (:...publicStatuses)', { publicStatuses: [PropertyStatus.AVAILABLE, PropertyStatus.SOLD, PropertyStatus.RENTED] })
       .andWhere('p.approvalStatus = :approvalStatus', { approvalStatus: APPROVAL_GATE });
 
     if (query.propertyType) {
@@ -322,7 +322,7 @@ export class PropertiesService {
             .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
             .leftJoinAndSelect('p.propertyUnits', 'units')
             .where('p.id IN (:...ids)', { ids })
-            .andWhere('p.status = :status', { status: PropertyStatus.AVAILABLE })
+            .andWhere('p.status IN (:...publicStatuses)', { publicStatuses: [PropertyStatus.AVAILABLE, PropertyStatus.SOLD, PropertyStatus.RENTED] })
             .andWhere('p.approvalStatus = :approvalStatus', { approvalStatus: APPROVAL_GATE });
           this.applyPlaceFilters(meiliQb, query);
           this.applyListingFilters(meiliQb, query);
@@ -379,7 +379,7 @@ export class PropertiesService {
 
   async details(propertyType: string, id: number): Promise<Record<string, unknown>> {
     const property = await this.propertyRepository.findOne({
-      where: { id, propertyType: normalizePropertyType(propertyType) as PropertyType, status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE },
+      where: { id, propertyType: normalizePropertyType(propertyType) as PropertyType, approvalStatus: APPROVAL_GATE },
       relations: [
         'propertyDetails',
         'propertyLocations',
@@ -452,8 +452,8 @@ export class PropertiesService {
   async detailsBySlug(slug: string): Promise<Record<string, unknown>> {
     let property = await this.propertyRepository.findOne({
       where: [
-        { slug, status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE },
-        { propertyCode: slug, status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE }
+        { slug, approvalStatus: APPROVAL_GATE },
+        { propertyCode: slug, approvalStatus: APPROVAL_GATE }
       ],
       relations: [
         'propertyDetails',
@@ -478,7 +478,7 @@ export class PropertiesService {
       const parsed = parsePropertySlugSuffix(slug);
       if (parsed) {
         property = await this.propertyRepository.findOne({
-          where: { id: parsed.id, propertyType: parsed.propertyType as PropertyType, status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE },
+          where: { id: parsed.id, propertyType: parsed.propertyType as PropertyType, approvalStatus: APPROVAL_GATE },
           relations: [
             'propertyDetails',
             'propertyLocations',
@@ -593,7 +593,7 @@ export class PropertiesService {
 
   async getAllSlugs(): Promise<string[]> {
     const properties = await this.propertyRepository.find({
-      where: { status: PropertyStatus.AVAILABLE, approvalStatus: APPROVAL_GATE },
+      where: { approvalStatus: APPROVAL_GATE },
       select: ['slug', 'propertyCode']
     });
     return properties.map(p => p.slug || p.propertyCode).filter(Boolean) as string[];
@@ -624,7 +624,7 @@ export class PropertiesService {
       .leftJoin('p.propertyDetails', 'details')
       .leftJoin('p.propertyLocations', 'locations')
       .leftJoin('locations.sublocation', 'subloc')
-      .where('p.status = :status', { status: PropertyStatus.AVAILABLE })
+      .where('p.status IN (:...publicStatuses)', { publicStatuses: [PropertyStatus.AVAILABLE, PropertyStatus.SOLD, PropertyStatus.RENTED] })
       .andWhere('p.approvalStatus = :approvalStatus', { approvalStatus: APPROVAL_GATE })
       .getRawMany();
   }

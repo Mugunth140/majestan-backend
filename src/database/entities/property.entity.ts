@@ -39,7 +39,8 @@ export enum PropertyStatus {
   AVAILABLE = 'available',
   SOLD = 'sold',
   RENTED = 'rented',
-  UNAVAILABLE = 'unavailable',
+  UNAVAILABLE = 'unavailable', // Internal pending submissions and legacy compatibility.
+  ARCHIVED = 'archived',
 }
 
 @Entity('properties')

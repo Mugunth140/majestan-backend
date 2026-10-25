@@ -37,6 +37,7 @@ describe('SearchService project scope', () => {
     const [q, opts] = (projectIndex.search as jest.Mock).mock.calls[0];
     expect(q).toBe('lakeview');
     expect(String(opts.filter)).toContain('status = published');
+    expect(String(opts.filter)).toContain('status = booked');
     expect(res).toEqual(expect.objectContaining({ page: 1, limit: 5 }));
   });
 
@@ -66,7 +67,7 @@ describe('SearchService project scope', () => {
     expect(addDocuments).not.toHaveBeenCalled();
   });
 
-  it('indexes published projects with a canonical detail URL', async () => {
+  it.each(['published','booked'])('indexes %s projects with a canonical detail URL', async status => {
     const { service, repo } = makeService();
     const deleteDocument: jest.Mock = jest.fn(async () => undefined);
     const addDocuments: jest.Mock = jest.fn(async () => ({}));
@@ -83,7 +84,7 @@ describe('SearchService project scope', () => {
       state: 'Tamil Nadu',
       sublocation: 'Sholinganallur',
       possessionStatus: 'ready_to_move',
-      status: 'published',
+      status,
       createdAt: new Date('2026-01-01'),
       units: Promise.resolve([{ price: '7500000' }]),
     });

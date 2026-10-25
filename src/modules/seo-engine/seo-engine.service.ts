@@ -35,9 +35,9 @@ import {
   xml,
 } from './seo-utils';
 
-// Listing expiry uses Coimbatore's calendar day, independent of server timezone.
+// Active listing grids use inventory status. Dates never expire public detail pages.
 const LIVE_PROPERTY =
-  "p.status='available' AND p.approval_status='Approved' AND (p.available_until IS NULL OR p.available_until>=DATE(CONVERT_TZ(UTC_TIMESTAMP(),'+00:00','+05:30')))";
+  "p.status IN ('available','sold','rented') AND p.approval_status='Approved'";
 
 @Injectable()
 export class SeoEngineService {
@@ -91,7 +91,7 @@ export class SeoEngineService {
       limit = 30;
     const args: any[] = [];
     const conditions = [
-      scope === 'property' ? LIVE_PROPERTY : "p.status='published'",
+      scope === 'property' ? LIVE_PROPERTY : "p.status IN ('published','booked')",
     ];
     if (query.search) {
       conditions.push(
@@ -129,7 +129,7 @@ export class SeoEngineService {
       this.db.query(
         `SELECT p.id,p.${scope === 'project' ? 'name' : 'title'} AS name,p.city,p.status,
         p.${scope === 'project' ? 'project_type' : 'property_type'} AS type,
-        ${scope === 'project' ? `p.canonical_slug,p.builder_name,p.possession_status,p.sublocation,(SELECT MIN(u.price) FROM project_units u WHERE u.project_id=p.id AND u.status='available' AND u.price>0) AS min_price,(SELECT MAX(u.price) FROM project_units u WHERE u.project_id=p.id AND u.status='available' AND u.price>0) AS max_price,(SELECT GROUP_CONCAT(DISTINCT u.bedrooms ORDER BY u.bedrooms SEPARATOR ', ') FROM project_units u WHERE u.project_id=p.id AND u.bedrooms>0) AS configurations` : 'p.slug AS canonical_slug,p.listing_type,p.property_condition,p.price'},
+        ${scope === 'project' ? `p.canonical_slug,p.builder_name,p.possession_status,p.sublocation,(SELECT MIN(u.price) FROM project_units u WHERE u.project_id=p.id AND (u.status='available' OR p.status='booked') AND u.price>0) AS min_price,(SELECT MAX(u.price) FROM project_units u WHERE u.project_id=p.id AND (u.status='available' OR p.status='booked') AND u.price>0) AS max_price,(SELECT GROUP_CONCAT(DISTINCT u.bedrooms ORDER BY u.bedrooms SEPARATOR ', ') FROM project_units u WHERE u.project_id=p.id AND u.bedrooms>0) AS configurations` : 'p.slug AS canonical_slug,p.listing_type,p.property_condition,p.price'},
         ${scope === 'project' ? 'p.cover_image_url' : '(SELECT i.image_url FROM property_images i WHERE i.property_id=p.id ORDER BY i.is_primary DESC,i.id LIMIT 1)'} AS thumbnail_url,
         c.id AS seo_id,c.updated_at AS seo_updated_at ${join} WHERE ${where} ORDER BY p.id DESC LIMIT ? OFFSET ?`,
         [...args, limit, (page - 1) * limit],
@@ -907,28 +907,10 @@ export class SeoEngineService {
         'SELECT source_path AS source,destination_path AS destination FROM seo_redirects WHERE is_active=1',
       ),
       this.db
-        .query(`SELECT c.public_path,c.scope,c.settings,p.status AS property_status,j.status AS project_status,(p.available_until IS NOT NULL AND p.available_until < DATE(CONVERT_TZ(UTC_TIMESTAMP(),'+00:00','+05:30'))) AS is_expired
+        .query(`SELECT c.public_path,c.scope,c.settings,p.status AS property_status,j.status AS project_status
         FROM seo_configs c LEFT JOIN properties p ON p.id=c.property_id LEFT JOIN projects j ON j.id=c.project_id
         WHERE c.public_path IS NOT NULL AND c.scope IN ('property','project','listing')`),
     ]);
-    for (const c of configs) {
-      const settings = json<any>(c.settings, {});
-      if (
-        settings.expired_redirect_path &&
-        !(
-          c.scope === 'property' &&
-          c.property_status &&
-          settings.expired_redirect_policy === 'keep_live_sold_banner'
-        ) &&
-        ((c.scope === 'property' &&
-          (c.property_status !== 'available' || c.is_expired)) ||
-          (c.scope === 'project' && c.project_status !== 'published'))
-      )
-        redirects.push({
-          source: c.public_path,
-          destination: settings.expired_redirect_path,
-        });
-    }
     const value = {
       redirects,
       inventory_paths: configs
@@ -1028,9 +1010,9 @@ export class SeoEngineService {
     if (rule.inventory_kind === 'project') {
       const mode = rule.transaction_intent === 'rent' ? 'rent' : 'sale';
       const priceColumn = mode === 'rent' ? 'monthly_rent' : 'price';
-      const unitWhere = `u.project_id=p.id AND u.status='available' AND u.listing_mode='${mode}'${rule.bedrooms ? ` AND u.bedrooms${Number(rule.bedrooms) === 4 ? '>=' : '='}${Number(rule.bedrooms)}` : ''}`;
+      const unitWhere = `u.project_id=p.id AND (u.status='available' OR p.status='booked') AND u.listing_mode='${mode}'${rule.bedrooms ? ` AND u.bedrooms${Number(rule.bedrooms) === 4 ? '>=' : '='}${Number(rule.bedrooms)}` : ''}`;
       const where = [
-        "p.status='published'",
+        "p.status IN ('published','booked')",
         'LOWER(p.city)=LOWER(?)',
         `EXISTS(SELECT 1 FROM project_units u WHERE ${unitWhere})`,
       ];
@@ -1163,10 +1145,10 @@ export class SeoEngineService {
     }
     if (scope === 'property' && target && String(target.approval_status).toLowerCase() !== 'approved')
       return { gone: true, scope, robots_index: false };
+    if (scope === 'project' && target?.status === 'draft')
+      return { gone: true, scope, robots_index: false };
     if ((scope === 'property' || scope === 'project') && !target)
-      return config?.settings?.expired_redirect_path
-        ? { redirect: config.settings.expired_redirect_path }
-        : { gone: true, scope, config, robots_index: false };
+      return { gone: true, scope, robots_index: false };
     let rule =
       scope === 'listing' && config
         ? await this.one(
@@ -1204,43 +1186,9 @@ export class SeoEngineService {
       config?.settings?.auto_redirect !== false
     )
       return { redirect: publicPath };
-    const expired =
-      target && scope === 'property'
-        ? Number(
-            (
-              await this.one(
-                "SELECT available_until IS NOT NULL AND available_until < DATE(CONVERT_TZ(UTC_TIMESTAMP(),'+00:00','+05:30')) AS expired FROM properties WHERE id=?",
-                [target.id],
-              )
-            )?.expired,
-          )
-        : 0;
-    const offMarket = Boolean(
-      target &&
-      (expired ||
-        (scope === 'property'
-          ? target.status !== 'available'
-          : target.status !== 'published')),
-    );
-    if (
-      offMarket &&
-      !(
-        ['project', 'property'].includes(scope) &&
-        config?.settings?.expired_redirect_policy === 'keep_live_sold_banner'
-      )
-    ) {
-      if (config?.settings?.expired_redirect_policy === 'gone')
-        return {
-          gone: true,
-          scope,
-          config,
-          robots_index: false,
-          robots_follow: true,
-        };
-      if (config?.settings?.expired_redirect_path)
-        return { redirect: config.settings.expired_redirect_path };
-      return { gone: true, scope, config, robots_index: false };
-    }
+    // Dates and old SEO lifecycle policies never control inventory availability.
+    const offMarket = Boolean(target && (scope === 'property'
+      ? target.status !== 'available' : scope === 'project' && target.status !== 'published'));
     let data: any = {},
       intent = 'buy',
       type = '',
@@ -1495,26 +1443,8 @@ export class SeoEngineService {
     resolved.ai_summary = resolved.settings.ai_summary;
     resolved.focus_keyword = config?.settings?.focus_keyword || '';
     resolved.secondary_keywords = config?.settings?.secondary_keywords || [];
-    resolved.expired_redirect_policy =
-      config?.settings?.expired_redirect_policy || 'redirect_to_locality';
-    const routeLocality =
-      scope === 'project' ? target?.sublocation : extra.locality_name;
-    const candidate =
-      TYPE_SLUGS[type] && target
-        ? `/${TYPE_SLUGS[type]}-for-${intent === 'rent' ? 'rent' : 'sale'}-in-${routeLocality ? slug(routeLocality) + '-' : ''}${slug(city)}`
-        : '';
-    const fallbackRedirect =
-      candidate && (await this.inferRule(candidate))
-        ? candidate
-        : target &&
-            TYPE_SLUGS[type] &&
-            (await this.inferRule(
-              `/${TYPE_SLUGS[type]}-for-${intent === 'rent' ? 'rent' : 'sale'}-in-${slug(city)}`,
-            ))
-          ? `/${TYPE_SLUGS[type]}-for-${intent === 'rent' ? 'rent' : 'sale'}-in-${slug(city)}`
-          : '';
-    resolved.redirect_target_path =
-      config?.settings?.expired_redirect_path || fallbackRedirect;
+    for (const key of ['expired_redirect_policy', 'expired_redirect_path', 'redirect_target_path'])
+      delete resolved.settings[key];
     resolved.off_market = offMarket;
     resolved.image_alts = imageFields(config?.image_alt_overrides);
     resolved.image_alt_overrides = Object.fromEntries(
@@ -2186,11 +2116,11 @@ export class SeoEngineService {
     let entries: any[] = [];
     if (group === 'projects')
       entries = await this.db.query(
-        `SELECT COALESCE(c.public_path,CONCAT('/',p.canonical_slug)) AS path,GREATEST(p.updated_at,COALESCE(c.updated_at,p.updated_at)) AS updated_at,c.canonical_url,c.canonical_type,p.project_type AS seo_type,p.id AS target_id FROM projects p LEFT JOIN seo_configs c ON c.project_id=p.id WHERE p.status='published' AND p.canonical_slug IS NOT NULL AND p.canonical_slug<>'' AND COALESCE(c.robots_index,1)=1`,
+        `SELECT COALESCE(c.public_path,CONCAT('/',p.canonical_slug)) AS path,GREATEST(p.updated_at,COALESCE(c.updated_at,p.updated_at)) AS updated_at,c.canonical_url,c.canonical_type,p.project_type AS seo_type,p.id AS target_id FROM projects p LEFT JOIN seo_configs c ON c.project_id=p.id WHERE p.status<>'draft' AND p.canonical_slug IS NOT NULL AND p.canonical_slug<>'' AND COALESCE(c.robots_index,1)=1`,
       );
     else if (['properties-buy', 'properties-rent'].includes(group))
       entries = await this.db.query(
-        `SELECT COALESCE(c.public_path,CONCAT('/',p.slug)) AS path,GREATEST(p.updated_at,COALESCE(c.updated_at,p.updated_at)) AS updated_at,c.canonical_url,c.canonical_type,p.property_type AS seo_type,p.id AS target_id FROM properties p LEFT JOIN seo_configs c ON c.property_id=p.id WHERE (${LIVE_PROPERTY} OR (p.approval_status='Approved' AND JSON_UNQUOTE(JSON_EXTRACT(c.settings,'$.expired_redirect_policy'))='keep_live_sold_banner')) AND p.slug IS NOT NULL AND p.slug<>'' AND p.listing_type=? AND COALESCE(c.robots_index,1)=1`,
+        `SELECT COALESCE(c.public_path,CONCAT('/',p.slug)) AS path,GREATEST(p.updated_at,COALESCE(c.updated_at,p.updated_at)) AS updated_at,c.canonical_url,c.canonical_type,p.property_type AS seo_type,p.id AS target_id FROM properties p LEFT JOIN seo_configs c ON c.property_id=p.id WHERE p.approval_status='Approved' AND p.slug IS NOT NULL AND p.slug<>'' AND p.listing_type=? AND COALESCE(c.robots_index,1)=1`,
         [group === 'properties-rent' ? 'Rent' : 'Sell'],
       );
     else if (group === 'pages') {
@@ -2258,7 +2188,7 @@ export class SeoEngineService {
             EXISTS(SELECT 1 FROM project_units u WHERE u.project_id=p.id AND (NULLIF(u.floor_plan_image_url,'') IS NOT NULL OR NULLIF(u.floor_plan_image_key,'') IS NOT NULL OR JSON_SEARCH(u.floor_plans,'one','_%',NULL,'$[*].imageKey','$[*].imageUrl') IS NOT NULL)) AS floor_plans,
             EXISTS(SELECT 1 FROM project_amenities a WHERE a.project_id=p.id) AS amenities,
             (NULLIF(p.address,'') IS NOT NULL OR NULLIF(p.sublocation,'') IS NOT NULL OR (p.latitude IS NOT NULL AND p.longitude IS NOT NULL)) AS locality
-            FROM projects p WHERE p.status='published'`)
+            FROM projects p WHERE p.status IN ('published','booked')`)
         : await this.db.query(`SELECT p.id,
             EXISTS(SELECT 1 FROM property_images i WHERE i.property_id=p.id AND NULLIF(i.image_url,'') IS NOT NULL) AS photos,
             (EXISTS(SELECT 1 FROM property_units u WHERE u.property_id=p.id AND NULLIF(u.floor_plan_image_url,'') IS NOT NULL)

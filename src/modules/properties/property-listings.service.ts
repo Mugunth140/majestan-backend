@@ -41,15 +41,13 @@ export class PropertyListingsService {
       .innerJoinAndSelect(
         'project.units',
         'u',
-        'u.status = :available AND u.listingMode = :listingMode',
+        "(u.status = :available OR project.status = 'booked') AND u.listingMode = :listingMode",
         {
           available: 'available',
           listingMode: query.listingType === 'Rent' ? 'rent' : 'sale',
         },
       )
-      .where('project.status = :published', {
-        published: ProjectStatus.PUBLISHED,
-      })
+      .where('project.status IN (:...publicProjectStatuses)', { publicProjectStatuses: [ProjectStatus.PUBLISHED, ProjectStatus.BOOKED] })
       .andWhere('project.projectType IN (:...projectTypes)', {
         projectTypes: PROJECT_TYPES,
       });
@@ -210,7 +208,7 @@ export class PropertyListingsService {
     for (const project of projects) {
       const units = ((await project.units) ?? []).filter(
         (unit) =>
-          unit.status === 'available' &&
+          (unit.status === 'available' || project.status === ProjectStatus.BOOKED) &&
           unit.listingMode === (renting ? 'rent' : 'sale'),
       );
       const card = toProjectListItem(

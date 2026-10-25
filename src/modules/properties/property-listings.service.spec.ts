@@ -7,6 +7,8 @@ import { DataSource, SelectQueryBuilder } from 'typeorm';
 import { ValidationPipe } from '@nestjs/common';
 import { Project } from '../../database/entities/project.entity';
 import { Property } from '../../database/entities/property.entity';
+import { ProjectsService } from '../projects/projects.service';
+import { AdminPropertiesService } from '../admin/properties/admin-properties.service';
 import { PropertiesService } from './properties.service';
 import { PropertyListingsService } from './property-listings.service';
 import {
@@ -44,6 +46,47 @@ describe('Combined property and project listings', () => {
     } as StorageService);
   });
   afterEach(() => jest.restoreAllMocks());
+
+  it('shows Available, Sold and Rented properties but excludes Archived from public listing filters', () => {
+    const [,params] = properties.databaseSearchQuery(query()).getQueryAndParameters();
+    expect(params).toEqual(expect.arrayContaining(['available','sold','rented']));
+    expect(params).not.toContain('archived');
+    expect(params).not.toContain('unavailable');
+  });
+  it('admits booked projects and their sold unit configurations in combined listings', () => {
+    const [sql,params] = service.projectSearchQuery(query()).getQueryAndParameters();
+    expect(params).toEqual(expect.arrayContaining(['published','booked']));
+    expect(sql).toContain("OR `project`.`status` = 'booked'");
+  });
+  it('returns booked projects with unchanged prices and configurations on /projects', async () => {
+    const project = {id:1, name:'Booked Project', status:'booked', projectType:'apartment', units: [{id:2,status:'sold',price:'5000000',bedrooms:3,builtupAreaSqft:'1400'}]};
+    jest.spyOn(SelectQueryBuilder.prototype,'getManyAndCount').mockResolvedValueOnce([[project as any],1]);
+    const api = new ProjectsService(dataSource.getRepository(Project), {generateReadUrl: (key:string)=>key} as any);
+    const result = await api.list({} as any);
+    expect(result.items[0]).toMatchObject({name:'Booked Project',status:'booked',ranges:{minPrice:5000000,bhk:[3]}});
+  });
+  it.each(['archived','available'])('keeps the CRM %s section distinct from Sold/Rented archival', async statusFilter => {
+    let sql='';
+    jest.spyOn(SelectQueryBuilder.prototype,'getManyAndCount').mockImplementationOnce(async function(this:SelectQueryBuilder<Property>) {sql=this.getSql();return [[],0];});
+    const admin=Object.assign(Object.create(AdminPropertiesService.prototype),{dataSource});
+    await admin.listAll({statusFilter});
+    if(statusFilter==='archived') expect(sql).toContain("IN ('archived','unavailable')");
+    else expect(sql).toContain("IN ('available','sold','rented')");
+  });
+
+  it.each(['available', 'sold', 'rented', 'unavailable'])('returns the complete public detail for %s properties with past availability dates', async status => {
+    const property = {id: 2599, title: 'Luxury House', slug: 'luxury-house-ip2599', propertyType: 'individual_portion', status, approvalStatus: 'Approved', availableUntil: '2000-01-01', propertyImages: [], propertyDetails: null, propertyLocations: [], propertyAmenities: [], propertyFurnishings: [], propertyUnits: [], propertyFiles: [], faqs: [], seo: null};
+    const lookup = jest.spyOn(dataSource.getRepository(Property), 'findOne').mockResolvedValue(property as any);
+    (properties as any).storageService = {resolveImageUrls: (images: unknown) => images, generateReadUrl: (key: string) => key};
+    const result = await properties.detailsBySlug(property.slug);
+    expect(result).toMatchObject({id: 2599, title: 'Luxury House', status, canonicalSlug: property.slug, shouldRedirect: false, propertyImages: []});
+    const where = lookup.mock.calls[0][0].where as any[];
+    for (const condition of where) {
+      expect(condition.status).toBeUndefined();
+      expect(condition.availableUntil).toBeUndefined();
+      expect(condition.approvalStatus).toBe('Approved');
+    }
+  });
 
   it('retains and validates the opt-in flag through the API whitelist', async () => {
     const pipe = new ValidationPipe({

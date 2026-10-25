@@ -472,6 +472,11 @@ async function verify() {
       "UPDATE properties SET available_until='2000-01-01' WHERE id=?",
       [target.id],
     );
+    const dated = await service.resolve('/verification/nested/property');
+    assert.equal(dated.off_market, false);
+    assert.equal(dated.gone, undefined);
+    assert.equal(dated.redirect, undefined);
+    await db.query("UPDATE properties SET status='sold' WHERE id=?", [target.id]);
     const retained = await service.resolve('/verification/nested/property');
     assert.equal(retained.off_market, true);
     assert(
@@ -499,18 +504,18 @@ async function verify() {
     );
     assert.equal(
       (await service.resolve('/verification/nested/property')).redirect,
-      '/verification-buy',
+      undefined,
     );
     assert.equal(
       (
         await db.query('SELECT status FROM properties WHERE id=?', [target.id])
       )[0].status,
-      'available',
+      'sold',
     );
     await db.query('DELETE FROM properties WHERE id=?', [target.id]);
     assert.equal(
       (await service.resolve('/verification/nested/property')).redirect,
-      '/verification-buy',
+      undefined,
     );
     console.log(
       'Passed: Sale/Rent intents, live stats, immediate updates, thin-content guards, FAQ JSON-LD, stale-save protection, redirect loops, nested paths and unchanged inventory.',

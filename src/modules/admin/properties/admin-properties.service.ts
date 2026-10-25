@@ -94,7 +94,7 @@ export class AdminPropertiesService {
 
   /**
    * Cross-type list for CRM consumption. Supports status (incl. 'archived'
-   * = anything not available), free-text search, listing type and city.
+   * = explicitly archived or legacy unavailable), free-text search, listing type and city.
    */
   async listAll(query: AdminPropertyQueryDto) {
     const qb = this.dataSource.getRepository(Property).createQueryBuilder('p')
@@ -111,9 +111,10 @@ export class AdminPropertiesService {
     if (query.statusFilter === 'review') {
       qb.where(ownerReview, reviewParams);
     } else if (query.statusFilter === 'archived') {
-      qb.where(`p.status != 'available'`).andWhere(`NOT ${ownerReview}`, reviewParams);
+      qb.where(`p.status IN ('archived','unavailable')`).andWhere(`NOT ${ownerReview}`, reviewParams);
     } else if (query.statusFilter) {
-      qb.where('p.status = :status', { status: query.statusFilter });
+      if (query.statusFilter === 'available') qb.where("p.status IN ('available','sold','rented')");
+      else qb.where('p.status = :status', { status: query.statusFilter });
       if (query.statusFilter === 'available') qb.andWhere(`NOT ${ownerReview}`, reviewParams);
     }
 

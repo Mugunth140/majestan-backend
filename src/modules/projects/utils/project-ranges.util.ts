@@ -35,7 +35,7 @@ const toPositiveNumber = (value: string | number | null | undefined): number | n
   return num;
 };
 
-export function computeProjectRanges(units: RangeUnitInput[]): ProjectRanges {
+export function computeProjectRanges(units: RangeUnitInput[], includeBooked = false): ProjectRanges {
   const empty: ProjectRanges = {
     minPrice: null,
     maxPrice: null,
@@ -52,7 +52,7 @@ export function computeProjectRanges(units: RangeUnitInput[]): ProjectRanges {
     plotOpenSides: [],
   };
   if (!units || units.length === 0) return empty;
-  const available = units.filter((u) => !u.status || u.status === 'available');
+  const available = includeBooked ? units : units.filter((u) => !u.status || u.status === 'available');
   if (available.length === 0) return empty;
   const prices = available
     .map((u) => toPositiveNumber(u.price))
