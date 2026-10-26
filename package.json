@@ -27,6 +27,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:seo:integration": "bun run scripts/verify-seo-audit.ts",
+    "test:seo:core": "SEO_VERIFY_CORE_ONLY=1 bun run scripts/verify-seo-audit.ts",
     "seo:data-quality": "bun run scripts/report-seo-data-quality.ts",
     "seo:validate": "bun run scripts/validate-public-seo.ts"
   },

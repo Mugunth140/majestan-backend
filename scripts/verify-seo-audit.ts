@@ -249,6 +249,86 @@ async function verify() {
     passed(
       'Real password login, HttpOnly session, invalid-password/unauthenticated rejection',
     );
+    if (process.env.SEO_VERIFY_CORE_ONLY) {
+      const pages = await admin('configs?scope=page');
+      assert(pages.length >= 12, 'Expected seeded core and service pages');
+      const failures: string[] = [];
+      for (const page of pages) {
+        try {
+        const path = page.public_path;
+        const endpoint = 'configs/' + encodeURIComponent(page.config_key);
+        // Warm the real production cache before saving to verify invalidation.
+        await html(path);
+        const marker = `Core audit ${page.id}`;
+        const input = {
+          ...page,
+          meta_title: `${marker} title`,
+          meta_description: `${marker} description`,
+          h1: `${marker} heading`,
+          og_title: `${marker} social title`,
+          og_description: `${marker} social description`,
+          og_image_url: 'https://cdn.majestanrealty.com/core-audit.jpg',
+          canonical_type: 'self', canonical_url: '',
+          robots_index: true, robots_follow: true,
+          intro_content: `${marker} introduction`,
+          bottom_content: `${marker} guide`,
+          highlights: [`${marker} highlight`],
+          faqs: [{ question: `${marker} question?`, answer: `${marker} answer` }],
+          custom_schema_json: { '@type': 'Service', name: `${marker} schema` },
+        };
+        const saved = await admin(endpoint, input);
+        const reopened = (await admin('configs?scope=page')).find((row: any) => row.config_key === page.config_key);
+        assert.equal(reopened.meta_title, input.meta_title, `${path}: persisted title`);
+        assert.equal(reopened.intro_content, input.intro_content, `${path}: persisted introduction`);
+        assert.deepEqual(reopened.faqs, input.faqs, `${path}: persisted FAQs`);
+        const rendered = await html(path);
+        assert.equal(decode(rendered.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || ''), input.meta_title, `${path}: title after warm cache save`);
+        assert.equal(meta(rendered, 'description'), input.meta_description, `${path}: description`);
+        assert.equal(meta(rendered, 'og:title'), input.og_title, `${path}: social title`);
+        assert.equal(meta(rendered, 'og:description'), input.og_description, `${path}: social description`);
+        assert.equal(meta(rendered, 'og:image'), input.og_image_url, `${path}: social image`);
+        const canonicalTag = [...rendered.matchAll(/<link\b[^>]*>/g)].map(match => match[0]).find(tag => /rel="canonical"/.test(tag)) || '';
+        const canonical = canonicalTag.match(/href="([^"]*)"/)?.[1] || '';
+        assert.equal(canonical.replace(/\/$/, ''), `https://www.majestanrealty.com${path}`.replace(/\/$/, ''), `${path}: canonical`);
+        assert(!/noindex/.test(meta(rendered, 'robots') || ''), `${path}: indexable`);
+        const body = visible(rendered);
+        if (path !== '/projects') {
+          for (const text of [input.h1, input.intro_content, input.bottom_content, input.highlights[0], input.faqs[0].answer])
+            assert(body.includes(text), `${path}: visible ${text}`);
+          assert.equal((body.match(/<h1(?:\s|>)/g) || []).length, 1, `${path}: single H1`);
+        } else {
+          for (const text of [input.h1, input.intro_content, input.bottom_content, input.highlights[0], input.faqs[0].answer])
+            assert(!body.includes(text), 'Projects listing keeps its inventory-derived copy');
+        }
+        assert(JSON.stringify(graphs(rendered)).includes(`${marker} schema`), `${path}: custom JSON-LD`);
+        await admin(endpoint, { ...saved, public_path: '/audit-invalid-core-route' }, 'PUT', 400);
+        await admin(endpoint, { ...saved, revision: -1 }, 'PUT', 409);
+        const noindex = await admin(endpoint, { ...saved, robots_index: false, robots_follow: false, canonical_type: 'custom', canonical_url: 'https://www.majestanrealty.com/about-us' });
+        const overridden = await html(path);
+        assert(/noindex/.test(meta(overridden, 'robots') || ''), `${path}: noindex updates warmed page`);
+        assert(/nofollow/.test(meta(overridden, 'robots') || ''), `${path}: nofollow updates warmed page`);
+        assert(/<link(?=[^>]*rel="canonical")(?=[^>]*href="https:\/\/www.majestanrealty.com\/about-us")[^>]*>/.test(overridden), `${path}: custom canonical updates warmed page`);
+        const versions = await admin('history/' + encodeURIComponent(page.config_key));
+        const original = versions.find((version: any) => version.revision === page.revision);
+        assert(original, `${path}: original version retained`);
+        const restored = await admin(`history/${encodeURIComponent(page.config_key)}/${original.id}/restore`, { revision: noindex.revision }, 'POST', 201);
+        assert.equal(restored.meta_title, page.meta_title, `${path}: restore title`);
+        assert.equal(restored.public_path, path, `${path}: restore keeps route`);
+        passed(`${path}: save/reopen, warm-cache SSR, metadata, content, schema, robots, fixed route, conflict and restore`);
+        } catch (error) {
+          const message = `${page.public_path}: ${(error as Error).message}`;
+          failures.push(message);
+          console.error('FAIL ' + message);
+        }
+      }
+      assert.equal(await inventoryHash(), before, 'Core SEO edits preserve inventory data');
+      await admin('auth/logout', {}, 'POST'); cookie = '';
+      await admin('auth/me', undefined, undefined, 401);
+      passed('Core edits preserve inventory; logout invalidates access');
+      assert.equal(failures.length, 0, failures.join('\n'));
+      console.log(`SUCCESS: ${pages.length} core/service pages verified against production Next.js and disposable MySQL databases.`);
+      return;
+    }
     for (const path of ['/emi-calculator','/affordability-calculator']) {
       const page = await html(path);
       assert(page.includes(`href="https://www.majestanrealty.com${path}"`));
