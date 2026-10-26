@@ -26,6 +26,12 @@ describe('OpenGraph R2 buffer upload', () => {
     expect(Buffer.isBuffer(write.mock.calls[0][1])).toBe(true);
   });
 
+  it('stores blog images in their own folder using the same image validation', async () => {
+    const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'blue' } }).png().toBuffer();
+    const result = await service.uploadOpenGraphImage(bytes(png), 'image/png', 'uploads/blog');
+    expect(result.key).toMatch(/^uploads\/blog\//);
+    expect(write).toHaveBeenCalledWith(result.key, png, {type: 'image/png'});
+  });
   it('rejects oversized uploads before writing to R2', async () => {
     await expect(service.uploadOpenGraphImage(bytes(Buffer.alloc(5 * 1024 * 1024 + 1)), 'image/png')).rejects.toThrow('5 MB');
     expect(write).not.toHaveBeenCalled();

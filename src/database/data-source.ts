@@ -1,3 +1,4 @@
+import { CreateBlogPosts1785400000000 } from './migrations/1785400000000-CreateBlogPosts';
 import { AddArchivedPropertyStatus1785300000000 } from './migrations/1785300000000-AddArchivedPropertyStatus';
 import { SeoAuditRemediation1785200000000 } from './migrations/1785200000000-SeoAuditRemediation';
 import { PropertyTypeSeoTemplates1785100000000 } from './migrations/1785100000000-PropertyTypeSeoTemplates';
@@ -73,6 +74,7 @@ export default new DataSource({
   logging: parseBoolean(process.env.TYPEORM_LOGGING, false),
   migrationsTableName: 'migrations',
   migrations: [
+    CreateBlogPosts1785400000000,
     AddArchivedPropertyStatus1785300000000,
     SeoAuditRemediation1785200000000,
     SeoCanonicalType1785000000000,

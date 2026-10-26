@@ -11,5 +11,6 @@ import {
   imports: [StorageModule],
   controllers: [SeoAdminController, PublicSeoEngineController],
   providers: [SeoEngineService, SeoAuthService, SeoSessionGuard],
+  exports: [SeoAuthService, SeoSessionGuard],
 })
 export class SeoEngineModule {}

@@ -48,7 +48,7 @@ export class StorageService {
   }
 
   /** Receive image bytes in memory and write directly to R2, including in local-driver mode. */
-  async uploadOpenGraphImage(body: AsyncIterable<Uint8Array>, contentType: string) {
+  async uploadOpenGraphImage(body: AsyncIterable<Uint8Array>, contentType: string, folder = 'uploads/seo/opengraph') {
     const extensions: Record<string, string> = {
       'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
     };
@@ -74,7 +74,7 @@ export class StorageService {
     }
     const expectedFormat = mime === 'image/jpeg' ? 'jpeg' : extensions[mime];
     if (format !== expectedFormat) throw new BadRequestException('Image content does not match its file type');
-    const key = `uploads/seo/opengraph/${randomUUID()}.${extensions[mime]}`;
+    const key = `${folder}/${randomUUID()}.${extensions[mime]}`;
     try {
       await this.s3Client.write(key, buffer, { type: mime });
     } catch {

@@ -1,3 +1,4 @@
+import { EditorialModule } from './modules/editorial/editorial.module';
 import {
   MiddlewareConsumer,
   Module,
@@ -88,6 +89,7 @@ import { SeoEngineModule } from './modules/seo-engine/seo-engine.module';
     HealthModule,
     PropertiesModule,
     BlogsModule,
+    EditorialModule,
     WishlistModule,
     LeadsModule,
     MetadataModule,
