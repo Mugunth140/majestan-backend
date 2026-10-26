@@ -24,6 +24,7 @@ import {
 } from './seo-auth';
 import type { SeoRequest } from './seo-auth';
 import { SeoEngineService } from './seo-engine.service';
+import { StorageService } from '../storage/storage.service';
 
 class SeoLoginDto {
   @IsEmail() @MaxLength(255) email: string;
@@ -37,6 +38,7 @@ export class SeoAdminController {
   constructor(
     private readonly seo: SeoEngineService,
     private readonly auth: SeoAuthService,
+    private readonly storage: StorageService,
   ) {}
   @Post('auth/login')
   @HttpCode(200)
@@ -73,6 +75,12 @@ export class SeoAdminController {
   me(@Req() req: SeoRequest) {
     return req.seoActor;
   }
+  @Post('media/opengraph')
+  @UseGuards(SeoSessionGuard)
+  uploadOpenGraphImage(@Req() req: SeoRequest) {
+    return this.storage.uploadOpenGraphImage(req, req.headers['content-type'] || '');
+  }
+
   @Get('options')
   @UseGuards(SeoSessionGuard)
   options() {

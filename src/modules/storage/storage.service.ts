@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, PayloadTooLargeException } from '@nestjs/common';
+import { BadRequestException, Injectable, PayloadTooLargeException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, S3File } from 'bun';
 import { promises as fs } from 'fs';
 import { dirname, join, resolve } from 'path';
 import sharp from 'sharp';
+import { randomUUID } from 'crypto';
 
 const MAX_LOCAL_UPLOAD_BYTES = 15 * 1024 * 1024; // 15MB — admin temp uploads only
 
@@ -44,6 +45,42 @@ export class StorageService {
       bucket: this.bucketName,
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
     });
+  }
+
+  /** Receive image bytes in memory and write directly to R2, including in local-driver mode. */
+  async uploadOpenGraphImage(body: AsyncIterable<Uint8Array>, contentType: string) {
+    const extensions: Record<string, string> = {
+      'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+    };
+    const mime = contentType.split(';')[0].trim().toLowerCase();
+    if (!extensions[mime]) throw new BadRequestException('Choose a JPEG, PNG or WebP image');
+    const publicUrl = process.env.R2_PUBLIC_URL || this.configService.get<string>('R2_PUBLIC_URL');
+    if (!publicUrl) throw new ServiceUnavailableException('R2 public image URL is not configured');
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of body) {
+      size += chunk.byteLength;
+      if (size > 5 * 1024 * 1024) throw new PayloadTooLargeException('Image must be 5 MB or smaller');
+      chunks.push(Buffer.from(chunk));
+    }
+    if (!size) throw new BadRequestException('Choose an image to upload');
+    const buffer = Buffer.concat(chunks);
+    let format: string | undefined;
+    try {
+      const metadata = await sharp(buffer, { limitInputPixels: 40000000 }).metadata();
+      format = metadata.format;
+    } catch {
+      throw new BadRequestException('This file is not a readable image');
+    }
+    const expectedFormat = mime === 'image/jpeg' ? 'jpeg' : extensions[mime];
+    if (format !== expectedFormat) throw new BadRequestException('Image content does not match its file type');
+    const key = `uploads/seo/opengraph/${randomUUID()}.${extensions[mime]}`;
+    try {
+      await this.s3Client.write(key, buffer, { type: mime });
+    } catch {
+      throw new ServiceUnavailableException('Image upload failed. Please retry.');
+    }
+    return { key, url: `${publicUrl.replace(/\/$/, '')}/${key}` };
   }
 
   /**
