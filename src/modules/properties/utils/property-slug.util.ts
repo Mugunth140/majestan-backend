@@ -1,12 +1,14 @@
+// Same character rules as project slugs: "&" becomes "and", apostrophes are
+// dropped, and anything else outside [a-z0-9] becomes a hyphen. "P&K" and
+// "Daksha's" otherwise reached URLs, sitemaps and canonicals verbatim.
 export const normalizeSeoSlug = (value: string): string =>
   value
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/_+/g, '-')
-    .replace(/\/+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+    .replace(/&/g, 'and')
+    .replace(/['’‘`]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
 export const extractPropertyCodeFromSeoSlug = (slug: string): string | null => {
   const normalized = normalizeSeoSlug(slug);

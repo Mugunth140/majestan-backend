@@ -1,4 +1,4 @@
-import { validateRobotsPolicy, cleanSeoText, usableArea } from './seo-quality';
+import { validateRobotsPolicy, cleanSeoText, decodeSeoEntities, usableArea } from './seo-quality';
 import { resolveCanonical } from './canonical';
 import {
   BadRequestException,
@@ -17,6 +17,7 @@ import {
   defaultSections,
   imageFields,
   sectionKey,
+  SECTION_TEXT_FIELDS,
 } from './seo-fields';
 import {
   filterKey,
@@ -24,6 +25,7 @@ import {
   intentWhere,
   json,
   pathValue,
+  isInventorySlugPath,
   PROPERTY_TYPES,
   renderTemplate,
   SITE,
@@ -476,6 +478,15 @@ export class SeoEngineService {
     body = normalizeSeoInput(body, existing || { scope });
     validateSeoFields(body, scope);
     const data = this.validateConfig(body);
+    if (
+      (scope === 'property' || scope === 'project') &&
+      data.public_path &&
+      data.public_path !== existing?.public_path &&
+      !isInventorySlugPath(data.public_path)
+    )
+      throw new BadRequestException(
+        'Use lowercase letters, numbers and hyphens only, for example /green-acres-villa-v012',
+      );
     if (
       scope === 'page' &&
       existing?.public_path &&
@@ -1411,7 +1422,11 @@ export class SeoEngineService {
           Object.fromEntries(
             Object.entries(value).map(([field, text]) => [
               field,
-              typeof text === 'string' ? renderTemplate(text, variables) : text,
+              typeof text === 'string'
+                ? SECTION_TEXT_FIELDS.includes(field)
+                  ? decodeSeoEntities(renderTemplate(text, variables))
+                  : renderTemplate(text, variables)
+                : text,
             ]),
           ),
         ]),

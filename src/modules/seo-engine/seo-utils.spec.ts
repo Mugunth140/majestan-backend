@@ -1,5 +1,6 @@
 import {
   pathValue,
+  isInventorySlugPath,
   intentWhere,
   renderTemplate,
   filterKey,
@@ -29,6 +30,14 @@ describe('SEO routing and intent boundaries', () => {
   ])('rejects unsafe public path %s', (path) =>
     expect(() => pathValue(path)).toThrow(),
   );
+  it('only accepts URL-safe single-segment inventory paths', () => {
+    expect(isInventorySlugPath('/pandk-heritage-farms-fl028')).toBe(true);
+    expect(isInventorySlugPath('/p&k-heritage-farms-fl028')).toBe(false);
+    expect(isInventorySlugPath("/sree-daksha's-praktva-v082")).toBe(false);
+    expect(isInventorySlugPath('/Upper-ap1')).toBe(false);
+    expect(isInventorySlugPath('/property/old-path')).toBe(false);
+    expect(isInventorySlugPath('/double--hyphen')).toBe(false);
+  });
   it('accepts indexed ASCII paths up to 512 characters', () => {
     expect(pathValue('/' + 'a'.repeat(511))).toHaveLength(512);
     expect(() => pathValue('/' + 'a'.repeat(512))).toThrow();

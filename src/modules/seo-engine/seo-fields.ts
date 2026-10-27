@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { decodeSeoEntities } from './seo-quality';
 
 export const ENTITY_FIELDS = [
   'builder_name',
@@ -69,6 +70,15 @@ export function sectionKey(key: string) {
     )[key] || key
   );
 }
+// Plain-text subpage fields shown in titles, headings and snippets.
+export const SECTION_TEXT_FIELDS = [
+  'meta_title',
+  'meta_description',
+  'h1',
+  'intro_text',
+  'og_title',
+  'og_description',
+];
 export function sections(raw: any = {}) {
   const result: any = {};
   for (const [key, value] of Object.entries(raw || {})) {
@@ -97,6 +107,9 @@ export function sections(raw: any = {}) {
         // Keep legacy invalid text visible for repair; validation rejects saving it.
       }
     }
+    for (const field of SECTION_TEXT_FIELDS)
+      if (typeof next[field] === 'string')
+        next[field] = decodeSeoEntities(next[field]);
     if (next.canonical_type === undefined)
       next.canonical_type = next.canonical_url ? 'custom' : 'self';
     result[sectionKey(key)] = { ...result[sectionKey(key)], ...next };

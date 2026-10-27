@@ -7,8 +7,36 @@ export function usableArea(value: unknown, type: string): number | null {
   return Number.isFinite(number) && number >= minimum ? number : null;
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+// SEO fields are plain text; renderers escape once. Pasted HTML entities would
+// otherwise reach search results as literal "&amp;". Repeat for "&amp;amp;".
+export function decodeSeoEntities(value: string): string {
+  let text = value;
+  for (let pass = 0; pass < 3; pass += 1) {
+    const next = text.replace(
+      /&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|([a-z]+));/gi,
+      (match, dec: string, hex: string, name: string) => {
+        if (name) return NAMED_ENTITIES[name.toLowerCase()] ?? match;
+        const code = dec ? Number(dec) : parseInt(hex, 16);
+        return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+      },
+    );
+    if (next === text) break;
+    text = next;
+  }
+  return text;
+}
+
 export function cleanSeoText(value: string, city = ''): string {
-  let text = value.replace(/\(\s*(?:0(?:\.0+)?\s*)?sq\.?\s*ft\.?\s*\)/gi, '').replace(/\s+/g, ' ').trim();
+  let text = decodeSeoEntities(value).replace(/\(\s*(?:0(?:\.0+)?\s*)?sq\.?\s*ft\.?\s*\)/gi, '').replace(/\s+/g, ' ').trim();
   if (city) {
     const escaped = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     text = text.replace(new RegExp(`(${escaped})(?:\\s*,?\\s+${escaped})+`, 'gi'), '$1');

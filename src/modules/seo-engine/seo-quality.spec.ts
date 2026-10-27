@@ -1,8 +1,15 @@
-import { cleanSeoText, usableArea, validateRobotsPolicy } from './seo-quality';
+import { cleanSeoText, decodeSeoEntities, usableArea, validateRobotsPolicy } from './seo-quality';
 describe('SEO publication quality', () => {
   it('cleans missing area fragments and repeated cities', () => {
     expect(cleanSeoText('Plot (0 Sq.Ft) in Coimbatore, Coimbatore | Realty', 'Coimbatore')).toBe('Plot in Coimbatore | Realty');
     expect(cleanSeoText('Villa ( Sq.Ft) in Coimbatore Coimbatore', 'Coimbatore')).toBe('Villa in Coimbatore');
+  });
+  it('decodes HTML entities so search titles never show literal &amp;', () => {
+    expect(decodeSeoEntities('Floor Plans &amp; Prices')).toBe('Floor Plans & Prices');
+    expect(decodeSeoEntities('Floor Plans &amp;amp; Prices')).toBe('Floor Plans & Prices');
+    expect(decodeSeoEntities('Sree Daksha&#x27;s &#39;Macie&#39; &quot;Villa&quot;')).toBe('Sree Daksha\'s \'Macie\' "Villa"');
+    expect(decodeSeoEntities('R&D &unknown; & plain')).toBe('R&D &unknown; & plain');
+    expect(cleanSeoText('Photos &amp; Gallery | Coimbatore', 'Coimbatore')).toBe('Photos & Gallery | Coimbatore');
   });
   it('distinguishes residential measurements from other types without guessing units', () => {
     expect(usableArea(2, 'apartment')).toBeNull();

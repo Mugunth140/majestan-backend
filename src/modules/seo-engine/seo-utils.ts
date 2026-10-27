@@ -53,6 +53,10 @@ export function pathValue(value: unknown): string {
     throw new BadRequestException('Reserved or invalid path');
   return path;
 }
+/** Project and property URLs are one lowercase segment of letters, digits and hyphens. */
+export function isInventorySlugPath(path: string): boolean {
+  return /^\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path);
+}
 export function slug(value: string) {
   return value
     .toLowerCase()

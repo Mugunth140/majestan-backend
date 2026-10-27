@@ -323,3 +323,27 @@ describe('subpage JSON-LD round trips', () => {
 it('keeps invalid legacy JSON-LD readable so an administrator can repair it', () => {
   expect(sections({ photos: { json_ld: '{broken' } }).photos.schema_overrides).toBe('{broken');
 });
+
+describe('subpage text entities', () => {
+  it('decodes stored and submitted section text without touching URLs or schema', () => {
+    const stored = {
+      floor_plans: {
+        meta_title: 'Alamo Turin Floor Plans &amp; Prices | Coimbatore',
+        h1: 'Floor Plans &amp;amp; Carpet Area',
+        canonical_url: 'https://www.majestanrealty.com/a?x=1&amp;y=2',
+        schema_overrides: { name: 'A &amp; B' },
+      },
+    };
+    const result = sections(stored).floor_plans;
+    expect(result.meta_title).toBe('Alamo Turin Floor Plans & Prices | Coimbatore');
+    expect(result.h1).toBe('Floor Plans & Carpet Area');
+    expect(result.canonical_url).toBe(stored.floor_plans.canonical_url);
+    expect(result.schema_overrides).toEqual({ name: 'A &amp; B' });
+    expect(
+      normalizeSeoInput(
+        { section_seo: { photos: { meta_title: 'Photos &amp; Gallery' } } },
+        {},
+      ).section_seo.photos.meta_title,
+    ).toBe('Photos & Gallery');
+  });
+});
