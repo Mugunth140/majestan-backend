@@ -1,3 +1,4 @@
+import { AddBlogKeywords1785600000000 } from './migrations/1785600000000-AddBlogKeywords';
 import { SanitizePropertySlugs1785500000000 } from './migrations/1785500000000-SanitizePropertySlugs';
 import { CreateBlogPosts1785400000000 } from './migrations/1785400000000-CreateBlogPosts';
 import { AddArchivedPropertyStatus1785300000000 } from './migrations/1785300000000-AddArchivedPropertyStatus';
@@ -77,6 +78,7 @@ export default new DataSource({
   migrations: [
     SanitizePropertySlugs1785500000000,
     CreateBlogPosts1785400000000,
+    AddBlogKeywords1785600000000,
     AddArchivedPropertyStatus1785300000000,
     SeoAuditRemediation1785200000000,
     SeoCanonicalType1785000000000,

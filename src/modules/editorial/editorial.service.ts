@@ -30,7 +30,7 @@ export class EditorialService {
       `SELECT COUNT(*) total FROM blog_posts ${where}`,
     );
     const items = await this.db.query(
-      `SELECT id,title,slug,excerpt,author_name,category,cover_image,cover_alt,meta_title,meta_description,noindex,status,${utcColumn('published_at')},${utcColumn('updated_at')},revision FROM blog_posts ${where} ORDER BY ${admin ? 'updated_at' : 'published_at'} DESC, id DESC LIMIT ? OFFSET ?`,
+      `SELECT id,title,slug,excerpt,author_name,category,cover_image,cover_alt,meta_title,meta_description,meta_keywords,noindex,status,${utcColumn('published_at')},${utcColumn('updated_at')},revision FROM blog_posts ${where} ORDER BY ${admin ? 'updated_at' : 'published_at'} DESC, id DESC LIMIT ? OFFSET ?`,
       [limit, (page - 1) * limit],
     );
     return {
@@ -110,6 +110,7 @@ export class EditorialService {
       dto.noindex,
       dto.status,
       published,
+      dto.meta_keywords?.trim() || '',
     ];
     const fields = [
       'title',
@@ -126,6 +127,7 @@ export class EditorialService {
       'noindex',
       'status',
       'published_at',
+      'meta_keywords',
     ];
     try {
       if (id) {
@@ -171,6 +173,7 @@ export class EditorialService {
         author_name: BLOG_AUTHOR,
         meta_title: previous?.meta_title || '',
         meta_description: previous?.meta_description || '',
+        meta_keywords: previous?.meta_keywords || '',
         social_image: previous?.social_image || '',
         noindex: Boolean(previous?.noindex),
         // New publications get the actual first publication time, automatically.
@@ -198,11 +201,14 @@ export class EditorialService {
         'Social images must use absolute HTTP or HTTPS URLs',
       );
     const sql =
-      'UPDATE blog_posts SET slug = ?, meta_title = ?, meta_description = ?, social_image = ?, noindex = ?, revision = revision + 1, updated_at = UTC_TIMESTAMP() WHERE id = ? AND revision = ?';
+      'UPDATE blog_posts SET slug = ?, meta_title = ?, meta_description = ?, meta_keywords = ?, social_image = ?, noindex = ?, revision = revision + 1, updated_at = UTC_TIMESTAMP() WHERE id = ? AND revision = ?';
     const values = [
       dto.slug,
       dto.meta_title.trim(),
       dto.meta_description.trim(),
+      dto.meta_keywords === undefined
+        ? previous.meta_keywords || ''
+        : dto.meta_keywords.trim(),
       dto.social_image,
       dto.noindex,
       id,

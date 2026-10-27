@@ -24,6 +24,7 @@ export class SavePostDto {
   @IsString() @MaxLength(255) cover_alt!: string;
   @IsString() @MaxLength(120) meta_title!: string;
   @IsString() @MaxLength(320) meta_description!: string;
+  @IsOptional() @IsString() @MaxLength(1000) meta_keywords?: string;
   @IsString() @MaxLength(2048) social_image!: string;
   @IsBoolean() noindex!: boolean;
   @IsIn(['draft', 'published']) status!: 'draft' | 'published';
@@ -50,6 +51,7 @@ export class SaveBlogSeoDto {
   slug!: string;
   @IsString() @MaxLength(120) meta_title!: string;
   @IsString() @MaxLength(320) meta_description!: string;
+  @IsOptional() @IsString() @MaxLength(1000) meta_keywords?: string;
   @IsString() @MaxLength(2048) social_image!: string;
   @IsBoolean() noindex!: boolean;
   @IsInt() @Min(1) revision!: number;

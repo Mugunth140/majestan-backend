@@ -115,6 +115,7 @@ describe('Editorial publishing', () => {
       slug: 'fixed-url',
       author_name: 'Original author',
       meta_title: 'SEO managed separately',
+      meta_keywords: 'Coimbatore, buying guides',
       meta_description: 'Search description',
       social_image: 'https://cdn.example/social.png',
       noindex: true,
@@ -151,6 +152,7 @@ describe('Editorial publishing', () => {
         author_name: 'Majestan Realty',
         slug: 'fixed-url',
         meta_title: previous.meta_title,
+        meta_keywords: previous.meta_keywords,
         noindex: true,
         published_at: previous.published_at,
       }),
@@ -207,6 +209,32 @@ describe('Editorial publishing', () => {
     expect(query.mock.calls[0][0]).not.toMatch(
       /content =|author_name =|published_at =/,
     );
+  });
+  it('saves keywords and preserves them for older SEO clients that omit the field', async () => {
+    jest
+      .spyOn(service, 'details')
+      .mockResolvedValue({
+        ...dto(),
+        id: 1,
+        meta_keywords: 'Existing keyword',
+      });
+    query.mockResolvedValue({ affectedRows: 1 });
+    const seo = {
+      slug: 'buying-a-home',
+      meta_title: '',
+      meta_description: '',
+      social_image: '',
+      noindex: false,
+      revision: 1,
+    };
+    await service.saveSeo(1, {
+      ...seo,
+      meta_keywords: ' Buying guides, Coimbatore ',
+    });
+    expect(query.mock.calls[0][0]).toContain('meta_keywords = ?');
+    expect(query.mock.calls[0][1][3]).toBe('Buying guides, Coimbatore');
+    await service.saveSeo(1, seo);
+    expect(query.mock.calls[1][1][3]).toBe('Existing keyword');
   });
   it('renames a published slug atomically and flattens its previous redirects', async () => {
     const previous = {
