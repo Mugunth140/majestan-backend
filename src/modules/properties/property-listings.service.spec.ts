@@ -47,6 +47,35 @@ describe('Combined property and project listings', () => {
   });
   afterEach(() => jest.restoreAllMocks());
 
+  it.each(['New', 'Resale'])('validates the %s property condition through the query whitelist', async propertyCondition => {
+    const pipe = new ValidationPipe({ transform: true, whitelist: true });
+    await expect(pipe.transform({ propertyCondition }, { type: 'query', metatype: PropertySearchQueryDto }))
+      .resolves.toMatchObject({ propertyCondition });
+    await expect(pipe.transform({ propertyCondition: 'anything' }, { type: 'query', metatype: PropertySearchQueryDto })).rejects.toThrow();
+  });
+
+  it('filters individual listings by CRM condition, with legacy transaction-type fallback', () => {
+    const [newSql, newParams] = properties.databaseSearchQuery(query({ propertyCondition: 'New' })).getQueryAndParameters();
+    expect(newSql).toContain('`p`.`property_condition`');
+    expect(newSql).toContain('`p`.`transaction_type`');
+    expect(newParams).toEqual(expect.arrayContaining(['new', 'under construction', 'new launch']));
+    const [, resaleParams] = properties.databaseSearchQuery(query({ propertyCondition: 'Resale' })).getQueryAndParameters();
+    expect(resaleParams).toContain('resale');
+    expect(resaleParams).not.toContain('new');
+  });
+
+  it('includes developer projects under New but excludes them from Resale', () => {
+    expect(service.projectSearchQuery(query({ propertyCondition: 'Resale' })).getSql()).toContain('1 = 0');
+    expect(service.projectSearchQuery(query({ propertyCondition: 'New' })).getSql()).not.toContain('1 = 0');
+  });
+
+  it('does not apply buy conditions to rental inventory', () => {
+    const [sql, params] = properties.databaseSearchQuery(query({ listingType: 'Rent', propertyCondition: 'Resale' })).getQueryAndParameters();
+    expect(sql).not.toContain('NULLIF(TRIM(`p`.`property_condition`)');
+    expect(params).not.toContain('resale');
+    expect(service.projectSearchQuery(query({ listingType: 'Rent', propertyCondition: 'Resale' })).getSql()).not.toContain('1 = 0');
+  });
+
   it('shows Available, Sold and Rented properties but excludes Archived from public listing filters', () => {
     const [,params] = properties.databaseSearchQuery(query()).getQueryAndParameters();
     expect(params).toEqual(expect.arrayContaining(['available','sold','rented']));

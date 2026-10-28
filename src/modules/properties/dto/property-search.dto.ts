@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
+  IsIn,
   IsBoolean,
   IsInt,
   IsOptional,
@@ -139,4 +140,8 @@ export class PropertySearchQueryDto {
   @IsString()
   @MaxLength(16)
   propertyAge?: string;
+
+  @IsOptional()
+  @IsIn(['New', 'Resale'])
+  propertyCondition?: 'New' | 'Resale';
 }

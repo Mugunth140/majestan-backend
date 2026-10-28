@@ -51,6 +51,9 @@ export class PropertyListingsService {
       .andWhere('project.projectType IN (:...projectTypes)', {
         projectTypes: PROJECT_TYPES,
       });
+    // Project inventory represents developer sales, never individual resale stock.
+    if (query.listingType !== 'Rent' && query.propertyCondition === 'Resale')
+      qb.andWhere('1 = 0');
     if (query.propertyType)
       qb.andWhere('project.projectType = :selectedType', {
         selectedType: query.propertyType,

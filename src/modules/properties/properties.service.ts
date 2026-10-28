@@ -162,6 +162,15 @@ export class PropertiesService {
    * so both honor the same filters.
    */
   private applyListingFilters(qb: SelectQueryBuilder<Property>, query: PropertySearchQueryDto): void {
+    // CRM condition is authoritative; older imports may only carry transactionType.
+    // "New" also covers listings that are still under construction.
+    if (query.listingType !== 'Rent' && query.propertyCondition) {
+      qb.andWhere(
+        "LOWER(TRIM(REPLACE(COALESCE(NULLIF(TRIM(p.propertyCondition), ''), p.transactionType, ''), '_', ' '))) IN (:...conditions)",
+        { conditions: query.propertyCondition === 'New' ? ['new', 'under construction', 'new launch'] : ['resale'] },
+      );
+    }
+
     const minP = parseFloat(String(query.minPrice ?? ''));
     if (Number.isFinite(minP)) {
       qb.andWhere('CAST(p.price AS DECIMAL(12,2)) >= :fMinPrice', { fMinPrice: minP });
