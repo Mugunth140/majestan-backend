@@ -1,3 +1,6 @@
+import { AddPropertyPricePerSqft1785900000000 } from './migrations/1785900000000-AddPropertyPricePerSqft';
+import { AddPgServiceApartmentType1785800000000 } from './migrations/1785800000000-AddPgServiceApartmentType';
+import { AddInvestmentPropertyType1785700000000 } from './migrations/1785700000000-AddInvestmentPropertyType';
 import { AddBlogKeywords1785600000000 } from './migrations/1785600000000-AddBlogKeywords';
 import { SanitizePropertySlugs1785500000000 } from './migrations/1785500000000-SanitizePropertySlugs';
 import { CreateBlogPosts1785400000000 } from './migrations/1785400000000-CreateBlogPosts';
@@ -76,6 +79,9 @@ export default new DataSource({
   logging: parseBoolean(process.env.TYPEORM_LOGGING, false),
   migrationsTableName: 'migrations',
   migrations: [
+    AddPropertyPricePerSqft1785900000000,
+    AddPgServiceApartmentType1785800000000,
+    AddInvestmentPropertyType1785700000000,
     SanitizePropertySlugs1785500000000,
     CreateBlogPosts1785400000000,
     AddBlogKeywords1785600000000,

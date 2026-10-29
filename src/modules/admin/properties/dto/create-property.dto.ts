@@ -250,6 +250,7 @@ export class CreatePropertyDto {
   @IsOptional() @IsString() agencyName?: string;
   @IsOptional() @IsString() commissionTerms?: string;
   @IsOptional() @IsString() expectedSalePrice?: string;
+  @IsOptional() @IsString() pricePerSqft?: string;
   @IsOptional() @IsString() monthlyRent?: string;
   @IsOptional() @IsString() lockInPeriod?: string;
   @IsOptional() @IsString() taxes?: string;

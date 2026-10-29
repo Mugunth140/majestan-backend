@@ -269,6 +269,12 @@ export class AdminPropertiesService {
   }
 
   async create(propertyType: string, payload: CreatePropertyDto & { source?: 'staff' | 'owner-post' }) {
+    if (propertyType === 'pg_service_apartment' && payload.listingType !== 'Rent') {
+      throw new BadRequestException('PG / Service Apartment is available for Rent only.');
+    }
+    if (propertyType === 'investment_property' && payload.listingType === 'Rent') {
+      throw new BadRequestException('Investment Property is available for Buy only.');
+    }
     const ownerTempKeys: string[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -331,6 +337,7 @@ export class AdminPropertiesService {
         agencyName: payload.agencyName,
         commissionTerms: payload.commissionTerms,
         expectedSalePrice: payload.expectedSalePrice,
+        pricePerSqft: payload.pricePerSqft,
         monthlyRent: payload.monthlyRent,
         lockInPeriod: payload.lockInPeriod,
         taxes: payload.taxes,
@@ -659,6 +666,12 @@ export class AdminPropertiesService {
     id: number,
     payload: Partial<CreatePropertyDto> & { expectedUpdatedAt?: string },
   ) {
+    if (propertyType === 'investment_property' && payload.listingType === 'Rent') {
+      throw new BadRequestException('Investment Property is available for Buy only.');
+    }
+    if (propertyType === 'pg_service_apartment' && payload.listingType !== undefined && payload.listingType !== 'Rent') {
+      throw new BadRequestException('PG / Service Apartment is available for Rent only.');
+    }
     const { expectedUpdatedAt, ...changes } = payload;
     payload = changes;
     const queryRunner = this.dataSource.createQueryRunner();
@@ -731,7 +744,7 @@ export class AdminPropertiesService {
       const crmTopLevelKeys = [
         'alternateName', 'alternatePhone', 'alternateEmail', 'transactionType',
         'handoverDate', 'roadName', 'roadAccess', 'tenantOccupied', 'saleType',
-        'agentName', 'agencyName', 'commissionTerms', 'expectedSalePrice',
+        'agentName', 'agencyName', 'commissionTerms', 'expectedSalePrice', 'pricePerSqft',
         'monthlyRent', 'lockInPeriod', 'taxes', 'registrationCharge',
         'modeOfPayment', 'timeForRegistration', 'remark', 'demandArea',
         'rentalYield', 'comparativePrice', 'marketPrice', 'ownershipTitleVerified',
