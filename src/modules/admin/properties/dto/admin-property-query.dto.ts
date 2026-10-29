@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsNumber, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { ListingType } from '../../../../common/enums/listing-type.enum';
@@ -25,4 +25,46 @@ export class AdminPropertyQueryDto extends PaginationQueryDto {
   @IsInt()
   @Min(1)
   cityId?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minSqft?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxSqft?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minBudget?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxBudget?: number;
+
+  @IsOptional()
+  @IsString()
+  floor?: string;
+
+  @IsOptional()
+  @IsString()
+  specialPurpose?: string;
+
+  @IsOptional()
+  @IsString()
+  furnishingStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  roadName?: string;
+
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  sublocationId?: number;
 }

@@ -1,3 +1,4 @@
+import { applyCrmPropertyFilters } from './crm-property-filters';
 import { revalidatePublicInventory } from "../../../common/frontend-revalidation";
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { isSameVersion } from './property-version';
@@ -136,6 +137,8 @@ export class AdminPropertiesService {
         { search: `%${query.search}%` },
       );
     }
+
+    applyCrmPropertyFilters(qb, query);
 
     const page = query.page || 1;
     const limit = query.limit || 10;
