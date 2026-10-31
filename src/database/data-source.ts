@@ -1,3 +1,6 @@
+import { CommercialRentalSpecialPurpose1786200000000 } from './migrations/1786200000000-CommercialRentalSpecialPurpose';
+import { IndustrialLandAndFarmHouse1786100000000 } from './migrations/1786100000000-IndustrialLandAndFarmHouse';
+import { PropertySpecificationRefinements1786000000000 } from './migrations/1786000000000-PropertySpecificationRefinements';
 import { AddPropertyPricePerSqft1785900000000 } from './migrations/1785900000000-AddPropertyPricePerSqft';
 import { AddPgServiceApartmentType1785800000000 } from './migrations/1785800000000-AddPgServiceApartmentType';
 import { AddInvestmentPropertyType1785700000000 } from './migrations/1785700000000-AddInvestmentPropertyType';
@@ -79,6 +82,9 @@ export default new DataSource({
   logging: parseBoolean(process.env.TYPEORM_LOGGING, false),
   migrationsTableName: 'migrations',
   migrations: [
+    CommercialRentalSpecialPurpose1786200000000,
+    IndustrialLandAndFarmHouse1786100000000,
+    PropertySpecificationRefinements1786000000000,
     AddPropertyPricePerSqft1785900000000,
     AddPgServiceApartmentType1785800000000,
     AddInvestmentPropertyType1785700000000,

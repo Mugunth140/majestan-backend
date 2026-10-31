@@ -14,7 +14,7 @@ describe('CRM property list filters', () => {
       ['sl.id = :filterLocation', {filterLocation:3}], ['filterDetails.areaSqft >= :minSqft',{minSqft:0}],
       ['filterDetails.areaSqft <= :maxSqft',{maxSqft:2000}], ['p.price >= :minBudget',{minBudget:1000}], ['p.price <= :maxBudget',{maxBudget:20000}],
       ['LOWER(TRIM(filterDetails.floorNumber)) = LOWER(:filterFloor)',{filterFloor:'Ground'}],
-      ['filterDetails.propertyUse LIKE :filterPurpose',{filterPurpose:'%Clinic%'}], ['p.roadName = :filterRoad',{filterRoad:'Avinashi Road'}],
+      ['(filterDetails.specialPurpose LIKE :filterPurpose OR filterDetails.propertyUse LIKE :filterPurpose)',{filterPurpose:'%Clinic%'}], ['p.roadName = :filterRoad',{filterRoad:'Avinashi Road'}],
     ]) expect(qb.andWhere).toHaveBeenCalledWith(...entry);
     expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining(':filterFurnishing'), expect.objectContaining({filterFurnishing:'semifurnished'}));
   });

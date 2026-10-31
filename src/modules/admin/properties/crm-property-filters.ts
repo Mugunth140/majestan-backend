@@ -15,7 +15,7 @@ export function applyCrmPropertyFilters(qb: SelectQueryBuilder<Property>, query:
     if (query[key] !== undefined) qb.andWhere(`${expression} ${operator} :${key}`, { [key]: query[key] });
   }
   if (query.floor?.trim()) qb.andWhere('LOWER(TRIM(filterDetails.floorNumber)) = LOWER(:filterFloor)', { filterFloor: query.floor.trim() });
-  if (query.specialPurpose?.trim()) qb.andWhere('filterDetails.propertyUse LIKE :filterPurpose', { filterPurpose: `%${query.specialPurpose.trim()}%` });
+  if (query.specialPurpose?.trim()) qb.andWhere('(filterDetails.specialPurpose LIKE :filterPurpose OR filterDetails.propertyUse LIKE :filterPurpose)', { filterPurpose: `%${query.specialPurpose.trim()}%` });
   if (query.roadName?.trim()) qb.andWhere('p.roadName = :filterRoad', { filterRoad: query.roadName.trim() });
   if (query.furnishingStatus) {
     const status = query.furnishingStatus.toLowerCase().replace(/[\s-]/g, '');

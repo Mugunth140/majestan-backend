@@ -50,6 +50,9 @@ export const getPropertyTypeCode = (propertyType: string): string => {
     case 'pg_service_apartment':
     case 'pg-service-apartment':
       return 'pg';
+    case 'farm_house':
+    case 'farm-house':
+      return 'fh';
     case 'investment_property':
     case 'investment-property':
       return 'iv';
@@ -85,6 +88,7 @@ const SLUG_SUFFIX_TYPES: Record<string, string> = {
   ip: 'individual_portion',
   iv: 'investment_property',
   pg: 'pg_service_apartment',
+  fh: 'farm_house',
   fl: 'farmland',
   cw: 'coworking',
   is: 'industrial',

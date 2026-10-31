@@ -272,8 +272,8 @@ export class AdminPropertiesService {
     if (propertyType === 'pg_service_apartment' && payload.listingType !== 'Rent') {
       throw new BadRequestException('PG / Service Apartment is available for Rent only.');
     }
-    if (propertyType === 'investment_property' && payload.listingType === 'Rent') {
-      throw new BadRequestException('Investment Property is available for Buy only.');
+    if (['investment_property', 'farm_house'].includes(propertyType) && payload.listingType === 'Rent') {
+      throw new BadRequestException('This property type is available for Buy only.');
     }
     const ownerTempKeys: string[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
@@ -391,6 +391,17 @@ export class AdminPropertiesService {
       if (payload.details) {
         const details = new PropertyDetails();
         Object.assign(details, {
+          measurementUnits: payload.details.measurementUnits,
+          plotFacing: payload.details.plotFacing,
+          hasGroundFloor: payload.details.hasGroundFloor,
+          numberOfPortions: payload.details.numberOfPortions,
+          fundedBy: payload.details.fundedBy,
+          specialPurpose: payload.details.specialPurpose,
+          containerAccess: payload.details.containerAccess,
+          laborRooms: payload.details.laborRooms,
+          toilets: payload.details.toilets,
+          boreWellCount: payload.details.boreWellCount,
+          plotBoundaries: payload.details.plotBoundaries,
           bedrooms: payload.details.bedrooms ?? 0,
           bathrooms: payload.details.bathrooms ?? 0,
           areaSqft: payload.details.areaSqft ?? 0,
@@ -666,14 +677,15 @@ export class AdminPropertiesService {
     id: number,
     payload: Partial<CreatePropertyDto> & { expectedUpdatedAt?: string },
   ) {
-    if (propertyType === 'investment_property' && payload.listingType === 'Rent') {
-      throw new BadRequestException('Investment Property is available for Buy only.');
+    if (['investment_property', 'farm_house'].includes(propertyType) && payload.listingType === 'Rent') {
+      throw new BadRequestException('This property type is available for Buy only.');
     }
     if (propertyType === 'pg_service_apartment' && payload.listingType !== undefined && payload.listingType !== 'Rent') {
       throw new BadRequestException('PG / Service Apartment is available for Rent only.');
     }
     const { expectedUpdatedAt, ...changes } = payload;
     payload = changes;
+    const storageKeysToDelete: string[] = [];
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -771,6 +783,17 @@ export class AdminPropertiesService {
         await queryRunner.manager.delete(PropertyDetails, { propertyId: id });
         const details = new PropertyDetails();
         Object.assign(details, {
+          measurementUnits: payload.details.measurementUnits ? { ...existingDetails?.measurementUnits, ...payload.details.measurementUnits } : existingDetails?.measurementUnits,
+          plotFacing: payload.details.plotFacing ?? existingDetails?.plotFacing,
+          hasGroundFloor: payload.details.hasGroundFloor ?? existingDetails?.hasGroundFloor,
+          numberOfPortions: payload.details.numberOfPortions ?? existingDetails?.numberOfPortions,
+          fundedBy: payload.details.fundedBy ?? existingDetails?.fundedBy,
+          specialPurpose: payload.details.specialPurpose ?? existingDetails?.specialPurpose,
+          containerAccess: payload.details.containerAccess ?? existingDetails?.containerAccess,
+          laborRooms: payload.details.laborRooms ?? existingDetails?.laborRooms,
+          toilets: payload.details.toilets ?? existingDetails?.toilets,
+          boreWellCount: payload.details.boreWellCount ?? existingDetails?.boreWellCount,
+          plotBoundaries: payload.details.plotBoundaries ?? existingDetails?.plotBoundaries,
           bedrooms: payload.details.bedrooms ?? 0,
           bathrooms: payload.details.bathrooms ?? 0,
           areaSqft: payload.details.areaSqft ?? 0,
@@ -930,9 +953,7 @@ export class AdminPropertiesService {
           const newFloorPlanKeys = details.floorPlanImages?.map(img => img.imageKey).filter(Boolean) || [];
           const orphanedFloorPlanKeys = existingFloorPlanKeys.filter(k => !newFloorPlanKeys.includes(k));
           if (orphanedFloorPlanKeys.length > 0) {
-            this.storageService.deleteFiles(orphanedFloorPlanKeys).catch(err =>
-              console.error(`[AdminProperties] Failed to delete orphaned R2 floor plan images`, err)
-            );
+            storageKeysToDelete.push(...orphanedFloorPlanKeys);
           }
         }
       }
@@ -1001,9 +1022,7 @@ export class AdminPropertiesService {
 
         // Delete orphaned R2 files after transaction data is safe
         if (orphanedKeys.length > 0) {
-          this.storageService.deleteFiles(orphanedKeys).catch(err =>
-            console.error(`[AdminProperties] Failed to delete orphaned R2 images`, err)
-          );
+          storageKeysToDelete.push(...orphanedKeys);
         }
       }
 
@@ -1036,9 +1055,7 @@ export class AdminPropertiesService {
         }
 
         if (orphanedUnitKeys.length > 0) {
-          this.storageService.deleteFiles(orphanedUnitKeys).catch(err =>
-            console.error(`[AdminProperties] Failed to delete orphaned R2 unit images`, err)
-          );
+          storageKeysToDelete.push(...orphanedUnitKeys);
         }
       }
 
@@ -1056,33 +1073,36 @@ export class AdminPropertiesService {
         }
       }
 
-      // 7. Update Documents (replace set when key present, cleanup orphans)
+      // Only explicit attachment edits send this replacement list. Retained
+      // files keep their IDs, privacy and metadata, including on older clients.
       if (payload.documents !== undefined) {
         const existingLinks = await queryRunner.manager.find(PropertyFile, { where: { propertyId: id } });
-        const existingFileIds = existingLinks.map(l => l.fileId);
-        const existingFiles = existingFileIds.length > 0
-          ? await queryRunner.manager.find(FileEntity, { where: { id: In(existingFileIds) } })
-          : [];
-        const savedKeys = new Set(existingFiles.map(f => f.fileKey).filter(Boolean) as string[]);
-        // Only files dropped from the property are orphans. Documents sent back
-        // unchanged keep their storage object — deleting every old key here
-        // used to wipe the files of documents that were being kept.
-        const keptKeys = new Set(payload.documents.map(d => d.fileKey).filter(Boolean));
-        const orphanedKeys = [...savedKeys].filter(key => !keptKeys.has(key));
-
-        await queryRunner.manager.delete(PropertyFile, { propertyId: id });
-        if (existingFileIds.length > 0) {
-          await queryRunner.manager.delete(FileEntity, { id: In(existingFileIds) });
+        const ids = existingLinks.map((link) => link.fileId);
+        const files = ids.length ? await queryRunner.manager.find(FileEntity, { where: { id: In(ids) } }) : [];
+        const byKey = new Map(files.map((file) => [file.fileKey, file]));
+        const requested = new Map(payload.documents.filter((doc) => doc.fileKey).map((doc) => [doc.fileKey, doc]));
+        const requestedOrder = new Map([...requested.keys()].map((key, index) => [key, index]));
+        for (const link of existingLinks) {
+          const file = files.find((entry) => entry.id === link.fileId);
+          // Unknown/keyless legacy files cannot be removed by this form.
+          if (!file?.fileKey) continue;
+          const retained = requested.get(file.fileKey);
+          if (retained) {
+            // The form may rename a floor plan, but cannot change visibility.
+            await queryRunner.manager.update(PropertyFile, { id: link.id }, {
+              ...(retained.title !== undefined ? { title: retained.title } : {}),
+              sortOrder: requestedOrder.get(file.fileKey),
+            });
+          } else {
+            await queryRunner.manager.delete(PropertyFile, { id: link.id });
+            if (!(await queryRunner.manager.count(PropertyFile, { where: { fileId: file.id } }))) {
+              await queryRunner.manager.delete(FileEntity, { id: file.id });
+              storageKeysToDelete.push(file.fileKey);
+            }
+          }
         }
-        if (payload.documents.length > 0) {
-          await this.saveDocuments(queryRunner.manager, id, payload.documents, undefined, savedKeys);
-        }
-
-        if (orphanedKeys.length > 0) {
-          this.storageService.deleteFiles(orphanedKeys).catch(err =>
-            console.error(`[AdminProperties] Failed to delete orphaned R2 documents`, err)
-          );
-        }
+        const added = [...requested.values()].filter((doc) => !byKey.has(doc.fileKey));
+        if (added.length) await this.saveDocuments(queryRunner.manager, id, added, storageKeysToDelete, new Set(byKey.keys()));
       }
 
       // Any save — even one touching only details/images/files — marks the
@@ -1091,6 +1111,11 @@ export class AdminPropertiesService {
       await queryRunner.manager.update(Property, { id }, { updatedAt: new Date() });
 
       await queryRunner.commitTransaction();
+      if (storageKeysToDelete.length) {
+        this.storageService.deleteFiles([...new Set(storageKeysToDelete)]).catch((err) =>
+          console.error('[AdminProperties] Failed to clean up committed attachments', err),
+        );
+      }
       const prop = await this.details(propertyType, id);
       if (prop.slug) {
         this.triggerFrontendRevalidation(prop.slug);

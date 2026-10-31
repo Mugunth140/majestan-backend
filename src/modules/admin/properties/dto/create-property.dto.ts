@@ -1,9 +1,27 @@
-import { IsString, IsNumber, IsOptional, IsObject, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min, IsNotEmpty, IsIn } from 'class-validator';
+import { ArrayMinSize, ArrayMaxSize, IsString, IsNumber, IsOptional, IsObject, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min, Max, IsNotEmpty, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { PropertyType, PropertyStatus } from '../../../../database/entities/property.entity';
 
+export class PlotBoundaryDto {
+  @IsIn(['North', 'North East', 'East', 'South East', 'South', 'South West', 'West', 'North West']) direction!: string;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) length?: number | null;
+  @IsIn(['ft', 'm']) unit!: string;
+}
+
 export class PropertyDetailsDto {
+  @IsOptional() @IsString() specialPurpose?: string;
+  @IsOptional() @IsString() containerAccess?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) laborRooms?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) toilets?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) boreWellCount?: number;
+  @IsOptional() @IsArray() @ArrayMinSize(4) @ArrayMaxSize(4) @ValidateNested({ each: true }) @Type(() => PlotBoundaryDto) plotBoundaries?: PlotBoundaryDto[];
+
+  @IsOptional() @IsObject() measurementUnits?: Record<string, string>;
+  @IsOptional() @IsString() plotFacing?: string;
+  @IsOptional() @IsBoolean() hasGroundFloor?: boolean;
+  @IsOptional() @IsInt() @Min(0) numberOfPortions?: number;
+  @IsOptional() @IsString() fundedBy?: string;
   @IsOptional() @IsNumber() bedrooms?: number;
   @IsOptional() @IsNumber() bathrooms?: number;
   @IsOptional() @IsNumber() parking?: number;
@@ -165,8 +183,8 @@ export class PropertyLocationDto {
   @IsOptional() @IsString() landmark?: string;
   @IsOptional() @IsString() mapUrl?: string;
   @IsOptional() @IsString() pincode?: string;
-  @IsOptional() @IsNumber() latitude?: number;
-  @IsOptional() @IsNumber() longitude?: number;
+  @IsOptional() @IsNumber() @Min(-90, { message: 'Latitude must be between -90 and 90 degrees.' }) @Max(90, { message: 'Latitude must be between -90 and 90 degrees.' }) latitude?: number;
+  @IsOptional() @IsNumber() @Min(-180, { message: 'Longitude must be between -180 and 180 degrees.' }) @Max(180, { message: 'Longitude must be between -180 and 180 degrees.' }) longitude?: number;
   @IsOptional() @IsObject() localityData?: any;
 }
 
