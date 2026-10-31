@@ -15,10 +15,12 @@ import { AdPlacement } from '../../../database/entities/ad.entity';
 import { AdminAdsService } from './admin-ads.service';
 
 function makeService(overrides: any = {}) {
-  const repo = {
+  const repo: any = {
+    manager: { transaction: jest.fn(async (run: any) => run({ getRepository: () => repo })) },
     create: jest.fn((v: any) => v),
     save: jest.fn(async (v: any) => ({ id: 7, ...v })),
     find: jest.fn(async () => []),
+    count: jest.fn(async () => 0),
     findOne: jest.fn(async () => null),
     delete: jest.fn(async () => ({})),
     ...overrides.repo,
@@ -212,4 +214,31 @@ describe('AdminAdsService.presignedUrl', () => {
     await expect(service.presignedUrl('a.png', 'image/png')).resolves.toEqual({ url: 'u', key: 'k' });
     expect(storage.generatePresignedUrl).toHaveBeenCalledWith('a.png', 'image/png');
   });
+});
+
+it('keeps the old creative when saving its replacement fails', async () => {
+ const {service,storage}=makeService({repo:{findOne:jest.fn(async()=>({id:7,desktopImageKey:'uploads/ads/old.webp',placement:AdPlacement.MegaMenu})),save:jest.fn(async()=>{throw new Error('Database unavailable');})},storage:{getImageDimensions:jest.fn(async()=>({width:900,height:600}))}});
+ await expect(service.update(7,{desktopImageKey:'uploads/temp/new.png'})).rejects.toThrow('Database unavailable');
+ expect(storage.deleteFile).not.toHaveBeenCalledWith('uploads/ads/old.webp');
+});
+it('validates audience before processing or removing images',async()=>{
+ const {service,storage}=makeService({repo:{findOne:jest.fn(async()=>({id:7,desktopImageKey:'uploads/ads/old.webp',placement:AdPlacement.MegaMenu}))}});
+ await expect(service.update(7,{desktopImageKey:'uploads/temp/new.png',audience:'invalid'})).rejects.toThrow('audience must');
+ expect(storage.processAdImage).not.toHaveBeenCalled();expect(storage.deleteFile).not.toHaveBeenCalledWith('uploads/ads/old.webp');
+});
+it('keeps a creative that remains referenced by another ad or image slot',async()=>{
+ const {service,storage}=makeService({repo:{findOne:jest.fn(async()=>({id:7,desktopImageKey:'uploads/ads/shared.webp',mobileImageKey:'uploads/ads/shared.webp',placement:AdPlacement.Offers})),count:jest.fn(async()=>1)}});
+ await service.update(7,{mobileImageKey:null});expect(storage.deleteFile).not.toHaveBeenCalled();
+});
+
+it('rejects duplicate IDs before reordering', async()=>{
+ const {service,repo}=makeService(); await expect(service.reorder([7,7])).rejects.toThrow('unique positive'); expect(repo.save).not.toHaveBeenCalled();
+});
+it('does not reorder another placement by mistake',async()=>{
+ const {service,repo}=makeService({repo:{find:jest.fn(async()=>[{id:7,placement:AdPlacement.Hero},{id:8,placement:AdPlacement.Offers}])}});
+ await expect(service.reorder([7,8])).rejects.toThrow('one placement');expect(repo.save).not.toHaveBeenCalled();
+});
+it('performs a reorder through one database transaction',async()=>{
+ const {service,repo}=makeService({repo:{find:jest.fn(async()=>[{id:7,placement:AdPlacement.Offers},{id:8,placement:AdPlacement.Offers}])}});
+ await service.reorder([8,7]);expect(repo.manager.transaction).toHaveBeenCalledTimes(1);expect(repo.save.mock.calls.map(([ad]:any[])=>[ad.id,ad.sortOrder])).toEqual([[8,0],[7,1]]);
 });

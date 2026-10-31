@@ -130,6 +130,15 @@ export class AdminAdsService {
     }
   }
 
+  private async deleteUnreferencedKeys(keys: Array<string | null | undefined>) {
+    for (const key of new Set(keys.filter((value): value is string => !!value))) {
+      try {
+        const references = await this.adRepository.count({ where: [{ desktopImageKey: key }, { mobileImageKey: key }] });
+        if (!references) await this.deleteFinalKey(key);
+      } catch { /* Retain storage objects if reference checks are unavailable. */ }
+    }
+  }
+
   async create(dto: CreateAdDto, createdBy?: string) {
     const placement = dto.placement ?? AdPlacement.Hero;
     const spec = placementSpec(placement);
@@ -181,6 +190,10 @@ export class AdminAdsService {
       await this.cleanupTempKeys([dto.mobileImageKey]);
       dto.mobileImageKey = undefined;
     }
+    const nextAudience = dto.audience !== undefined || placementChanged
+      ? this.normalizeAudience(dto.audience !== undefined ? dto.audience : ad.audience, spec)
+      : ad.audience;
+    const oldKeys: string[] = [];
     await this.validateUploads(dto, spec);
 
     if (dto.desktopImageKey !== undefined) {
@@ -188,24 +201,22 @@ export class AdminAdsService {
       if (finalized !== ad.desktopImageKey) {
         const oldKey = ad.desktopImageKey;
         ad.desktopImageKey = finalized;
-        if (this.isTempKey(dto.desktopImageKey)) await this.deleteFinalKey(oldKey);
+        if (this.isTempKey(dto.desktopImageKey) && oldKey) oldKeys.push(oldKey);
       }
     }
     if (!spec.mobile || (placementChanged && !dto.mobileImageKey) || dto.mobileImageKey === null) {
       // Slot has no mobile image, an old-size one would be wrong, or it was cleared.
-      await this.deleteFinalKey(ad.mobileImageKey);
+      if (ad.mobileImageKey) oldKeys.push(ad.mobileImageKey);
       ad.mobileImageKey = null;
     } else if (dto.mobileImageKey !== undefined) {
       const finalized = await this.finalize(dto.mobileImageKey, 'mobile', spec);
       if (finalized !== ad.mobileImageKey) {
         const oldKey = ad.mobileImageKey;
         ad.mobileImageKey = finalized;
-        if (this.isTempKey(dto.mobileImageKey)) await this.deleteFinalKey(oldKey);
+        if (this.isTempKey(dto.mobileImageKey) && oldKey) oldKeys.push(oldKey);
       }
     }
-    if (dto.audience !== undefined || placementChanged) {
-      ad.audience = this.normalizeAudience(dto.audience !== undefined ? dto.audience : ad.audience, spec);
-    }
+    ad.audience = nextAudience;
     if (dto.title !== undefined) ad.title = dto.title;
     if (dto.linkType !== undefined) ad.linkType = dto.linkType;
     if (dto.linkPreset !== undefined) ad.linkPreset = dto.linkPreset ?? null;
@@ -213,7 +224,9 @@ export class AdminAdsService {
     if (dto.sortOrder !== undefined) ad.sortOrder = dto.sortOrder;
     if (dto.isActive !== undefined) ad.isActive = dto.isActive;
     ad.placement = placement;
-    return this.adRepository.save(ad);
+    const saved = await this.adRepository.save(ad);
+    await this.deleteUnreferencedKeys(oldKeys);
+    return saved;
   }
 
   async updateStatus(id: number, isActive: boolean) {
@@ -225,23 +238,29 @@ export class AdminAdsService {
   async remove(id: number) {
     const ad = await this.findEntity(id);
     await this.adRepository.delete(id);
-    await this.deleteFinalKey(ad.desktopImageKey);
-    await this.deleteFinalKey(ad.mobileImageKey);
+    await this.deleteUnreferencedKeys([ad.desktopImageKey, ad.mobileImageKey]);
     return { id: ad.id, deleted: true };
   }
 
   async reorder(ids: number[]) {
-    const ads = await this.adRepository.find({ where: ids.map((id) => ({ id })) } as any);
-    const byId = new Map(ads.map((a) => [a.id, a]));
-    const missing = ids.filter((id) => !byId.has(id));
-    if (missing.length > 0) throw new NotFoundException(`Ads not found: ${missing.join(',')}`);
-    const saved: Ad[] = [];
-    for (let i = 0; i < ids.length; i++) {
-      const ad = byId.get(ids[i])!;
-      ad.sortOrder = i;
-      saved.push(await this.adRepository.save(ad));
+    if (!ids.length || new Set(ids).size !== ids.length || ids.some(id => !Number.isInteger(id) || id <= 0)) {
+      throw new BadRequestException('Provide unique positive advertisement IDs');
     }
-    return saved;
+    return this.adRepository.manager.transaction(async manager => {
+      const repository = manager.getRepository(Ad);
+      const ads = await repository.find({ where: ids.map(id => ({ id })) });
+      const byId = new Map(ads.map(ad => [ad.id, ad]));
+      const missing = ids.filter(id => !byId.has(id));
+      if (missing.length) throw new NotFoundException(`Ads not found: ${missing.join(',')}`);
+      if (new Set(ads.map(ad => ad.placement)).size > 1) throw new BadRequestException('Reorder one placement at a time');
+      const saved: Ad[] = [];
+      for (let index = 0; index < ids.length; index++) {
+        const ad = byId.get(ids[index])!;
+        ad.sortOrder = index;
+        saved.push(await repository.save(ad));
+      }
+      return saved;
+    });
   }
 
   presignedUrl(fileName: string, fileType: string) {
