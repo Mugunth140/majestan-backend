@@ -212,6 +212,30 @@ it('allows explicit no-parking and ignores nullable legacy parking metadata', as
     second.saved.find((row) => row instanceof PropertyDetails).carParking,
   ).toBe(5);
 });
+it('derives a missing legacy portion total from a partial configuration update', async () => {
+  const { service, manager, saved } = setup();
+  const findOne = manager.findOne.getMockImplementation()!;
+  manager.findOne.mockImplementation(async (entity: unknown) => {
+    const row = await findOne(entity);
+    return entity === PropertyDetails
+      ? { ...row, numberOfPortions: null }
+      : row;
+  });
+  await service.update('commercial', 7, {
+    details: {
+      curationDetails: {
+        portions: [
+          { bhk: '3 BHK', count: 2 },
+          { bhk: '2 BHK', count: 1 },
+        ],
+      },
+    },
+  });
+  expect(
+    saved.find((row) => row instanceof PropertyDetails).numberOfPortions,
+  ).toBe(3);
+});
+
 it('rejects a portion count that contradicts its BHK configurations', async () => {
   const { service } = setup();
   await expect(

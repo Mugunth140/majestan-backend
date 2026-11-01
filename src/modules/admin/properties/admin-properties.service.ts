@@ -988,7 +988,8 @@ export class AdminPropertiesService {
           const splitLifts = key === 'noOfLifts' && (payload.details.curationDetails?.passengerLifts != null || payload.details.curationDetails?.serviceLifts != null);
           const structuredParking = ['parking', 'carParking', 'bikeParking'].includes(key) && payload.details.curationDetails?.parkingSpaces != null;
           const structuredPower = key === 'powerSupplyHp' && Object.hasOwn(payload.details.curationDetails ?? {}, 'powerSupplyCapacity');
-          if (!splitBathrooms && !splitLifts && !structuredParking && !structuredPower && payload.details[sourceKey] === undefined && existingDetails[key] !== undefined) details[key] = existingDetails[key];
+          const derivedPortions = key === 'numberOfPortions' && existingDetails.numberOfPortions == null && !!payload.details.curationDetails?.portions?.length;
+          if (!splitBathrooms && !splitLifts && !structuredParking && !structuredPower && !derivedPortions && payload.details[sourceKey] === undefined && existingDetails[key] !== undefined) details[key] = existingDetails[key];
         }
 
         if (payload.details.floorPlanImages) {
