@@ -1,3 +1,4 @@
+import { PropertyCurationDto, PropertyContactDetailsDto } from './property-curation.dto';
 import { ArrayMinSize, ArrayMaxSize, IsString, IsNumber, IsOptional, IsObject, IsEnum, IsArray, ValidateNested, IsBoolean, IsInt, Min, Max, IsNotEmpty, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -10,6 +11,7 @@ export class PlotBoundaryDto {
 }
 
 export class PropertyDetailsDto {
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => PropertyCurationDto) curationDetails?: PropertyCurationDto;
   @IsOptional() @IsString() specialPurpose?: string;
   @IsOptional() @IsString() containerAccess?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) laborRooms?: number;
@@ -230,6 +232,8 @@ class PropertyDocumentDto {
 }
 
 export class CreatePropertyDto {
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => PropertyContactDetailsDto) contactDetails?: PropertyContactDetailsDto;
+
   @IsOptional() @IsString() propertyCode?: string;
   @IsOptional() @IsString() slug?: string;
   @IsString() title!: string;

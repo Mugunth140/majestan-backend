@@ -1,3 +1,4 @@
+import { PropertyCurationTwo1786300000000 } from './migrations/1786300000000-PropertyCurationTwo';
 import { CommercialRentalSpecialPurpose1786200000000 } from './migrations/1786200000000-CommercialRentalSpecialPurpose';
 import { IndustrialLandAndFarmHouse1786100000000 } from './migrations/1786100000000-IndustrialLandAndFarmHouse';
 import { PropertySpecificationRefinements1786000000000 } from './migrations/1786000000000-PropertySpecificationRefinements';
@@ -82,6 +83,7 @@ export default new DataSource({
   logging: parseBoolean(process.env.TYPEORM_LOGGING, false),
   migrationsTableName: 'migrations',
   migrations: [
+    PropertyCurationTwo1786300000000,
     CommercialRentalSpecialPurpose1786200000000,
     IndustrialLandAndFarmHouse1786100000000,
     PropertySpecificationRefinements1786000000000,

@@ -55,6 +55,9 @@ export enum PropertyStatus {
 @Index('idx_properties_slug', ['slug'], { unique: true })
 @Index('idx_properties_project_id', ['projectId'])
 export class Property {
+  @Column({ name: 'contact_details', type: 'simple-json', nullable: true, select: false })
+  contactDetails!: import('../../modules/admin/properties/dto/property-curation.dto').PropertyContactDetailsDto | null;
+
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
 

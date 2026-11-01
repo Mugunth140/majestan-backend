@@ -11,6 +11,9 @@ import { Property } from './property.entity';
 @Entity('property_details')
 @Index('uq_property_details_property_id', ['propertyId'], { unique: true })
 export class PropertyDetails {
+  @Column({ name: 'curation_details', type: 'simple-json', nullable: true })
+  curationDetails!: import('../../modules/admin/properties/dto/property-curation.dto').PropertyCurationDto | null;
+
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
 

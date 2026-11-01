@@ -50,6 +50,12 @@ import { City } from '../../../database/entities/city.entity';
 import { StorageService } from '../../storage/storage.service';
 import { SearchService } from '../../search/search.service';
 
+function powerSupplyHpFromCapacity(value: unknown): number | null {
+  const match = String(value ?? '').match(/^\s*(\d+(?:\.\d+)?)\s*HP\s*$/i);
+  const amount = match ? Number(match[1]) : NaN;
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
 @Injectable()
 export class AdminPropertiesService {
   constructor(
@@ -205,6 +211,7 @@ export class AdminPropertiesService {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
+    const contactRecord = await this.dataSource.getRepository(Property).findOne({ where: { id }, select: { id: true, contactDetails: true } });
     const [
       propertyDetails,
       propertyLocations,
@@ -257,6 +264,7 @@ export class AdminPropertiesService {
 
     return {
       ...record,
+      contactDetails: contactRecord?.contactDetails ?? null,
       propertyDetails,
       propertyLocations,
       propertyAmenities,
@@ -320,6 +328,7 @@ export class AdminPropertiesService {
         metaTitle: payload.metaTitle,
         metaDescription: payload.metaDescription,
         metaKeywords: payload.metaKeywords,
+        contactDetails: payload.contactDetails,
         ownerName: payload.ownerName,
         ownerEmail: payload.ownerEmail,
         ownerPhone: payload.ownerPhone,
@@ -389,12 +398,15 @@ export class AdminPropertiesService {
 
       // 2. Create Details
       if (payload.details) {
+        if (payload.details.curationDetails?.portions?.length && payload.details.numberOfPortions != null
+          && payload.details.curationDetails.portions.reduce((sum, p) => sum + p.count, 0) !== payload.details.numberOfPortions) throw new BadRequestException('Portion configuration counts must equal No of Portions.');
         const details = new PropertyDetails();
         Object.assign(details, {
+          curationDetails: payload.details.curationDetails,
           measurementUnits: payload.details.measurementUnits,
           plotFacing: payload.details.plotFacing,
           hasGroundFloor: payload.details.hasGroundFloor,
-          numberOfPortions: payload.details.numberOfPortions,
+          numberOfPortions: payload.details.numberOfPortions ?? (payload.details.curationDetails?.portions?.length ? payload.details.curationDetails.portions.reduce((sum, p) => sum + p.count, 0) : undefined),
           fundedBy: payload.details.fundedBy,
           specialPurpose: payload.details.specialPurpose,
           containerAccess: payload.details.containerAccess,
@@ -403,9 +415,11 @@ export class AdminPropertiesService {
           boreWellCount: payload.details.boreWellCount,
           plotBoundaries: payload.details.plotBoundaries,
           bedrooms: payload.details.bedrooms ?? 0,
-          bathrooms: payload.details.bathrooms ?? 0,
+          bathrooms: payload.details.curationDetails?.individualBathrooms != null || payload.details.curationDetails?.attachedBathrooms != null
+            ? (payload.details.curationDetails.individualBathrooms ?? 0) + (payload.details.curationDetails.attachedBathrooms ?? 0)
+            : payload.details.bathrooms ?? 0,
           areaSqft: payload.details.areaSqft ?? 0,
-          parking: payload.details.parking ?? 0,
+          parking: payload.details.curationDetails?.parkingSpaces != null ? payload.details.curationDetails.parkingSpaces.reduce((sum, p) => sum + p.count, 0) : payload.details.parking ?? 0,
           parkingType: payload.details.parkingType,
           furnished: payload.details.furnished ?? null,
           balconies: payload.details.balconies ?? 0,
@@ -446,12 +460,12 @@ export class AdminPropertiesService {
           floorsOccupied: payload.details.floorsOccupied,
           // Industrial
           truckParking: payload.details.truckParking,
-          carParking: payload.details.carParking,
-          bikeParking: payload.details.bikeParking,
+          carParking: payload.details.curationDetails?.parkingSpaces != null ? payload.details.curationDetails.parkingSpaces.filter(p => p.vehicle === 'Car').reduce((sum, p) => sum + p.count, 0) : payload.details.carParking,
+          bikeParking: payload.details.curationDetails?.parkingSpaces != null ? payload.details.curationDetails.parkingSpaces.filter(p => p.vehicle === 'Bike').reduce((sum, p) => sum + p.count, 0) : payload.details.bikeParking,
           coveredArea: payload.details.coveredArea,
           openArea: payload.details.openArea,
           floorType: payload.details.floorType,
-          powerSupplyHp: payload.details.powerSupplyHp,
+          powerSupplyHp: Object.hasOwn(payload.details.curationDetails ?? {}, 'powerSupplyCapacity') ? powerSupplyHpFromCapacity(payload.details.curationDetails?.powerSupplyCapacity) : payload.details.powerSupplyHp,
           // Apartment
           guestParking: payload.details.guestParking,
           // Floor Plans & Rooms
@@ -482,7 +496,8 @@ export class AdminPropertiesService {
           waterSources: payload.details.waterSources,
           sfNumber: payload.details.sfNumber,
           propertyUse: payload.details.propertyUse,
-          noOfLifts: payload.details.noOfLifts,
+          noOfLifts: payload.details.curationDetails?.passengerLifts != null || payload.details.curationDetails?.serviceLifts != null
+            ? (payload.details.curationDetails.passengerLifts ?? 0) + (payload.details.curationDetails.serviceLifts ?? 0) : payload.details.noOfLifts,
           dimension: payload.details.dimension,
           frontage: payload.details.frontage,
           outsideParking: payload.details.outsideParking,
@@ -756,7 +771,7 @@ export class AdminPropertiesService {
       const crmTopLevelKeys = [
         'alternateName', 'alternatePhone', 'alternateEmail', 'transactionType',
         'handoverDate', 'roadName', 'roadAccess', 'tenantOccupied', 'saleType',
-        'agentName', 'agencyName', 'commissionTerms', 'expectedSalePrice', 'pricePerSqft',
+        'contactDetails', 'agentName', 'agencyName', 'commissionTerms', 'expectedSalePrice', 'pricePerSqft',
         'monthlyRent', 'lockInPeriod', 'taxes', 'registrationCharge',
         'modeOfPayment', 'timeForRegistration', 'remark', 'demandArea',
         'rentalYield', 'comparativePrice', 'marketPrice', 'ownershipTitleVerified',
@@ -771,6 +786,13 @@ export class AdminPropertiesService {
         if (payload[key] !== undefined) updateData[key] = payload[key];
       }
 
+      if (payload.contactDetails && typeof payload.contactDetails === 'object') {
+        const previous = await queryRunner.manager.findOne(Property, { where: { id }, select: { id: true, contactDetails: true } });
+        updateData.contactDetails = { ...previous?.contactDetails, ...payload.contactDetails,
+          agentAlternative: payload.contactDetails.agentAlternative ? { ...previous?.contactDetails?.agentAlternative, ...payload.contactDetails.agentAlternative } : previous?.contactDetails?.agentAlternative,
+        };
+      }
+
       if (Object.keys(updateData).length > 0) {
         await queryRunner.manager.update(Property, { id }, updateData);
       }
@@ -779,14 +801,35 @@ export class AdminPropertiesService {
       if (payload.details) {
         const existingDetails = await queryRunner.manager.findOne(PropertyDetails, { where: { propertyId: id } });
         const existingFloorPlanKeys = existingDetails?.floorPlanImages?.map(img => img.imageKey).filter(Boolean) || [];
+        const mergedCuration = payload.details.curationDetails ? { ...existingDetails?.curationDetails, ...payload.details.curationDetails } : existingDetails?.curationDetails;
+        if (mergedCuration && payload.details.bathrooms !== undefined && payload.details.curationDetails?.individualBathrooms == null && payload.details.curationDetails?.attachedBathrooms == null
+          && (mergedCuration.individualBathrooms != null || mergedCuration.attachedBathrooms != null)
+          && payload.details.bathrooms !== (mergedCuration.individualBathrooms ?? 0) + (mergedCuration.attachedBathrooms ?? 0)) {
+          delete mergedCuration.individualBathrooms; delete mergedCuration.attachedBathrooms;
+        }
+        // Legacy aggregate edits invalidate only the breakdown they contradict.
+        if (mergedCuration && payload.details.noOfLifts !== undefined && payload.details.curationDetails?.passengerLifts == null && payload.details.curationDetails?.serviceLifts == null
+          && (mergedCuration.passengerLifts != null || mergedCuration.serviceLifts != null)
+          && payload.details.noOfLifts !== (mergedCuration.passengerLifts ?? 0) + (mergedCuration.serviceLifts ?? 0)) {
+          delete mergedCuration.passengerLifts; delete mergedCuration.serviceLifts;
+        }
+        if (mergedCuration?.parkingSpaces && payload.details.curationDetails?.parkingSpaces == null) {
+          const submittedDetails = payload.details;
+          const changed = (['carParking', 'bikeParking', 'parking'] as const).some(key => submittedDetails[key] !== undefined && Number(submittedDetails[key]) !== mergedCuration.parkingSpaces!.filter(p => key === 'parking' || p.vehicle === (key === 'carParking' ? 'Car' : 'Bike')).reduce((sum, p) => sum + p.count, 0));
+          if (changed) delete mergedCuration.parkingSpaces;
+        }
+        if (mergedCuration?.portions && payload.details.numberOfPortions !== undefined && payload.details.curationDetails?.portions == null && mergedCuration.portions.reduce((sum, p) => sum + p.count, 0) !== payload.details.numberOfPortions) delete mergedCuration.portions;
+        if (payload.details.curationDetails?.portions?.length && (payload.details.numberOfPortions ?? existingDetails?.numberOfPortions) != null
+          && payload.details.curationDetails.portions.reduce((sum, p) => sum + p.count, 0) !== (payload.details.numberOfPortions ?? existingDetails?.numberOfPortions)) throw new BadRequestException('Portion configuration counts must equal No of Portions.');
         
         await queryRunner.manager.delete(PropertyDetails, { propertyId: id });
         const details = new PropertyDetails();
         Object.assign(details, {
+          curationDetails: mergedCuration,
           measurementUnits: payload.details.measurementUnits ? { ...existingDetails?.measurementUnits, ...payload.details.measurementUnits } : existingDetails?.measurementUnits,
           plotFacing: payload.details.plotFacing ?? existingDetails?.plotFacing,
           hasGroundFloor: payload.details.hasGroundFloor ?? existingDetails?.hasGroundFloor,
-          numberOfPortions: payload.details.numberOfPortions ?? existingDetails?.numberOfPortions,
+          numberOfPortions: payload.details.numberOfPortions ?? existingDetails?.numberOfPortions ?? (payload.details.curationDetails?.portions?.length ? payload.details.curationDetails.portions.reduce((sum, p) => sum + p.count, 0) : undefined),
           fundedBy: payload.details.fundedBy ?? existingDetails?.fundedBy,
           specialPurpose: payload.details.specialPurpose ?? existingDetails?.specialPurpose,
           containerAccess: payload.details.containerAccess ?? existingDetails?.containerAccess,
@@ -795,9 +838,11 @@ export class AdminPropertiesService {
           boreWellCount: payload.details.boreWellCount ?? existingDetails?.boreWellCount,
           plotBoundaries: payload.details.plotBoundaries ?? existingDetails?.plotBoundaries,
           bedrooms: payload.details.bedrooms ?? 0,
-          bathrooms: payload.details.bathrooms ?? 0,
+          bathrooms: payload.details.curationDetails?.individualBathrooms != null || payload.details.curationDetails?.attachedBathrooms != null
+            ? (mergedCuration?.individualBathrooms ?? 0) + (mergedCuration?.attachedBathrooms ?? 0)
+            : payload.details.bathrooms ?? 0,
           areaSqft: payload.details.areaSqft ?? 0,
-          parking: payload.details.parking ?? 0,
+          parking: payload.details.curationDetails?.parkingSpaces != null ? payload.details.curationDetails.parkingSpaces.reduce((sum, p) => sum + p.count, 0) : payload.details.parking ?? 0,
           parkingType: payload.details.parkingType,
           furnished: payload.details.furnished ?? existingDetails?.furnished ?? null,
           balconies: payload.details.balconies ?? 0,
@@ -838,12 +883,12 @@ export class AdminPropertiesService {
           floorsOccupied: payload.details.floorsOccupied,
           // Industrial
           truckParking: payload.details.truckParking,
-          carParking: payload.details.carParking,
-          bikeParking: payload.details.bikeParking,
+          carParking: payload.details.curationDetails?.parkingSpaces != null ? payload.details.curationDetails.parkingSpaces.filter(p => p.vehicle === 'Car').reduce((sum, p) => sum + p.count, 0) : payload.details.carParking,
+          bikeParking: payload.details.curationDetails?.parkingSpaces != null ? payload.details.curationDetails.parkingSpaces.filter(p => p.vehicle === 'Bike').reduce((sum, p) => sum + p.count, 0) : payload.details.bikeParking,
           coveredArea: payload.details.coveredArea,
           openArea: payload.details.openArea,
           floorType: payload.details.floorType,
-          powerSupplyHp: payload.details.powerSupplyHp,
+          powerSupplyHp: Object.hasOwn(payload.details.curationDetails ?? {}, 'powerSupplyCapacity') ? powerSupplyHpFromCapacity(payload.details.curationDetails?.powerSupplyCapacity) : payload.details.powerSupplyHp,
           // Apartment
           guestParking: payload.details.guestParking,
           // Floor Plans & Rooms
@@ -874,7 +919,8 @@ export class AdminPropertiesService {
           waterSources: payload.details.waterSources,
           sfNumber: payload.details.sfNumber,
           propertyUse: payload.details.propertyUse,
-          noOfLifts: payload.details.noOfLifts,
+          noOfLifts: payload.details.curationDetails?.passengerLifts != null || payload.details.curationDetails?.serviceLifts != null
+            ? (mergedCuration?.passengerLifts ?? 0) + (mergedCuration?.serviceLifts ?? 0) : payload.details.noOfLifts,
           dimension: payload.details.dimension,
           frontage: payload.details.frontage,
           outsideParking: payload.details.outsideParking,
@@ -932,6 +978,18 @@ export class AdminPropertiesService {
           constructionDate: payload.details.constructionDate,
           documentRequire: payload.details.documentRequire,
         });
+
+        // The details row is recreated below. A partial request must not erase
+        // omitted legacy measurements, flags or counts while adding new metadata.
+        if (existingDetails) for (const key of Object.keys(details)) {
+          if (['id', 'propertyId', 'property'].includes(key)) continue;
+          const sourceKey = key === 'builtUpArea' ? 'buildUpArea' : key === 'propertyFacing' ? 'facing' : key;
+          const splitBathrooms = key === 'bathrooms' && (payload.details.curationDetails?.individualBathrooms != null || payload.details.curationDetails?.attachedBathrooms != null);
+          const splitLifts = key === 'noOfLifts' && (payload.details.curationDetails?.passengerLifts != null || payload.details.curationDetails?.serviceLifts != null);
+          const structuredParking = ['parking', 'carParking', 'bikeParking'].includes(key) && payload.details.curationDetails?.parkingSpaces != null;
+          const structuredPower = key === 'powerSupplyHp' && Object.hasOwn(payload.details.curationDetails ?? {}, 'powerSupplyCapacity');
+          if (!splitBathrooms && !splitLifts && !structuredParking && !structuredPower && payload.details[sourceKey] === undefined && existingDetails[key] !== undefined) details[key] = existingDetails[key];
+        }
 
         if (payload.details.floorPlanImages) {
           const processedImages = await mapWithConcurrency(payload.details.floorPlanImages, 3, async img => {
