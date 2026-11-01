@@ -50,6 +50,12 @@ import { City } from '../../../database/entities/city.entity';
 import { StorageService } from '../../storage/storage.service';
 import { SearchService } from '../../search/search.service';
 
+function validatePgCapacity(pg: {roomType?: string;sharingCount?: number;totalCapacity?:number;availableCapacity?:number}|null|undefined) {
+ if (!pg) return;
+ if (pg.roomType === 'Sharing' && pg.sharingCount != null && pg.sharingCount < 2) throw new BadRequestException('A shared room needs at least two occupants.');
+ if (pg.totalCapacity != null && pg.availableCapacity != null && pg.availableCapacity > pg.totalCapacity) throw new BadRequestException('Available capacity cannot exceed total capacity.');
+}
+
 function powerSupplyHpFromCapacity(value: unknown): number | null {
   const match = String(value ?? '').match(/^\s*(\d+(?:\.\d+)?)\s*HP\s*$/i);
   const amount = match ? Number(match[1]) : NaN;
@@ -397,6 +403,7 @@ export class AdminPropertiesService {
       savedProperty = await queryRunner.manager.save(savedProperty);
 
       // 2. Create Details
+      validatePgCapacity(payload.details?.curationDetails?.pgDetails);
       if (payload.details) {
         if (payload.details.curationDetails?.portions?.length && payload.details.numberOfPortions != null
           && payload.details.curationDetails.portions.reduce((sum, p) => sum + p.count, 0) !== payload.details.numberOfPortions) throw new BadRequestException('Portion configuration counts must equal No of Portions.');
@@ -802,6 +809,17 @@ export class AdminPropertiesService {
         const existingDetails = await queryRunner.manager.findOne(PropertyDetails, { where: { propertyId: id } });
         const existingFloorPlanKeys = existingDetails?.floorPlanImages?.map(img => img.imageKey).filter(Boolean) || [];
         const mergedCuration = payload.details.curationDetails ? { ...existingDetails?.curationDetails, ...payload.details.curationDetails } : existingDetails?.curationDetails;
+        if (mergedCuration && payload.details.curationDetails?.pgDetails) mergedCuration.pgDetails = { ...existingDetails?.curationDetails?.pgDetails, ...payload.details.curationDetails.pgDetails };
+        const pgPatch = payload.details.curationDetails?.pgDetails;
+        const previousPg = existingDetails?.curationDetails?.pgDetails;
+        if (mergedCuration?.pgDetails && pgPatch?.roomType && previousPg?.roomType && pgPatch.roomType !== previousPg.roomType) {
+          // Beds and rooms are different units. Do not relabel an omitted
+          // bed count as a room count during a partial update.
+          for (const key of ['sharingCount', 'totalCapacity', 'availableCapacity'] as const) {
+            if (!Object.hasOwn(pgPatch, key)) delete mergedCuration.pgDetails[key];
+          }
+        }
+        validatePgCapacity(mergedCuration?.pgDetails);
         if (mergedCuration && payload.details.bathrooms !== undefined && payload.details.curationDetails?.individualBathrooms == null && payload.details.curationDetails?.attachedBathrooms == null
           && (mergedCuration.individualBathrooms != null || mergedCuration.attachedBathrooms != null)
           && payload.details.bathrooms !== (mergedCuration.individualBathrooms ?? 0) + (mergedCuration.attachedBathrooms ?? 0)) {

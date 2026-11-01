@@ -304,3 +304,26 @@ it.each([
     ).toBe(expected);
   },
 );
+
+it('merges partial PG edits without losing meals, facilities or legacy areas',async()=>{
+ const {service,saved}=setup({pgDetails:{roomType:'Sharing',sharingCount:2,totalCapacity:8,availableCapacity:4,attachedBathroom:false,foodAvailable:'Available',weekdayMeals:['Dinner']}});
+ await service.update('pg_service_apartment',7,{details:{curationDetails:{pgDetails:{availableCapacity:3}}}});
+ expect(saved.find(row=>row instanceof PropertyDetails)).toMatchObject({builtUpArea:'1000',curationDetails:{pgDetails:{roomType:'Sharing',sharingCount:2,totalCapacity:8,availableCapacity:3,attachedBathroom:false,weekdayMeals:['Dinner']}}});
+});
+it('rejects a PG partial edit that exceeds its saved total capacity',async()=>{
+ const {service}=setup({pgDetails:{totalCapacity:4,availableCapacity:1}});
+ await expect(service.update('pg_service_apartment',7,{details:{curationDetails:{pgDetails:{availableCapacity:5}}}})).rejects.toThrow('cannot exceed');
+});
+
+it('does not relabel beds as private rooms on a partial room-type change',async()=>{
+ const {service,saved}=setup({pgDetails:{roomType:'Sharing',sharingCount:3,totalCapacity:12,availableCapacity:5,attachedBathroom:true}});
+ await service.update('pg_service_apartment',7,{details:{curationDetails:{pgDetails:{roomType:'Private'}}}});
+ const pg=saved.find(row=>row instanceof PropertyDetails).curationDetails.pgDetails;
+ expect(pg).toMatchObject({roomType:'Private',attachedBathroom:true});
+ for(const key of ['sharingCount','totalCapacity','availableCapacity'])expect(pg).not.toHaveProperty(key);
+});
+it('retains explicitly supplied capacity when changing room type',async()=>{
+ const {service,saved}=setup({pgDetails:{roomType:'Sharing',totalCapacity:12,availableCapacity:5}});
+ await service.update('pg_service_apartment',7,{details:{curationDetails:{pgDetails:{roomType:'Private',totalCapacity:4,availableCapacity:2}}}});
+ expect(saved.find(row=>row instanceof PropertyDetails).curationDetails.pgDetails).toMatchObject({roomType:'Private',totalCapacity:4,availableCapacity:2});
+});
