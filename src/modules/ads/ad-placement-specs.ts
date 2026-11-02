@@ -47,8 +47,8 @@ export const AD_PLACEMENT_SPECS: Record<AdPlacement, AdPlacementSpec> = {
   },
   // Banners between cards on the property and project listing pages
   [AdPlacement.ListingFeed]: {
-    desktop: { ratio: [4, 1], bounds: { width: 1600, height: 400 } },
-    mobile: { ratio: [16, 9], bounds: { width: 1080, height: 608 }, required: false },
+    desktop: { ratio: [3, 1], bounds: { width: 1800, height: 600 } },
+    mobile: { ratio: [4, 5], bounds: { width: 1080, height: 1350 }, required: false },
     audiences: ['buy', 'rent', 'projects'],
   },
   // Reserved, not rendered on the site yet

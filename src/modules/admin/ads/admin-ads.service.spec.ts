@@ -49,6 +49,28 @@ const validCreate = () => ({
 
 describe('AdminAdsService', () => {
   describe('placement specs', () => {
+    it('accepts 3:1 desktop and 4:5 mobile listing creatives and processes their matching bounds', async () => {
+      const { service, storage, repo } = makeService({ storage: {
+        getImageDimensions: jest.fn(async (url: string) => url.includes('/m.png')
+          ? { width: 1080, height: 1350 } : { width: 1800, height: 600 }),
+      } });
+      await service.create({ ...validCreate(), placement: AdPlacement.ListingFeed, audience: 'buy' } as any);
+      expect(storage.processAdImage).toHaveBeenCalledWith('uploads/temp/d.png', 'desktop', { width: 1800, height: 600 });
+      expect(storage.processAdImage).toHaveBeenCalledWith('uploads/temp/m.png', 'mobile', { width: 1080, height: 1350 });
+      expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ placement: AdPlacement.ListingFeed, audience: 'buy' }));
+    });
+
+    it.each([
+      ['desktop', { width: 1600, height: 400 }, { width: 1080, height: 1350 }, '3:1'],
+      ['mobile', { width: 1800, height: 600 }, { width: 1080, height: 608 }, '4:5'],
+    ])('rejects the old listing %s ratio before processing images', async (_slot, desktop, mobile, ratio) => {
+      const { service, storage } = makeService({ storage: {
+        getImageDimensions: jest.fn(async (url: string) => url.includes('/m.png') ? mobile : desktop),
+      } });
+      await expect(service.create({ ...validCreate(), placement: AdPlacement.ListingFeed } as any)).rejects.toThrow(String(ratio));
+      expect(storage.processAdImage).not.toHaveBeenCalled();
+    });
+
     it('creates a single-image 3:2 mega-menu ad targeted at an audience', async () => {
       const { service, repo, storage } = makeService({
         storage: { getImageDimensions: jest.fn(async () => ({ width: 1500, height: 1000 })) },

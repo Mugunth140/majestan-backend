@@ -1,3 +1,5 @@
+import { LegacyIndividualBathrooms1786500000000 } from '../src/database/migrations/1786500000000-LegacyIndividualBathrooms';
+import { CommercialGeneralAreaMapping1786400000000 } from '../src/database/migrations/1786400000000-CommercialGeneralAreaMapping';
 import { PropertyCurationTwo1786300000000 } from '../src/database/migrations/1786300000000-PropertyCurationTwo';
 import { CommercialRentalSpecialPurpose1786200000000 } from '../src/database/migrations/1786200000000-CommercialRentalSpecialPurpose';
 import { IndustrialLandAndFarmHouse1786100000000 } from '../src/database/migrations/1786100000000-IndustrialLandAndFarmHouse';
@@ -12,7 +14,7 @@ import dataSource from '../src/database/data-source';
 import { SeoCanonicalType1785000000000 } from '../src/database/migrations/1785000000000-SeoCanonicalType';
 
 async function run() {
-  dataSource.setOptions({ migrations: [PropertyCurationTwo1786300000000, SeoCanonicalType1785000000000, PropertyTypeSeoTemplates1785100000000, SeoAuditRemediation1785200000000, SanitizePropertySlugs1785500000000, AddInvestmentPropertyType1785700000000, AddPgServiceApartmentType1785800000000, AddPropertyPricePerSqft1785900000000, PropertySpecificationRefinements1786000000000, IndustrialLandAndFarmHouse1786100000000, CommercialRentalSpecialPurpose1786200000000] });
+  dataSource.setOptions({ migrations: [LegacyIndividualBathrooms1786500000000,CommercialGeneralAreaMapping1786400000000, PropertyCurationTwo1786300000000, SeoCanonicalType1785000000000, PropertyTypeSeoTemplates1785100000000, SeoAuditRemediation1785200000000, SanitizePropertySlugs1785500000000, AddInvestmentPropertyType1785700000000, AddPgServiceApartmentType1785800000000, AddPropertyPricePerSqft1785900000000, PropertySpecificationRefinements1786000000000, IndustrialLandAndFarmHouse1786100000000, CommercialRentalSpecialPurpose1786200000000] });
   await dataSource.initialize();
   try {
     const applied = await dataSource.runMigrations({ transaction: 'none' });
