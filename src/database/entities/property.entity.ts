@@ -47,6 +47,8 @@ export enum PropertyStatus {
 }
 
 @Entity('properties')
+@Index('idx_properties_uploaded_date', ['uploadedByCrmUserId', 'createdAt'])
+@Index('idx_properties_upload_date', ['createdAt'])
 @Index('idx_properties_city', ['city'])
 @Index('idx_properties_price', ['price'])
 @Index('idx_properties_status', ['status'])
@@ -55,6 +57,9 @@ export enum PropertyStatus {
 @Index('idx_properties_slug', ['slug'], { unique: true })
 @Index('idx_properties_project_id', ['projectId'])
 export class Property {
+  @Column({ name: 'uploaded_by_crm_user_id', type: 'int', unsigned: true, nullable: true, select: false })
+  uploadedByCrmUserId!: number | null;
+
   @Column({ name: 'contact_details', type: 'simple-json', nullable: true, select: false })
   contactDetails!: import('../../modules/admin/properties/dto/property-curation.dto').PropertyContactDetailsDto | null;
 

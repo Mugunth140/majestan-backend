@@ -232,6 +232,9 @@ class PropertyDocumentDto {
 }
 
 export class CreatePropertyDto {
+  @IsOptional() @IsInt() @Min(1)
+  uploadedByCrmUserId?: number;
+
   @IsOptional() @IsObject() @ValidateNested() @Type(() => PropertyContactDetailsDto) contactDetails?: PropertyContactDetailsDto;
 
   @IsOptional() @IsString() propertyCode?: string;

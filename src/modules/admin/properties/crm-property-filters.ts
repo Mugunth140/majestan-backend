@@ -6,6 +6,19 @@ import { AdminPropertyQueryDto } from './dto/admin-property-query.dto';
 export function applyCrmPropertyFilters(qb: SelectQueryBuilder<Property>, query: AdminPropertyQueryDto) {
   if (query.minSqft !== undefined && query.maxSqft !== undefined && query.minSqft > query.maxSqft) throw new BadRequestException('Minimum Sq.ft cannot exceed maximum');
   if (query.minBudget !== undefined && query.maxBudget !== undefined && query.minBudget > query.maxBudget) throw new BadRequestException('Minimum budget cannot exceed maximum');
+  if (query.uploadedFrom && query.uploadedTo && query.uploadedFrom > query.uploadedTo) throw new BadRequestException('Uploaded from date cannot be after uploaded to date');
+  if (query.uploadedById !== undefined) qb.andWhere('p.uploadedByCrmUserId = :uploadedById', { uploadedById: query.uploadedById });
+  // Local business dates in India, inclusive through the end day. FROM_UNIXTIME
+  // keeps this correct even if the database session timezone differs from UTC.
+  for (const [date, key, operator, extraDay] of [
+    [query.uploadedFrom, 'uploadedFromEpoch', '>=', 0],
+    [query.uploadedTo, 'uploadedToEpoch', '<', 86400],
+  ] as const) {
+    if (!date) continue;
+    const instant = new Date(`${date}T00:00:00+05:30`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(instant.getTime()) || new Date(`${date}T00:00:00Z`).toISOString().slice(0,10) !== date) throw new BadRequestException('Invalid upload date');
+    qb.andWhere(`p.createdAt ${operator} FROM_UNIXTIME(:${key})`, { [key]: instant.getTime() / 1000 + extraDay });
+  }
   qb.leftJoin('p.propertyDetails', 'filterDetails');
   if (query.sublocationId) qb.andWhere('sl.id = :filterLocation', { filterLocation: query.sublocationId });
   for (const [key, expression, operator] of [

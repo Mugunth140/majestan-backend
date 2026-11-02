@@ -1,3 +1,4 @@
+import { IsDateString, Matches } from 'class-validator';
 import { IsEnum, IsNumber, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -67,4 +68,13 @@ export class AdminPropertyQueryDto extends PaginationQueryDto {
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   sublocationId?: number;
+
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  uploadedById?: number;
+
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) @IsDateString({ strict: true })
+  uploadedFrom?: string;
+
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) @IsDateString({ strict: true })
+  uploadedTo?: string;
 }

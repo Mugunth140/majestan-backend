@@ -112,6 +112,7 @@ export class AdminPropertiesService {
   async listAll(query: AdminPropertyQueryDto) {
     const qb = this.dataSource.getRepository(Property).createQueryBuilder('p')
       .leftJoinAndSelect('p.propertyImages', 'images', 'images.isPrimary = true')
+      .addSelect('p.uploadedByCrmUserId')
       .leftJoin('p.propertyLocations', 'pl')
       .leftJoin('pl.sublocation', 'sl')
       .leftJoin('sl.city', 'c')
@@ -306,6 +307,7 @@ export class AdminPropertiesService {
         propertyCode: payload.propertyCode || `PROP-${Date.now()}`,
         slug: `temp-slug-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
         title: payload.title,
+        uploadedByCrmUserId: payload.uploadedByCrmUserId ?? null,
         source: payload.source || 'staff',
         description: payload.description,
         price: payload.price,

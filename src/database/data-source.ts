@@ -1,3 +1,4 @@
+import { PropertyUploadAttribution1786600000000 } from './migrations/1786600000000-PropertyUploadAttribution';
 import { LegacyIndividualBathrooms1786500000000 } from './migrations/1786500000000-LegacyIndividualBathrooms';
 import { CommercialGeneralAreaMapping1786400000000 } from './migrations/1786400000000-CommercialGeneralAreaMapping';
 import { PropertyCurationTwo1786300000000 } from './migrations/1786300000000-PropertyCurationTwo';
@@ -85,6 +86,7 @@ export default new DataSource({
   logging: parseBoolean(process.env.TYPEORM_LOGGING, false),
   migrationsTableName: 'migrations',
   migrations: [
+    PropertyUploadAttribution1786600000000,
     LegacyIndividualBathrooms1786500000000,
     CommercialGeneralAreaMapping1786400000000,
     PropertyCurationTwo1786300000000,

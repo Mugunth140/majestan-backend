@@ -41,3 +41,23 @@ describe('CRM property list filters', () => {
     expect((await validate(plainToInstance(AdminPropertyQueryDto,values))).length).toBeGreaterThan(0);
   });
 });
+
+describe('Uploader and upload dates', () => {
+  it('combines a staff ID with inclusive India calendar dates', () => {
+    const qb:any={andWhere:jest.fn().mockReturnThis(),leftJoin:jest.fn().mockReturnThis()};
+    applyCrmPropertyFilters(qb,{uploadedById:7,uploadedFrom:'2026-11-01',uploadedTo:'2026-11-02'});
+    expect(qb.andWhere).toHaveBeenCalledWith('p.uploadedByCrmUserId = :uploadedById',{uploadedById:7});
+    const start=qb.andWhere.mock.calls.find(([sql]:string[])=>sql.includes(':uploadedFromEpoch'))[1].uploadedFromEpoch;
+    const end=qb.andWhere.mock.calls.find(([sql]:string[])=>sql.includes(':uploadedToEpoch'))[1].uploadedToEpoch;
+    expect(new Date(start*1000).toISOString()).toBe('2026-10-31T18:30:00.000Z');
+    expect(new Date(end*1000).toISOString()).toBe('2026-11-02T18:30:00.000Z');
+    expect(qb.andWhere).toHaveBeenCalledWith('p.createdAt < FROM_UNIXTIME(:uploadedToEpoch)',{uploadedToEpoch:end});
+  });
+  it.each([{uploadedFrom:'2026-11-03',uploadedTo:'2026-11-02'},{uploadedFrom:'2026-02-30'},{uploadedFrom:'bad'}])('rejects invalid dates %j',query=>{
+    const qb:any={andWhere:jest.fn().mockReturnThis(),leftJoin:jest.fn().mockReturnThis()};
+    expect(()=>applyCrmPropertyFilters(qb,query)).toThrow();
+  });
+  it.each([{uploadedById:'1.5'},{uploadedById:0},{uploadedFrom:'2026-02-30'},{uploadedTo:'2026-11-02T15:00:00Z'}])('rejects invalid uploader/date query values %j',async value=>{
+    expect((await validate(plainToInstance(AdminPropertyQueryDto,value),{whitelist:true})).length).toBeGreaterThan(0);
+  });
+});
