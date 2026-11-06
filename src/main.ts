@@ -9,11 +9,23 @@ import helmet from 'helmet';
 import { mkdirSync } from 'fs';
 import { resolveLocalUploadDir } from './modules/storage/storage.service';
 import { AppModule } from './app.module';
+import { RuntimeGuardrails } from './common/runtime-guardrails';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   const configService = app.get(ConfigService);
+
+  if (configService.get<string>('NODE_ENV') === 'production') {
+    const guardrails = new RuntimeGuardrails(
+      configService.getOrThrow<number>('MAX_IN_FLIGHT_REQUESTS'),
+    );
+    app.use(guardrails.middleware);
+    guardrails.start(
+      configService.getOrThrow<number>('MEMORY_LOG_INTERVAL_MS'),
+    );
+    app.getHttpServer().once('close', () => guardrails.stop());
+  }
 
   const normalizeSegment = (value: string): string =>
     value.replace(/^\/+|\/+$/g, '');

@@ -1,0 +1,7 @@
+# Install alongside the server's site/docker-compose.yml. Docker Compose
+# loads this override automatically, including during webhook deployments.
+# Only the site backend's memory budget changes; CRM services are untouched.
+services:
+  site-backend:
+    mem_limit: 1536m
+    memswap_limit: 1536m

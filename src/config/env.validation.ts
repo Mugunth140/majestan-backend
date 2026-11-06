@@ -55,6 +55,8 @@ export const envValidationSchema = Joi.object({
 
   THROTTLE_TTL_MS: Joi.number().integer().min(1000).default(60000),
   THROTTLE_LIMIT: Joi.number().integer().min(1).default(120),
+  MAX_IN_FLIGHT_REQUESTS: Joi.number().integer().min(1).max(512).default(32),
+  MEMORY_LOG_INTERVAL_MS: Joi.number().integer().min(10000).max(3600000).default(60000),
   // Shared with the site frontend (same env file): marks its server-side
   // calls so they aren't rate-limited as one IP. Empty = feature off.
   INTERNAL_API_KEY: Joi.string().allow('').default(''),
