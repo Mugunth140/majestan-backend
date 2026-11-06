@@ -395,6 +395,9 @@ export class PropertiesService {
 
   async details(propertyType: string, id: number): Promise<Record<string, unknown>> {
     const property = await this.propertyRepository.findOne({
+      // Joining independent collections multiplies rows (amenities × images
+      // × furnishings × FAQs), exhausting memory before entity hydration.
+      relationLoadStrategy: 'query',
       where: { id, propertyType: normalizePropertyType(propertyType) as PropertyType, approvalStatus: APPROVAL_GATE },
       relations: [
         'propertyDetails',
@@ -467,6 +470,7 @@ export class PropertiesService {
 
   async detailsBySlug(slug: string): Promise<Record<string, unknown>> {
     let property = await this.propertyRepository.findOne({
+      relationLoadStrategy: 'query',
       where: [
         { slug, approvalStatus: APPROVAL_GATE },
         { propertyCode: slug, approvalStatus: APPROVAL_GATE }
@@ -494,6 +498,7 @@ export class PropertiesService {
       const parsed = parsePropertySlugSuffix(slug);
       if (parsed) {
         property = await this.propertyRepository.findOne({
+          relationLoadStrategy: 'query',
           where: { id: parsed.id, propertyType: parsed.propertyType as PropertyType, approvalStatus: APPROVAL_GATE },
           relations: [
             'propertyDetails',

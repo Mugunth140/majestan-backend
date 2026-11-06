@@ -199,6 +199,9 @@ export class AdminPropertiesService {
 
   async details(propertyType: string, id: number) {
     const record = await this.dataSource.getRepository(Property).findOne({
+      // The CRM editor loads the same independent collections as public
+      // details; fetch them separately instead of a Cartesian result set.
+      relationLoadStrategy: 'query',
       where: { id, propertyType: propertyType as PropertyType },
       relations: [
         'propertyDetails',

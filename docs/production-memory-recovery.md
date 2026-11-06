@@ -1,5 +1,52 @@
 # Production memory recovery — 6 November 2026
 
+## Follow-up: excessive joined rows in property details
+
+The first deployment's diagnostics showed 769 MiB of JS heap and 1,163 MiB
+RSS after only 34 completed responses, with a peak of five concurrent
+responses. The process was killed again. The concurrency and memory limits
+contained the failure but did not fix this allocation source.
+
+The property detail loaders joined every independent collection in one
+TypeORM query. Read-only counts of the two reported production properties
+showed the following Cartesian products (zero-child LEFT JOINs count as one):
+
+| Property | Amenities | Furnishings | Images | FAQs | Joined rows |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Prozone Palms, 2640 | 26 | 9 | 17 | 35 | 139,230 |
+| Purnaya Developers Adhya, 2642 | 12 | 3 | 21 | 35 | 26,460 |
+
+The driver materializes these duplicate, wide rows before TypeORM deduplicates
+the entities. Repeated requests or several simultaneous requests can exhaust
+memory even though the serialized property response is small. This is a
+query allocation explosion; the evidence does not establish a Bun runtime leak.
+
+Public property details (slug, type/id and suffix recovery) and the site
+admin property editor now explicitly use `relationLoadStrategy: 'query'`.
+The same relations, nested data, approval checks and redirects remain; each
+collection is fetched separately instead of multiplying sibling collections.
+Project details already load collections separately and do not use this join.
+
+The local MySQL regression script creates and drops its own scratch database,
+with the real entities and service methods. It accepts only a loopback DB
+host. It verifies all images/amenities/furnishings/FAQs, nested amenity and
+furnishing names, location, property specifications and SEO; it also exercises
+the type/id route, suffix recovery, admin details and missing records.
+It instruments the actual query runner and fails if any query returns more
+rows than the largest collection. The joined baseline uses smaller collection
+sizes to avoid deliberately exhausting memory. No production load test is used.
+
+```bash
+bun run build
+DB_HOST=127.0.0.1 DB_PORT=3306 DETAIL_SOAK_ITERATIONS=20 bun scripts/verify-property-detail-memory.cjs --baseline
+DB_HOST=127.0.0.1 DB_PORT=3306 DETAIL_SOAK_ITERATIONS=1000 bun scripts/verify-property-detail-memory.cjs
+```
+
+Initial corrected run: 1,000 lookups with Prozone-sized collections, at most
+35 rows per query, RSS 106→151 MiB and JS heap 24 MiB after final GC. Continue
+observing real production traffic after deployment; this removes a demonstrated
+allocation source, not proof that no other memory issue exists.
+
 ## Confirmed incident
 
 The kernel reported `global_oom` and killed the backend Bun process at
