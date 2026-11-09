@@ -56,8 +56,9 @@ export class AdminEditorialController {
       'uploads/blog',
     );
   }
-  @Get() list(@Query('page') page?: string) {
-    return this.service.list(Number(page), 30, true);
+  // The CRM picks 20, 50 or 100 rows a page; the service caps it at 100.
+  @Get() list(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.service.list(Number(page), Number(limit) || 30, true);
   }
   @Get(':id') details(@Param('id', ParseIntPipe) id: number) {
     return this.service.details(id, true);
