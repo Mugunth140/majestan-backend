@@ -107,7 +107,7 @@ describe('persistent website DuckDB', () => {
     await expect(store.report('2026-02-30', '2026-03-04')).rejects.toThrow(
       'valid UTC dates',
     );
-    await expect(store.report('2026-01-01', '2026-11-06')).rejects.toThrow();
+    await expect(store.report('2025-01-01', '2026-11-01')).rejects.toThrow();
   });
   it('is inactive when disabled and refuses writes', async () => {
     const disabled = new SiteAnalyticsStore(

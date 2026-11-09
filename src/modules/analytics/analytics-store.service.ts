@@ -255,12 +255,12 @@ export class SiteAnalyticsStore implements OnModuleInit, OnApplicationShutdown {
       !Number.isFinite(start) ||
       !Number.isFinite(end) ||
       start >= end ||
-      end - start > 93 * 86400_000 ||
+      end - start > 366 * 86400_000 ||
       new Date(start).toISOString().slice(0, 10) !== from ||
       new Date(end).toISOString().slice(0, 10) !== to
     ) {
       throw new BadRequestException(
-        'Use valid UTC dates from < to, at most 93 days (to is exclusive)',
+        'Use valid UTC dates from < to, at most 366 days (to is exclusive)',
       );
     }
   }
