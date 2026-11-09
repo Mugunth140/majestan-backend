@@ -47,6 +47,9 @@ lerna-debug.log*
 .tmp
 
 # Runtime data
+data/
+*.duckdb
+*.duckdb.wal
 pids
 *.pid
 *.seed

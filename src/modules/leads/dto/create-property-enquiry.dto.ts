@@ -1,5 +1,6 @@
 import {
   IsDateString,
+  IsUUID,
   IsEmail,
   IsIn,
   IsInt,
@@ -30,6 +31,10 @@ export const PROPERTY_ENQUIRY_INTENTS = ['enquiry', 'site_visit'] as const;
 export type PropertyEnquiryIntent = (typeof PROPERTY_ENQUIRY_INTENTS)[number];
 
 export class CreatePropertyEnquiryDto {
+  @IsOptional() @IsUUID('4') analyticsSubmissionId?: string;
+  @IsOptional() @IsUUID('4') analyticsSessionId?: string;
+  @IsOptional() @IsUUID('4') analyticsPageId?: string;
+
   @IsInt()
   @Min(1)
   propertyId!: number;

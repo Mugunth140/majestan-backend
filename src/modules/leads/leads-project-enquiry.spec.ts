@@ -18,9 +18,10 @@ function makeService(db: { projectRow: any }) {
     }),
     execute: jest.fn().mockResolvedValue({ identifiers: [{ id: 78 }], raw: { insertId: 78 } }),
   };
-  const dataSource = { createQueryBuilder: jest.fn().mockReturnValue(qb) } as any;
+  const repository = {findOne:jest.fn()};
+  const dataSource = { getRepository:()=>repository, createQueryBuilder: jest.fn().mockReturnValue(qb) } as any;
   const crmForwarding = { forwardEnquiry: jest.fn().mockResolvedValue(undefined) } as any;
-  return { service: new LeadsService(dataSource, crmForwarding), queries, qb, crmForwarding };
+  return { service: new LeadsService(dataSource, crmForwarding), queries, qb, crmForwarding,repository };
 }
 
 /**
@@ -169,4 +170,22 @@ describe('createProjectEnquiry', () => {
     await expect(service.createProjectEnquiry(ENQUIRY, 42)).resolves.toEqual({ id: 78, submitted: true });
     expect(crmForwarding.forwardEnquiry).toHaveBeenCalledTimes(1);
   });
+});
+
+
+describe('project accepted-submission identity',()=>{
+ it('returns one accepted record on repeated delivery and forwards the same identity',async()=>{
+  const {service,qb,queries,repository,crmForwarding}=makeService({projectRow:RESOLVED_ROW});
+  const payload={...ENQUIRY,analyticsSubmissionId:'11111111-1111-4111-8111-111111111111'};
+  const first=await service.createProjectEnquiry(payload,42);
+  repository.findOne.mockResolvedValue({...queries[0],id:78});qb.execute.mockRejectedValue({code:'ER_DUP_ENTRY'});
+  expect(await service.createProjectEnquiry(payload,42)).toEqual(first);
+  expect(crmForwarding.forwardEnquiry.mock.calls.map((args:unknown[])=> (args[0] as {analyticsSubmissionId:string}).analyticsSubmissionId)).toEqual([payload.analyticsSubmissionId,payload.analyticsSubmissionId]);
+ });
+ it('rejects an identity reused for changed submission contents',async()=>{
+  const {service,qb,queries,repository}=makeService({projectRow:RESOLVED_ROW});
+  const payload={...ENQUIRY,analyticsSubmissionId:'11111111-1111-4111-8111-111111111111'};
+  await service.createProjectEnquiry(payload,42);repository.findOne.mockResolvedValue({...queries[0],id:78});qb.execute.mockRejectedValue({code:'ER_DUP_ENTRY'});
+  await expect(service.createProjectEnquiry({...payload,message:'Different enquiry'},42)).rejects.toThrow('Submission ID conflicts');
+ });
 });

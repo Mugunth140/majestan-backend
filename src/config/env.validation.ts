@@ -60,6 +60,11 @@ export const envValidationSchema = Joi.object({
   // Shared with the site frontend (same env file): marks its server-side
   // calls so they aren't rate-limited as one IP. Empty = feature off.
   INTERNAL_API_KEY: Joi.string().allow('').default(''),
+  SITE_ANALYTICS_ENABLED: Joi.boolean().truthy('true', '1').falsy('false', '0').default(false),
+  SITE_ANALYTICS_SECRET: Joi.string().min(32).allow('').default(''),
+  SITE_ANALYTICS_READ_KEY: Joi.string().min(32).allow('').default(''),
+  SITE_ANALYTICS_DB_PATH: Joi.string().default('./data/site-analytics/site.duckdb'),
+  SITE_ANALYTICS_RETENTION_DAYS: Joi.number().integer().min(1).max(730).default(180),
 
   MEILI_HOST: Joi.string().uri().allow('').default('http://meilisearch:7700'),
   MEILI_MASTER_KEY: Joi.string().allow('').default(''),

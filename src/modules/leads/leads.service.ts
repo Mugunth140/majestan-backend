@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Lead } from '../../database/entities/lead.entity';
+import { createHash } from 'node:crypto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
@@ -8,7 +14,10 @@ import {
 } from './dto/create-property-enquiry.dto';
 import { CreateProjectEnquiryDto } from './dto/create-project-enquiry.dto';
 import { CreatePropertySubmissionDto } from './dto/create-property-submission.dto';
-import { CrmForwardingService, propertyLabelFromPageUrl } from './crm-forwarding.service';
+import {
+  CrmForwardingService,
+  propertyLabelFromPageUrl,
+} from './crm-forwarding.service';
 
 /** 'YYYY-MM-DD' — the only visit-date form we accept; @IsDateString() also
  * admits compact-ISO ('20261005'), which breaks lexicographic date compares. */
@@ -76,10 +85,7 @@ export class LeadsService {
   private normalizePhoneForInsert(raw: string): string {
     const digitsOnlyForInsert = raw.replace(/\D/g, '');
     let normalizedMobile = digitsOnlyForInsert;
-    if (
-      normalizedMobile.length === 12 &&
-      normalizedMobile.startsWith('91')
-    ) {
+    if (normalizedMobile.length === 12 && normalizedMobile.startsWith('91')) {
       normalizedMobile = normalizedMobile.slice(2);
     } else if (
       normalizedMobile.length === 11 &&
@@ -106,7 +112,11 @@ export class LeadsService {
 
     let contextLine: string | null = null;
     if (payload.source === 'whatsapp_popup') {
-      const detail = [payload.listingType, payload.propertyType, payload.location]
+      const detail = [
+        payload.listingType,
+        payload.propertyType,
+        payload.location,
+      ]
         .filter(Boolean)
         .join(' / ');
       contextLine = `[whatsapp_popup] ${payload.pageUrl ?? ''} | ${detail}`;
@@ -143,8 +153,8 @@ export class LeadsService {
       .execute();
 
     const insertedId =
-      Number(result.identifiers[0]?.id) ||
-      Number((result.raw as { insertId?: number }).insertId);
+      Number(result?.identifiers[0]?.id) ||
+      Number((result?.raw as { insertId?: number }|undefined)?.insertId);
 
     if (payload.source === 'whatsapp_popup' && payload.phone) {
       const trimmed = (payload.name ?? '').trim();
@@ -164,7 +174,10 @@ export class LeadsService {
           mobile,
           email: payload.email,
           source: 'Website – WhatsApp popup',
-          propertyType: payload.propertyType ?? propertyLabelFromPageUrl(payload.pageUrl) ?? undefined,
+          propertyType:
+            payload.propertyType ??
+            propertyLabelFromPageUrl(payload.pageUrl) ??
+            undefined,
           listingType: payload.listingType,
           location: payload.location,
           preferences: {
@@ -218,7 +231,9 @@ export class LeadsService {
         throw new BadRequestException('Visit date cannot be in the past');
       }
       if (payload.visitDate > maxVisitDate()) {
-        throw new BadRequestException('Visit date cannot be more than 3 months ahead');
+        throw new BadRequestException(
+          'Visit date cannot be more than 3 months ahead',
+        );
       }
       if (!(VISIT_SLOTS as readonly string[]).includes(payload.visitSlot)) {
         throw new BadRequestException('Invalid visit slot');
@@ -249,7 +264,23 @@ export class LeadsService {
 
     const contextLine =
       `[property_page] ${propertyRow.propertyCode ?? payload.propertyId} ${propertyRow.slug ?? ''}`.trim();
-    const result = await this.dataSource
+    const fingerprint = createHash('sha256')
+      .update(
+        JSON.stringify([
+          'property',
+          payload.propertyId,
+          userId,
+          normalizedMobile,
+          payload.name?.trim(),
+          payload.email || '',
+          payload.message || '',
+          payload.intent,
+          payload.visitDate || '',
+          payload.visitSlot || '',
+        ]),
+      )
+      .digest('hex');
+    const builder = this.dataSource
       .createQueryBuilder()
       .insert()
       .into('leads')
@@ -263,15 +294,44 @@ export class LeadsService {
           [contextLine, payload.message].filter(Boolean).join('\n') ||
           '(no message)',
         status: 'new',
-      })
-      .execute();
+        analyticsSubmissionId: payload.analyticsSubmissionId,
+        analyticsSubmissionHash: payload.analyticsSubmissionId
+          ? fingerprint
+          : undefined,
+        analyticsSessionId: payload.analyticsSessionId,
+        analyticsPageId: payload.analyticsPageId,
+        analyticsIntent: payload.intent,
+      });
+    let result: Awaited<ReturnType<typeof builder.execute>> | null=null;
+    try{result=await builder.execute();}catch(error){
+      if(!payload.analyticsSubmissionId||!error||typeof error!=='object'||!('code' in error)||error.code!=='ER_DUP_ENTRY')throw error;
+    }
 
-    const insertedId =
-      Number(result.identifiers[0]?.id) ||
-      Number((result.raw as { insertId?: number }).insertId);
+    let insertedId =
+      Number(result?.identifiers[0]?.id) ||
+      Number((result?.raw as { insertId?: number }|undefined)?.insertId);
 
+    if (!insertedId && payload.analyticsSubmissionId) {
+      const prior = await this.dataSource
+        .getRepository(Lead)
+        .findOne({
+          where: { analyticsSubmissionId: payload.analyticsSubmissionId },
+        });
+      if (
+        !prior ||
+        prior.userId !== userId ||
+        prior.analyticsSubmissionHash !== fingerprint
+      )
+        throw new BadRequestException(
+          'Submission ID conflicts with another enquiry',
+        );
+      insertedId = prior.id;
+    }
     void this.crmForwarding
       .forwardEnquiry({
+        analyticsSubmissionId: payload.analyticsSubmissionId,
+        analyticsSessionId: payload.analyticsSessionId,
+        analyticsPageId: payload.analyticsPageId,
         name: (payload.name ?? '').trim(),
         mobile: normalizedMobile,
         email: payload.email,
@@ -315,7 +375,9 @@ export class LeadsService {
         throw new BadRequestException('Visit date cannot be in the past');
       }
       if (payload.visitDate > maxVisitDate()) {
-        throw new BadRequestException('Visit date cannot be more than 3 months ahead');
+        throw new BadRequestException(
+          'Visit date cannot be more than 3 months ahead',
+        );
       }
       if (!(VISIT_SLOTS as readonly string[]).includes(payload.visitSlot)) {
         throw new BadRequestException('Invalid visit slot');
@@ -346,7 +408,23 @@ export class LeadsService {
 
     const contextLine =
       `[project_page] ${projectRow.projectCode ?? payload.projectId} ${projectRow.slug ?? ''}`.trim();
-    const result = await this.dataSource
+    const fingerprint = createHash('sha256')
+      .update(
+        JSON.stringify([
+          'project',
+          payload.projectId,
+          userId,
+          normalizedMobile,
+          payload.name?.trim(),
+          payload.email || '',
+          payload.message || '',
+          payload.intent,
+          payload.visitDate || '',
+          payload.visitSlot || '',
+        ]),
+      )
+      .digest('hex');
+    const builder = this.dataSource
       .createQueryBuilder()
       .insert()
       .into('leads')
@@ -361,15 +439,44 @@ export class LeadsService {
           [contextLine, payload.message].filter(Boolean).join('\n') ||
           '(no message)',
         status: 'new',
-      })
-      .execute();
+        analyticsSubmissionId: payload.analyticsSubmissionId,
+        analyticsSubmissionHash: payload.analyticsSubmissionId
+          ? fingerprint
+          : undefined,
+        analyticsSessionId: payload.analyticsSessionId,
+        analyticsPageId: payload.analyticsPageId,
+        analyticsIntent: payload.intent,
+      });
+    let result: Awaited<ReturnType<typeof builder.execute>> | null=null;
+    try{result=await builder.execute();}catch(error){
+      if(!payload.analyticsSubmissionId||!error||typeof error!=='object'||!('code' in error)||error.code!=='ER_DUP_ENTRY')throw error;
+    }
 
-    const insertedId =
-      Number(result.identifiers[0]?.id) ||
-      Number((result.raw as { insertId?: number }).insertId);
+    let insertedId =
+      Number(result?.identifiers[0]?.id) ||
+      Number((result?.raw as { insertId?: number }|undefined)?.insertId);
 
+    if (!insertedId && payload.analyticsSubmissionId) {
+      const prior = await this.dataSource
+        .getRepository(Lead)
+        .findOne({
+          where: { analyticsSubmissionId: payload.analyticsSubmissionId },
+        });
+      if (
+        !prior ||
+        prior.userId !== userId ||
+        prior.analyticsSubmissionHash !== fingerprint
+      )
+        throw new BadRequestException(
+          'Submission ID conflicts with another enquiry',
+        );
+      insertedId = prior.id;
+    }
     void this.crmForwarding
       .forwardEnquiry({
+        analyticsSubmissionId: payload.analyticsSubmissionId,
+        analyticsSessionId: payload.analyticsSessionId,
+        analyticsPageId: payload.analyticsPageId,
         name: (payload.name ?? '').trim(),
         mobile: normalizedMobile,
         email: payload.email,
@@ -410,8 +517,8 @@ export class LeadsService {
       .execute();
 
     const insertedId =
-      Number(result.identifiers[0]?.id) ||
-      Number((result.raw as { insertId?: number }).insertId);
+      Number(result?.identifiers[0]?.id) ||
+      Number((result?.raw as { insertId?: number }|undefined)?.insertId);
 
     return {
       id: insertedId,

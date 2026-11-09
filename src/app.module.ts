@@ -1,4 +1,5 @@
 import { EditorialModule } from './modules/editorial/editorial.module';
+import { SiteAnalyticsModule } from './modules/analytics/analytics.module';
 import {
   MiddlewareConsumer,
   Module,
@@ -90,6 +91,7 @@ import { SeoEngineModule } from './modules/seo-engine/seo-engine.module';
     PropertiesModule,
     BlogsModule,
     EditorialModule,
+    SiteAnalyticsModule,
     WishlistModule,
     LeadsModule,
     MetadataModule,

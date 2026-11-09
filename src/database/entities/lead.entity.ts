@@ -22,6 +22,42 @@ export enum LeadStatus {
 @Index('idx_leads_project_id', ['projectId'])
 @Index('idx_leads_user_id', ['userId'])
 export class Lead {
+  @Column({
+    name: 'analytics_submission_id',
+    type: 'char',
+    length: 36,
+    nullable: true,
+  })
+  analyticsSubmissionId!: string | null;
+  @Column({
+    name: 'analytics_submission_hash',
+    type: 'char',
+    length: 64,
+    nullable: true,
+  })
+  analyticsSubmissionHash!: string | null;
+  @Column({
+    name: 'analytics_session_id',
+    type: 'char',
+    length: 36,
+    nullable: true,
+  })
+  analyticsSessionId!: string | null;
+  @Column({
+    name: 'analytics_page_id',
+    type: 'char',
+    length: 36,
+    nullable: true,
+  })
+  analyticsPageId!: string | null;
+  @Column({
+    name: 'analytics_intent',
+    type: 'varchar',
+    length: 16,
+    nullable: true,
+  })
+  analyticsIntent!: string | null;
+
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   id!: number;
 
