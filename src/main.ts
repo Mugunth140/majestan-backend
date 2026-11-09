@@ -12,7 +12,10 @@ import { AppModule } from './app.module';
 import { RuntimeGuardrails } from './common/runtime-guardrails';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // forceCloseConnections ends open keep-alive connections on shutdown so a deploy stops in seconds.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    forceCloseConnections: true,
+  });
 
   const configService = app.get(ConfigService);
 

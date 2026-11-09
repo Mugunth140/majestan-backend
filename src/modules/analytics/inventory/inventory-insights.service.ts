@@ -305,7 +305,10 @@ export class InventoryInsightsService
     }
   }
   private async snapshot(filters: InventoryFilters) {
-    await this.refresh();
+    // A rebuild takes several seconds; once a list exists, answer from it and rebuild in the
+    // background so a request never waits on one (the CRM gives up after 8 seconds).
+    if (this.syncedAt) void this.refresh().catch(() => {});
+    else await this.refresh();
     if (!filters.asOf) return this.records;
     if (!this.historyAvailable)
       throw new ServiceUnavailableException(

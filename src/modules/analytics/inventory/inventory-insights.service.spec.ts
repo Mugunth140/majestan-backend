@@ -47,6 +47,15 @@ describe('inventory read model and attribution', () => {
     instance.closeSync();
     jest.clearAllMocks();
   });
+  it('answers from the last list while a slow rebuild runs', async () => {
+    let finish!: (rows: ReturnType<typeof listing>[]) => void;
+    source.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)));
+    const rebuilding = service.refresh(true);
+    const options = await service.options(filters);
+    expect(options.type).toEqual([listing().type]);
+    finish([listing(), listing({ key: 'property:2', id: 2 })]);
+    await rebuilding;
+  });
   it('keeps a consistent immutable daily baseline while refreshing current stock', async () => {
     source.mockResolvedValue([
       listing(),
