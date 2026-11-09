@@ -311,6 +311,7 @@ export class CreatePropertyDto {
   @IsOptional() @IsString() availableVisitTime?: string;
 
   @IsOptional() @IsBoolean() negotiable?: boolean;
+  @IsOptional() @IsBoolean() petFriendly?: boolean;
   @IsOptional() @IsString() maintenanceCharges?: string;
   @IsOptional() @IsString() securityDeposit?: string;
   @IsOptional() @IsString() bookingAmount?: string;

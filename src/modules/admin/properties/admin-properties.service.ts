@@ -327,6 +327,7 @@ export class AdminPropertiesService {
         reraNumber: payload.reraNumber,
         projectName: payload.projectName,
         negotiable: payload.negotiable ?? false,
+        petFriendly: payload.petFriendly ?? false,
         maintenanceCharges: payload.maintenanceCharges,
         securityDeposit: payload.securityDeposit,
         bookingAmount: payload.bookingAmount,
@@ -764,6 +765,7 @@ export class AdminPropertiesService {
       if (payload.reraNumber !== undefined) updateData.reraNumber = payload.reraNumber;
       if (payload.projectName !== undefined) updateData.projectName = payload.projectName;
       if (payload.negotiable !== undefined) updateData.negotiable = payload.negotiable;
+      if (payload.petFriendly !== undefined) updateData.petFriendly = payload.petFriendly;
       if (payload.maintenanceCharges !== undefined) updateData.maintenanceCharges = payload.maintenanceCharges;
       if (payload.securityDeposit !== undefined) updateData.securityDeposit = payload.securityDeposit;
       if (payload.bookingAmount !== undefined) updateData.bookingAmount = payload.bookingAmount;

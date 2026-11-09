@@ -150,6 +150,10 @@ export class Property {
   @Column({ name: 'negotiable', type: 'boolean', default: false })
   negotiable!: boolean;
 
+  /** Tenants or buyers may keep pets. */
+  @Column({ name: 'pet_friendly', type: 'boolean', default: false })
+  petFriendly!: boolean;
+
   @Column({ name: 'maintenance_charges', type: 'varchar', length: 100, nullable: true })
   maintenanceCharges!: string | null;
 
