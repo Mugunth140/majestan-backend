@@ -1,5 +1,5 @@
 import { IsDateString, Matches } from 'class-validator';
-import { IsEnum, IsNumber, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsIn, IsNumber, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { ListingType } from '../../../../common/enums/listing-type.enum';
@@ -65,6 +65,29 @@ export class AdminPropertyQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   roadName?: string;
+
+  // "More filters" in the CRM: used now and then, so kept off the main strip.
+  /** Exact count, or "5+" for that many or more. */
+  @IsOptional() @Matches(/^\d{1,2}\+?$/)
+  bedrooms?: string;
+
+  @IsOptional() @Matches(/^\d{1,2}\+?$/)
+  bathrooms?: string;
+
+  @IsOptional() @IsString()
+  facing?: string;
+
+  @IsOptional() @IsString()
+  possessionStatus?: string;
+
+  @IsOptional() @IsIn(['tenant', 'vacant', 'owner'])
+  occupancy?: string;
+
+  @IsOptional() @IsIn(['yes', 'no'])
+  negotiable?: string;
+
+  @IsOptional() @IsIn(['car', 'bike'])
+  parking?: string;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   sublocationId?: number;

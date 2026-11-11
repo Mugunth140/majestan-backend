@@ -14,9 +14,25 @@ describe('CRM property list filters', () => {
       ['sl.id = :filterLocation', {filterLocation:3}], ['filterDetails.areaSqft >= :minSqft',{minSqft:0}],
       ['filterDetails.areaSqft <= :maxSqft',{maxSqft:2000}], ['p.price >= :minBudget',{minBudget:1000}], ['p.price <= :maxBudget',{maxBudget:20000}],
       ['LOWER(TRIM(filterDetails.floorNumber)) = LOWER(:filterFloor)',{filterFloor:'Ground'}],
-      ['(filterDetails.specialPurpose LIKE :filterPurpose OR filterDetails.propertyUse LIKE :filterPurpose)',{filterPurpose:'%Clinic%'}], ['p.roadName = :filterRoad',{filterRoad:'Avinashi Road'}],
+      [expect.stringContaining('filterDetails.specialPurpose LIKE :filterPurpose'),{filterPurpose:'%Clinic%',filterPurposeExact:'Clinic'}], ['p.roadName = :filterRoad',{filterRoad:'Avinashi Road'}],
     ]) expect(qb.andWhere).toHaveBeenCalledWith(...entry);
     expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining(':filterFurnishing'), expect.objectContaining({filterFurnishing:'semifurnished'}));
+  });
+  it('applies the more filters with bound values', () => {
+    applyCrmPropertyFilters(qb, { bedrooms: '2', bathrooms: '4+', facing: ' East ', possessionStatus: 'Ready To Move', occupancy: 'owner', negotiable: 'no', parking: 'car' });
+    expect(qb.andWhere).toHaveBeenCalledWith('filterDetails.bedrooms = :bedroomsCount', { bedroomsCount: 2 });
+    expect(qb.andWhere).toHaveBeenCalledWith('filterDetails.bathrooms >= :bathroomsCount', { bathroomsCount: 4 });
+    expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining('propertyFacing'), { filterFacing: 'East' });
+    expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining('possessionStatus'), { filterPossession: 'Ready To Move' });
+    expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining('$.ownerOccupied'));
+    expect(qb.andWhere).toHaveBeenCalledWith('p.negotiable = :filterNegotiable', { filterNegotiable: false });
+    expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining("'Car'"));
+  });
+  it('validates the more filters', async () => {
+    const ok = plainToInstance(AdminPropertyQueryDto, { bedrooms: '5+', occupancy: 'tenant', negotiable: 'yes', parking: 'bike' });
+    expect(await validate(ok, { whitelist: true })).toEqual([]);
+    const bad = plainToInstance(AdminPropertyQueryDto, { bedrooms: 'two', occupancy: 'x', parking: 'truck' });
+    expect((await validate(bad)).map((e) => e.property).sort()).toEqual(['bedrooms', 'occupancy', 'parking']);
   });
   it('does not filter unspecified fields', () => { applyCrmPropertyFilters(qb,{}); expect(qb.andWhere).not.toHaveBeenCalled(); });
   it.each([{minSqft:100,maxSqft:1},{minBudget:100,maxBudget:1}])('rejects inverted ranges', query => {
