@@ -35,6 +35,7 @@ const ENQUIRY_SOURCE_LABELS: Record<string, string> = {
   nri_cta: 'Website – NRI Services page',
   financial_assistance_cta: 'Website – Financial Assistance page',
   contact_page: 'Website – Contact page',
+  whatsapp_updates: 'Website – WhatsApp updates sign-up',
 };
 
 /** Label for a general enquiry; forms that send no known source get a generic one. */
@@ -203,6 +204,15 @@ export class LeadsService {
           propertyType: payload.propertyType,
           listingType: payload.listingType,
           notes: payload.message?.trim() || undefined,
+          // The visitor ticked "I agree to receive updates via WhatsApp".
+          ...(payload.whatsappOptIn
+            ? {
+                preferences: {
+                  source: payload.source,
+                  whatsappOptIn: true,
+                },
+              }
+            : {}),
         })
         .catch(() => undefined);
     }

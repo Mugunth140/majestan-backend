@@ -84,6 +84,24 @@ describe('createEnquiry CRM forwarding', () => {
     );
   });
 
+  it('forwards a WhatsApp updates sign-up with the opt-in', async () => {
+    const { service, crmForwarding } = makeService();
+
+    await service.createEnquiry({
+      name: '',
+      phone: '9876543210',
+      source: 'whatsapp_updates',
+      pageUrl: '/terms-and-conditions',
+      whatsappOptIn: true,
+    } as any);
+
+    expect(crmForwarding.forwardEnquiry.mock.calls[0][0]).toMatchObject({
+      mobile: '9876543210',
+      source: 'Website – WhatsApp updates sign-up',
+      preferences: { source: 'whatsapp_updates', whatsappOptIn: true },
+    });
+  });
+
   it('does not forward when there is no usable phone number', async () => {
     const { service, crmForwarding } = makeService();
 
