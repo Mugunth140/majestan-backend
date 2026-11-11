@@ -347,7 +347,7 @@ export class SiteAnalyticsStore implements OnModuleInit, OnApplicationShutdown {
         `
         WITH aliases AS (SELECT unnest(from_json(?, '[{"path":"VARCHAR","kind":"VARCHAR","id":"VARCHAR","title":"VARCHAR"}]'),recursive:=true)),
         catalog AS (SELECT lower(rtrim(path,'/')) path,first(kind) kind,first(id) id,first(title) title FROM aliases GROUP BY 1 HAVING count(DISTINCT kind||':'||id)=1),
-        actions AS (SELECT page_id,count(*) FILTER(WHERE kind='conversion') conversions,count(*) FILTER(WHERE kind='interaction') interactions
+        actions AS (SELECT page_id,count(*) FILTER(WHERE kind='conversion' AND name<>'registration_completed') conversions,count(*) FILTER(WHERE kind='interaction') interactions
           FROM site_events WHERE kind IN ('conversion','interaction') AND occurred_at>=?::DATE AND occurred_at<?::DATE GROUP BY 1),
         matched AS (SELECT c.kind,c.id,c.title,v.visitor_id,v.session_id,v.engaged_ms,v.max_scroll_percent,
           strftime(v.occurred_at,'%Y-%m-%d') AS "day",coalesce(a.conversions,0) conversions,coalesce(a.interactions,0) interactions
@@ -421,7 +421,9 @@ export class SiteAnalyticsStore implements OnModuleInit, OnApplicationShutdown {
           `SELECT exit_path path,count(*) sessions FROM site_sessions WHERE started_at>=CAST(? AS TIMESTAMP) AND started_at<CAST(? AS TIMESTAMP) GROUP BY 1 ORDER BY sessions DESC LIMIT 100`,
         ),
         events: await query(
-          `SELECT kind,name,count(*) events,count(DISTINCT session_id) sessions FROM site_events WHERE ${when} AND kind IN ('interaction','conversion','error') GROUP BY 1,2 ORDER BY events DESC`,
+          // Registrations no longer count as conversions; stale cached
+          // frontends still send them, so exclude by name here.
+          `SELECT kind,name,count(*) events,count(DISTINCT session_id) sessions FROM site_events WHERE ${when} AND kind IN ('interaction','conversion','error') AND NOT (kind='conversion' AND name='registration_completed') GROUP BY 1,2 ORDER BY events DESC`,
         ),
         performance:
           await query(`SELECT name,count(*) samples,quantile_cont(value,0.75) p75,quantile_cont(value,0.5) p50,

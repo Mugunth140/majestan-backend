@@ -23,6 +23,8 @@ export const EVENT_NAMES = {
     'enquiry_submitted',
     'site_visit_requested',
     'owner_submission',
+    // Still accepted so stale cached frontends don't lose whole event
+    // batches; reports exclude it from conversion counts.
     'registration_completed',
   ],
   error: ['javascript_error', 'unhandled_rejection', 'api_error'],
