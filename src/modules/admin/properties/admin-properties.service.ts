@@ -127,9 +127,12 @@ export class AdminPropertiesService {
     } else if (query.statusFilter === 'archived') {
       qb.where(`p.status IN ('archived','unavailable')`).andWhere(`NOT ${ownerReview}`, reviewParams);
     } else if (query.statusFilter) {
+      // "available" is the CRM's Available tab (still listed, sold or rented);
+      // "listed" narrows it to the ones that can still be booked.
       if (query.statusFilter === 'available') qb.where("p.status IN ('available','sold','rented')");
+      else if (query.statusFilter === 'listed') qb.where("p.status = 'available'");
       else qb.where('p.status = :status', { status: query.statusFilter });
-      if (query.statusFilter === 'available') qb.andWhere(`NOT ${ownerReview}`, reviewParams);
+      if (query.statusFilter === 'available' || query.statusFilter === 'listed') qb.andWhere(`NOT ${ownerReview}`, reviewParams);
     }
 
     if (query.listingType) {
