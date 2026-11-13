@@ -53,6 +53,16 @@ export type ProjectDocument = {
   canonicalUrl: string;
 };
 
+/**
+ * Quote a raw request value for a Meilisearch filter. propertyType and
+ * listingType came straight from the query string, so a value like
+ * `apartment" OR approvalStatus = "Pending` escaped the quotes and widened
+ * the public visibility gate to unapproved listings.
+ */
+function filterString(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
 function toSlug(value: string): string {
   return value.trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
@@ -419,8 +429,8 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     if (!this.index) throw new Error('Meilisearch not enabled');
     // Public visibility gate (mirrors the DB path): live AND approved.
     const filterParts: string[] = ['(status = available OR status = sold OR status = rented)', 'approvalStatus = Approved'];
-    if (filters.propertyType) filterParts.push(`propertyType = "${filters.propertyType}"`);
-    if (filters.listingType) filterParts.push(`listingType = "${filters.listingType}"`);
+    if (filters.propertyType) filterParts.push(`propertyType = ${filterString(filters.propertyType)}`);
+    if (filters.listingType) filterParts.push(`listingType = ${filterString(filters.listingType)}`);
     // Slug-based place matching — case-proof on both sides.
     if (filters.city) filterParts.push(`citySlug = "${toSlug(filters.city)}"`);
     if (filters.locality) filterParts.push(`localitySlug = "${toSlug(filters.locality)}"`);
@@ -463,7 +473,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     if (!this.projectIndex) throw new Error('Meilisearch not enabled');
     // Public visibility gate: published only.
     const filterParts: string[] = ['(status = published OR status = booked)'];
-    if (filters.propertyType) filterParts.push(`projectType = "${filters.propertyType}"`);
+    if (filters.propertyType) filterParts.push(`projectType = ${filterString(filters.propertyType)}`);
     if (filters.city) filterParts.push(`citySlug = "${toSlug(filters.city)}"`);
     const place = filters.locality || filters.location;
     if (place) filterParts.push(`(citySlug = "${toSlug(place)}" OR sublocationSlug = "${toSlug(place)}")`);

@@ -49,6 +49,14 @@ describe('SearchService project scope', () => {
     expect(String(opts.filter)).toContain('citySlug = "coimbatore"');
   });
 
+  it('keeps quotes in request filters inside the value (no gate bypass)', async () => {
+    const { service, propertyIndex } = makeService();
+    await service.search('', { propertyType: 'apartment" OR approvalStatus = "Pending', listingType: 'Sell' }, 1, 5);
+    const [, opts] = (propertyIndex.search as jest.Mock).mock.calls[0];
+    expect(String(opts.filter)).toContain('propertyType = "apartment\\" OR approvalStatus = \\"Pending"');
+    expect(String(opts.filter)).toContain('listingType = "Sell"');
+  });
+
   it('defaults to the properties index without a scope', async () => {
     const { service, projectIndex, propertyIndex } = makeService();
     await service.search('villa', {}, 1, 5);
