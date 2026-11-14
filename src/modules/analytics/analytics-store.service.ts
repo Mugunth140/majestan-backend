@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import type { AnalyticsEvent } from './analytics-event';
 import { deviceInfo, pageRoute, visitorId } from './analytics-event';
 import { ANALYTICS_SCHEMA } from './analytics-schema';
+import { openCompacted } from './analytics-compaction';
 
 export type AnalyticsContext = { ip: string; ua: string; country?: string };
 const COLUMNS = [
@@ -105,10 +106,13 @@ export class SiteAnalyticsStore implements OnModuleInit, OnApplicationShutdown {
       }
       reason =
         'Unable to open analytics DuckDB (check file permissions, locks and integrity)';
-      candidate = await DuckDBInstance.create(path, {
-        threads: '2',
-        memory_limit: '256MB',
-      });
+      const open = () =>
+        DuckDBInstance.create(path, { threads: '2', memory_limit: '256MB' });
+      // Rewrites the file first when it is mostly deleted row versions.
+      candidate =
+        path === ':memory:'
+          ? await open()
+          : await openCompacted(path, open, this.logger);
       reason = 'Unable to initialize analytics schema';
       const conn = await candidate.connect();
       try {

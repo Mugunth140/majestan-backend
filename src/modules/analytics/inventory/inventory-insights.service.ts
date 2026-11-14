@@ -7,6 +7,7 @@ import {
   OnApplicationShutdown,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { SiteAnalyticsStore } from '../analytics-store.service';
 import { INVENTORY_ANALYTICS_SCHEMA } from '../analytics-schema';
@@ -61,6 +62,10 @@ export class InventoryInsightsService
   private timer?: ReturnType<typeof setInterval>;
   private stopped = false;
   private lastPrunedDay = '';
+  /** Fingerprint of the records last written to inventory_current by this process. */
+  private writtenFingerprint: string | null = null;
+  /** UTC day alias last_seen was last refreshed for. */
+  private aliasDay = '';
   private readonly cache = new Map<string, { at: number; data: unknown }>();
   constructor(
     @Optional() private readonly db: DataSource,
@@ -129,10 +134,23 @@ export class InventoryInsightsService
             "SELECT id,kind,listing_id,subject,subject_id,action,before_json,after_json,DATE_FORMAT(occurred_at,'%Y-%m-%dT%H:%i:%s.%fZ') occurred_at FROM analytics_inventory_events WHERE id>? ORDER BY id LIMIT 10000",
             [id],
           );
+          const day = now.slice(0, 10);
+          const fingerprint = createHash('sha1')
+            .update(JSON.stringify(records))
+            .digest('hex');
+          // DuckDB keeps every deleted row version, so rewriting ~2k unchanged rows every
+          // five minutes grew the file by gigabytes. Write only what changed.
+          const recordsChanged = fingerprint !== this.writtenFingerprint;
+          const newAliasDay = day !== this.aliasDay;
           await c.run('BEGIN TRANSACTION');
           try {
-            await c.run('DELETE FROM inventory_current');
-            for (let i = 0; i < records.length; i += 200) {
+            if (recordsChanged) {
+              // Replacing the table drops its storage outright; DELETE would keep the old rows.
+              await c.run(
+                'CREATE OR REPLACE TABLE inventory_current (key VARCHAR PRIMARY KEY,record JSON NOT NULL,synced_at TIMESTAMP NOT NULL)',
+              );
+            }
+            for (let i = 0; recordsChanged && i < records.length; i += 200) {
               const chunk = records.slice(i, i + 200);
               await c.run(
                 'INSERT INTO inventory_current VALUES ' +
@@ -144,7 +162,6 @@ export class InventoryInsightsService
               "INSERT INTO inventory_meta VALUES ('current_refreshed',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
               [now],
             );
-            const day = now.slice(0, 10);
             // One immutable capture per UTC day; baseline time is exposed to clients.
             await c.run(
               'INSERT INTO inventory_snapshots SELECT ?::DATE,key,record,?::TIMESTAMP FROM inventory_current WHERE NOT EXISTS(SELECT 1 FROM inventory_snapshot_runs WHERE day=?::DATE)',
@@ -154,7 +171,9 @@ export class InventoryInsightsService
               'INSERT INTO inventory_snapshot_runs VALUES (?::DATE,?::TIMESTAMP) ON CONFLICT DO NOTHING',
               [day, sqlDate(now)],
             );
-            const aliasRows = records.flatMap((r) =>
+            const aliasRows = (
+              recordsChanged || newAliasDay ? records : []
+            ).flatMap((r) =>
               r.aliases.map((a) => [
                 a.toLowerCase().replace(/\/$/, ''),
                 r.key,
@@ -219,7 +238,10 @@ export class InventoryInsightsService
               await c.run(
                 'INSERT INTO inventory_aliases VALUES ' +
                   chunk.map(() => '(?,?,?::TIMESTAMP,?::TIMESTAMP)').join(',') +
-                  ' ON CONFLICT(path,key) DO UPDATE SET last_seen=excluded.last_seen',
+                  // Updating a row stores a new version of it; refresh last_seen once a day.
+                  (newAliasDay
+                    ? ' ON CONFLICT(path,key) DO UPDATE SET last_seen=excluded.last_seen'
+                    : ' ON CONFLICT DO NOTHING'),
                 chunk.flat(),
               );
             }
@@ -256,8 +278,11 @@ export class InventoryInsightsService
               "DELETE FROM inventory_events WHERE occurred_at<current_timestamp-INTERVAL '24 months'",
             );
             await c.run('COMMIT');
+            this.writtenFingerprint = fingerprint;
+            this.aliasDay = day;
           } catch (error) {
             await c.run('ROLLBACK');
+            this.writtenFingerprint = null;
             throw error;
           }
         });

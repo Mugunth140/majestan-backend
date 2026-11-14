@@ -47,6 +47,45 @@ describe('inventory read model and attribution', () => {
     instance.closeSync();
     jest.clearAllMocks();
   });
+  it('does not store new row versions when the stock has not changed', async () => {
+    const stored = () =>
+      reporting(
+        async (c) =>
+          Object.fromEntries(
+            (
+              await c.runAndReadAll(
+                "SELECT table_name, estimated_size::INTEGER n FROM duckdb_tables() WHERE table_name IN ('inventory_current','inventory_aliases')",
+              )
+            )
+              .getRowObjectsJson()
+              .map((r) => [r.table_name, Number(r.n)]),
+          ) as Record<string, number>,
+      );
+    const written = () =>
+      reporting(async (c) =>
+        (
+          await c.runAndReadAll(
+            'SELECT synced_at::VARCHAR AS synced FROM inventory_current',
+          )
+        ).getRowObjectsJson(),
+      );
+    const before = await stored();
+    const first = await written();
+    for (let i = 0; i < 5; i++) await service.refresh(true);
+    expect(await stored()).toEqual(before);
+    // Unchanged stock is not rewritten at all.
+    expect(await written()).toEqual(first);
+    source.mockResolvedValue([listing({ title: 'Renamed' })]);
+    await service.refresh(true);
+    const saved = await reporting(async (c) =>
+      (
+        await c.runAndReadAll('SELECT record FROM inventory_current')
+      ).getRowObjectsJson(),
+    );
+    expect(saved).toHaveLength(1);
+    expect(JSON.stringify(saved[0].record)).toContain('Renamed');
+    expect((await stored()).inventory_current).toBe(1);
+  });
   it('answers from the last list while a slow rebuild runs', async () => {
     let finish!: (rows: ReturnType<typeof listing>[]) => void;
     source.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)));
