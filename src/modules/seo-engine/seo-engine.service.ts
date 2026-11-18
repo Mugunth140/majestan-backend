@@ -1015,6 +1015,23 @@ export class SeoEngineService {
     };
   }
 
+  /**
+   * Listings a listing page shows, for the thin-content guard. Property pages also show the
+   * matching projects (e.g. 77 apartment projects in Chennai with no resale flats), so a page
+   * is only thin when neither has enough.
+   */
+  async activeListingCount(rule: any, data: any): Promise<number> {
+    const total = Number(data?.stats?.total ?? 0);
+    if (total >= rule.minimum_active_listings || rule.inventory_kind === 'project')
+      return total;
+    const projects = await this.matchingInventory({
+      ...rule,
+      inventory_kind: 'project',
+      project_type: rule.property_type || null,
+    });
+    return total + projects.stats.total;
+  }
+
   private async matchingInventory(rule: any) {
     const args: any[] = [];
     let sql: string;
@@ -1029,8 +1046,11 @@ export class SeoEngineService {
       ];
       args.push(rule.city_name);
       if (rule.locality_name) {
-        where.push('LOWER(p.sublocation)=LOWER(?)');
-        args.push(rule.locality_name);
+        // Some projects store the locality as "Medavakkam, Chennai".
+        where.push(
+          "LOWER(p.sublocation) IN (LOWER(?), LOWER(CONCAT(?, ', ', p.city)))",
+        );
+        args.push(rule.locality_name, rule.locality_name);
       }
       if (rule.project_type) {
         where.push('p.project_type=?');
@@ -1099,6 +1119,24 @@ export class SeoEngineService {
         intent: rule.transaction_intent,
       },
     };
+  }
+
+  /**
+   * Old-website URLs end in the old listing code (e.g. "...-1193-sq-ft-ap137"). Properties
+   * imported from that site keep it in legacy_source_id, so an unknown path ending in a code
+   * moves to the property's current page. Only reached when nothing else matched the path.
+   */
+  async legacyRedirect(path: string): Promise<string | null> {
+    const code = path.match(/^\/[^/]+-([a-z]{1,3}\d+)$/i)?.[1];
+    if (!code) return null;
+    const row = await this.one(
+      `SELECT p.slug, c.public_path FROM properties p LEFT JOIN seo_configs c ON c.property_id=p.id
+       WHERE p.legacy_source_id=? AND p.approval_status='Approved' AND p.slug IS NOT NULL AND p.slug<>'' LIMIT 1`,
+      [code.toUpperCase()],
+    );
+    if (!row) return null;
+    const destination = row.public_path || '/' + row.slug;
+    return destination === path ? null : destination;
   }
 
   async resolve(rawPath: string, includeRedirect = true): Promise<any> {
@@ -1183,6 +1221,10 @@ export class SeoEngineService {
         if (root?.redirect) return { redirect: root.redirect + '/' + match[2] };
         if (root && !root.gone && ['project', 'property'].includes(root.scope))
           return this.resolveSection(root, match[2]);
+      }
+      if (includeRedirect) {
+        const moved = await this.legacyRedirect(path);
+        if (moved) return { redirect: moved };
       }
       return null;
     }
@@ -1548,7 +1590,8 @@ export class SeoEngineService {
       if (
         rule?.thin_content_guard_enabled &&
         !rule.pinned_indexable &&
-        data.stats?.total < rule.minimum_active_listings
+        (await this.activeListingCount(rule, data)) <
+          rule.minimum_active_listings
       )
         resolved.robots_index = false;
       resolved.intro_content = rule?.intro_content || '';
