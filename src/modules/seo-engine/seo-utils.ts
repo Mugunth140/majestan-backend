@@ -72,7 +72,10 @@ export function slug(value: string) {
  */
 export function localityLabel(name: string, city: string) {
   const cleaned = name.trim().replace(/[,\s]+$/, '');
-  const withoutCity = cleaned.replace(new RegExp(`\\s*,\\s*${city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), '');
+  const withoutCity = cleaned.replace(
+    new RegExp(`\\s*,\\s*${city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+    '',
+  );
   return withoutCity.trim() || cleaned;
 }
 export function json<T>(value: unknown, fallback: T): T {
@@ -154,4 +157,20 @@ export function priceLabel(value: unknown) {
     : n >= 100000
       ? `₹${trim(n / 100000)} Lakh`
       : `₹${n.toLocaleString('en-IN')}`;
+}
+
+/** Point every redirect at the end of its chain (loop-safe). */
+export function collapseRedirects<
+  T extends { source: string; destination: string },
+>(rows: T[]): T[] {
+  const next = new Map(rows.map((r) => [r.source, r.destination]));
+  return rows.map((row) => {
+    let destination = row.destination;
+    const seen = new Set([row.source]);
+    while (next.has(destination) && !seen.has(destination)) {
+      seen.add(destination);
+      destination = next.get(destination)!;
+    }
+    return destination === row.destination ? row : { ...row, destination };
+  });
 }

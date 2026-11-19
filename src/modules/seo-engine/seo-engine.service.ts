@@ -31,6 +31,7 @@ import {
   SITE,
   slug,
   localityLabel,
+  collapseRedirects,
   TYPE_LABELS,
   SINGULAR_TYPES,
   priceLabel,
@@ -884,6 +885,8 @@ export class SeoEngineService {
       path = next.destination_path;
       if (i === 99) throw new BadRequestException('Redirect chain is too long');
     }
+    // Store the end of the chain, so every old URL reaches the live page in one hop.
+    const final = path;
     const target = await this.resolve(dest, false);
     if (
       !target &&
@@ -901,12 +904,16 @@ export class SeoEngineService {
       VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE destination_path=VALUES(destination_path),reason=VALUES(reason),is_active=VALUES(is_active),updated_by_crm_id=VALUES(updated_by_crm_id)`,
       [
         source,
-        dest,
+        final,
         body.reason || 'manual',
         body.is_active === false || body.is_active === 0 ? 0 : 1,
         actor,
         actor,
       ],
+    );
+    await m.query(
+      'UPDATE seo_redirects SET destination_path=? WHERE destination_path=? AND source_path<>?',
+      [final, source, final],
     );
     return this.one(
       'SELECT * FROM seo_redirects WHERE source_path=?',
@@ -932,7 +939,7 @@ export class SeoEngineService {
         WHERE c.public_path IS NOT NULL AND c.scope IN ('property','project','listing')`),
     ]);
     const value = {
-      redirects,
+      redirects: collapseRedirects(redirects),
       inventory_paths: configs
         .filter((c: any) => ['property', 'project'].includes(c.scope))
         .map((c: any) => c.public_path),
@@ -1157,7 +1164,20 @@ export class SeoEngineService {
         'SELECT destination_path FROM seo_redirects WHERE source_path=? AND is_active=1',
         [path],
       );
-      if (redirect) return { redirect: redirect.destination_path };
+      if (redirect) {
+        let destination = redirect.destination_path;
+        const seen = new Set([path]);
+        for (let i = 0; i < 10 && !seen.has(destination); i++) {
+          seen.add(destination);
+          const next = await this.one(
+            'SELECT destination_path FROM seo_redirects WHERE source_path=? AND is_active=1',
+            [destination],
+          );
+          if (!next) break;
+          destination = next.destination_path;
+        }
+        return { redirect: destination };
+      }
     }
     let config = hydrate(
       await this.one('SELECT * FROM seo_configs WHERE public_path=?', [path]),
