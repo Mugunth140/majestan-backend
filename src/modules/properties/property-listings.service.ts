@@ -1,3 +1,4 @@
+import { areaMatches, areaPlace } from './area-place';
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { Project, ProjectStatus } from '../../database/entities/project.entity';
@@ -64,8 +65,8 @@ export class PropertyListingsService {
       });
     if (query.location)
       qb.andWhere(
-        `(${placeColumn('project.city')} = :location OR ${placeColumn('project.sublocation')} = :location)`,
-        { location: place(query.location) },
+        `(${placeColumn('project.city')} = :location OR ${areaMatches('project.sublocation', 'project.city', 'area')})`,
+        { location: place(query.location), area: areaPlace(query.location, query.city) },
       );
     if (query.propertyName?.trim())
       qb.andWhere(

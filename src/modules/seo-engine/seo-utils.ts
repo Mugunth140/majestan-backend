@@ -65,6 +65,16 @@ export function slug(value: string) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 }
+/**
+ * A locality as it reads in a listing URL and title: Master Registry names sometimes carry the city
+ * or a trailing comma ("Medavakkam, Chennai", "Electronic City,"), which would repeat the city in
+ * the URL and split one area into two pages.
+ */
+export function localityLabel(name: string, city: string) {
+  const cleaned = name.trim().replace(/[,\s]+$/, '');
+  const withoutCity = cleaned.replace(new RegExp(`\\s*,\\s*${city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), '');
+  return withoutCity.trim() || cleaned;
+}
 export function json<T>(value: unknown, fallback: T): T {
   if (value == null) return fallback;
   if (typeof value === 'string') {

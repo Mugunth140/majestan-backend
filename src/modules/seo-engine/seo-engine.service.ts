@@ -30,6 +30,7 @@ import {
   renderTemplate,
   SITE,
   slug,
+  localityLabel,
   TYPE_LABELS,
   SINGULAR_TYPES,
   priceLabel,
@@ -40,6 +41,14 @@ import {
 // Active listing grids use inventory status. Dates never expire public detail pages.
 const LIVE_PROPERTY =
   "p.status IN ('available','sold','rented') AND p.approval_status='Approved'";
+/**
+ * Live listings a listing page needs before search engines may index it. One real listing makes
+ * a useful page (it is all most areas outside Coimbatore have); only empty pages are held back.
+ */
+const MIN_INDEXABLE_LISTINGS = 1;
+/** A published project with an available unit for sale or rent, as listing pages show them. */
+const liveProject = (mode: 'sale' | 'rent') =>
+  `p.status IN ('published','booked') AND EXISTS(SELECT 1 FROM project_units u WHERE u.project_id=p.id AND (u.status='available' OR p.status='booked') AND u.listing_mode='${mode}')`;
 
 @Injectable()
 export class SeoEngineService {
@@ -780,7 +789,7 @@ export class SeoEngineService {
         throw new BadRequestException(`Invalid ${key}`);
       rule[key] = Boolean(body[key] ?? key !== 'pinned_indexable');
     }
-    rule.minimum_active_listings = Number(body.minimum_active_listings ?? 2);
+    rule.minimum_active_listings = Number(body.minimum_active_listings ?? MIN_INDEXABLE_LISTINGS);
     if (
       !Number.isInteger(rule.minimum_active_listings) ||
       rule.minimum_active_listings < 0 ||
@@ -995,9 +1004,11 @@ export class SeoEngineService {
           [city.id],
         )
       : [];
-    const sub = sublocations.find(
-      (s: any) => slug(s.locality_name) === locSlug,
-    );
+    // The clean name first ("medavakkam"), then the name as stored ("medavakkam-chennai").
+    const sub =
+      sublocations.find((s: any) => slug(s.locality_name) === locSlug && slug(localityLabel(s.locality_name, city.city_name)) === locSlug) ??
+      sublocations.find((s: any) => slug(localityLabel(s.locality_name, city.city_name)) === locSlug) ??
+      sublocations.find((s: any) => slug(s.locality_name) === locSlug);
     if (locSlug && !sub) return null;
     return {
       inventory_kind: 'property',
@@ -1006,9 +1017,9 @@ export class SeoEngineService {
       city_id: city.id,
       city_name: city.city_name,
       sublocation_id: sub?.id || null,
-      locality_name: sub?.locality_name || null,
+      locality_name: sub ? localityLabel(sub.locality_name, city.city_name) : null,
       bedrooms: match[1] ? Number(match[1]) : null,
-      minimum_active_listings: 2,
+      minimum_active_listings: MIN_INDEXABLE_LISTINGS,
       thin_content_guard_enabled: true,
       pinned_indexable: false,
       auto_stats_faqs: true,
@@ -1048,7 +1059,7 @@ export class SeoEngineService {
       if (rule.locality_name) {
         // Some projects store the locality as "Medavakkam, Chennai".
         where.push(
-          "LOWER(p.sublocation) IN (LOWER(?), LOWER(CONCAT(?, ', ', p.city)))",
+          "LOWER(TRIM(TRAILING ',' FROM TRIM(p.sublocation))) IN (LOWER(?), LOWER(CONCAT(?, ', ', p.city)))",
         );
         args.push(rule.locality_name, rule.locality_name);
       }
@@ -2199,15 +2210,27 @@ export class SeoEngineService {
         FROM properties p JOIN property_locations pl ON pl.property_id=p.id JOIN sublocations s ON s.id=pl.location_id
         WHERE ${LIVE_PROPERTY} GROUP BY p.city,p.property_type,p.listing_type,s.id
         UNION ALL SELECT p.city,p.property_type,p.listing_type,NULL,COUNT(*) AS total FROM properties p
-        WHERE ${LIVE_PROPERTY} GROUP BY p.city,p.property_type,p.listing_type`);
+        WHERE ${LIVE_PROPERTY} GROUP BY p.city,p.property_type,p.listing_type
+        ${(['sale', 'rent'] as const).map((mode) => {
+          const listingType = mode === 'rent' ? "'Rent'" : "'Sell'";
+          // Chennai and Bangalore list projects only: their area pages come from projects. A
+          // project's locality may be stored with its city ("Medavakkam, Chennai").
+          return `UNION ALL SELECT p.city,p.project_type,${listingType},s.locality_name,COUNT(DISTINCT p.id) AS total
+        FROM projects p JOIN cities ct ON LOWER(ct.city_name)=LOWER(p.city) AND ct.is_active=1
+        JOIN sublocations s ON s.city_id=ct.id AND s.is_active=1 AND LOWER(p.sublocation) IN (LOWER(s.locality_name), LOWER(CONCAT(s.locality_name, ', ', p.city)))
+        WHERE ${liveProject(mode)} GROUP BY p.city,p.project_type,s.id
+        UNION ALL SELECT p.city,p.project_type,${listingType},NULL,COUNT(*) AS total FROM projects p
+        WHERE ${liveProject(mode)} GROUP BY p.city,p.project_type`;
+        }).join('\n')}`);
       const automatic = groups
-        .filter((g: any) => Number(g.total) >= 2 && TYPE_SLUGS[g.property_type])
+        .filter((g: any) => Number(g.total) >= MIN_INDEXABLE_LISTINGS && TYPE_SLUGS[g.property_type])
         .map(
           (g: any) =>
-            `/${TYPE_SLUGS[g.property_type]}-for-${g.listing_type === 'Rent' ? 'rent' : 'sale'}-in-${g.locality_name ? slug(g.locality_name) + '-' : ''}${slug(g.city)}`,
+            `/${TYPE_SLUGS[g.property_type]}-for-${g.listing_type === 'Rent' ? 'rent' : 'sale'}-in-${g.locality_name ? slug(localityLabel(g.locality_name, g.city)) + '-' : ''}${slug(g.city)}`,
         );
-      // Explicit rules can override an automatic page; resolve those below.
-      for (const path of automatic)
+      // Explicit rules can override an automatic page; resolve those below. A page can have both
+      // properties and projects, so list it once.
+      for (const path of new Set(automatic))
         if (!paths.has(path)) entries.push({ path });
       for (const path of paths) {
         const seo = await this.resolve(path);

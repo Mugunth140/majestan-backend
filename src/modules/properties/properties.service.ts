@@ -1,3 +1,4 @@
+import { areaMatches, areaPlace } from './area-place';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
@@ -250,8 +251,8 @@ export class PropertiesService {
   private applyPlaceFilters(qb: SelectQueryBuilder<Property>, query: PropertySearchQueryDto): void {
     if (query.location) {
       qb.andWhere(
-        `(${PLACE_EXPR('p.city')} = :placeLocation OR ${PLACE_EXPR('subloc.localityName')} = :placeLocation)`,
-        { placeLocation: normPlace(query.location) },
+        `(${PLACE_EXPR('p.city')} = :placeLocation OR ${areaMatches('subloc.localityName', 'p.city', 'placeArea')})`,
+        { placeLocation: normPlace(query.location), placeArea: areaPlace(query.location, query.city) },
       );
     }
     if (query.city) {
