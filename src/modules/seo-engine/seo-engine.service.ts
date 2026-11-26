@@ -2251,7 +2251,7 @@ export class SeoEngineService {
         );
       // Explicit rules can override an automatic page; resolve those below. A page can have both
       // properties and projects, so list it once.
-      for (const path of new Set(automatic))
+      for (const path of new Set<string>(automatic))
         if (!paths.has(path)) entries.push({ path });
       for (const path of paths) {
         const seo = await this.resolve(path);
