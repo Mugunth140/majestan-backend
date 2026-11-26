@@ -74,6 +74,7 @@ const PROPERTY_TYPE_SLUG_MAP: Record<string, string> = {
   commercial: 'commercial-spaces',
   industrial: 'industrial-spaces',
   individual_portion: 'independent-houses',
+  portion: 'individual-portions',
   farmland: 'farmlands',
   coworking: 'coworking',
 };

@@ -59,6 +59,9 @@ export const getPropertyTypeCode = (propertyType: string): string => {
     case 'independent-house':
     case 'individual_portion':
       return 'ip';
+    case 'portion':
+    case 'individual-portion':
+      return 'pn';
     default:
       return 'ot';
   }
@@ -86,6 +89,7 @@ const SLUG_SUFFIX_TYPES: Record<string, string> = {
   ap: 'apartment',
   cs: 'commercial',
   ip: 'individual_portion',
+  pn: 'portion',
   iv: 'investment_property',
   pg: 'pg_service_apartment',
   fh: 'farm_house',

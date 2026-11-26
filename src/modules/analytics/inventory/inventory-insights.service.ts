@@ -7,6 +7,7 @@ import {
   OnApplicationShutdown,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { ANALYTICS_TIMEZONE, istDayOf, istDayStart, istDaySql } from '../ist-day';
 import { createHash } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { SiteAnalyticsStore } from '../analytics-store.service';
@@ -134,7 +135,7 @@ export class InventoryInsightsService
             "SELECT id,kind,listing_id,subject,subject_id,action,before_json,after_json,DATE_FORMAT(occurred_at,'%Y-%m-%dT%H:%i:%s.%fZ') occurred_at FROM analytics_inventory_events WHERE id>? ORDER BY id LIMIT 10000",
             [id],
           );
-          const day = now.slice(0, 10);
+          const day = istDayOf(now);
           const fingerprint = createHash('sha1')
             .update(JSON.stringify(records))
             .digest('hex');
@@ -162,7 +163,7 @@ export class InventoryInsightsService
               "INSERT INTO inventory_meta VALUES ('current_refreshed',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
               [now],
             );
-            // One immutable capture per UTC day; baseline time is exposed to clients.
+            // One immutable capture per India-time day; baseline time is exposed to clients.
             await c.run(
               'INSERT INTO inventory_snapshots SELECT ?::DATE,key,record,?::TIMESTAMP FROM inventory_current WHERE NOT EXISTS(SELECT 1 FROM inventory_snapshot_runs WHERE day=?::DATE)',
               [day, sqlDate(now), day],
@@ -369,14 +370,14 @@ export class InventoryInsightsService
         const rows = await c.runAndReadAll(
           `WITH aliases AS (SELECT path,first(key) AS "key" FROM inventory_aliases GROUP BY path HAVING count(DISTINCT key)=1),
         pages AS (SELECT p.*,a.key listing_key
-        FROM site_page_views p LEFT JOIN aliases a ON a.path=lower(rtrim(p.path,'/')) WHERE p.occurred_at>=?::DATE AND p.occurred_at<?::DATE),
+        FROM site_page_views p LEFT JOIN aliases a ON a.path=lower(rtrim(p.path,'/')) WHERE p.occurred_at>=?::TIMESTAMP AND p.occurred_at<?::TIMESTAMP),
         actions AS (SELECT page_id,count(*) FILTER(WHERE name='phone_click') phone,count(*) FILTER(WHERE name='whatsapp_click') whatsapp,count(*) FILTER(WHERE name='email_click') email,
-        count(*) FILTER(WHERE name='wishlist_add') wishlistAdds,count(*) FILTER(WHERE name='wishlist_remove') wishlistRemoves FROM site_events WHERE occurred_at>=?::DATE AND occurred_at<?::DATE GROUP BY page_id)
-        SELECT listing_key AS "key",CASE WHEN grouping(strftime(occurred_at,'%Y-%m-%d'))=1 THEN NULL ELSE strftime(occurred_at,'%Y-%m-%d') END AS "day",
-        count(*) AS views,count(DISTINCT visitor_id||':'||strftime(occurred_at,'%Y-%m-%d')) visitors,count(DISTINCT session_id) sessions,avg(engaged_ms) engagement,avg(max_scroll_percent) AS scroll,
+        count(*) FILTER(WHERE name='wishlist_add') wishlistAdds,count(*) FILTER(WHERE name='wishlist_remove') wishlistRemoves FROM site_events WHERE occurred_at>=?::TIMESTAMP AND occurred_at<?::TIMESTAMP GROUP BY page_id)
+        SELECT listing_key AS "key",CASE WHEN grouping(${istDaySql('occurred_at')})=1 THEN NULL ELSE ${istDaySql('occurred_at')} END AS "day",
+        count(*) AS views,count(DISTINCT visitor_id||':'||${istDaySql('occurred_at')}) visitors,count(DISTINCT session_id) sessions,avg(engaged_ms) engagement,avg(max_scroll_percent) AS scroll,
         sum(coalesce(a.phone,0)) phone,sum(coalesce(a.whatsapp,0)) whatsapp,sum(coalesce(a.email,0)) email,sum(coalesce(a.wishlistAdds,0)) wishlistAdds,sum(coalesce(a.wishlistRemoves,0)) wishlistRemoves
-        FROM pages LEFT JOIN actions a USING(page_id) WHERE listing_key IS NOT NULL GROUP BY GROUPING SETS((listing_key),(listing_key,strftime(occurred_at,'%Y-%m-%d')))`,
-          [f.from, f.to, f.from, f.to],
+        FROM pages LEFT JOIN actions a USING(page_id) WHERE listing_key IS NOT NULL GROUP BY GROUPING SETS((listing_key),(listing_key,${istDaySql('occurred_at')}))`,
+          [istDayStart(f.from), istDayStart(f.to), istDayStart(f.from), istDayStart(f.to)],
         );
         const plain = rows
           .getRowObjectsJson()
@@ -392,8 +393,8 @@ export class InventoryInsightsService
           'SELECT min(occurred_at)::VARCHAR AS "first" FROM site_events WHERE kind=\'pageview\'',
         );
         const unmatched = await c.runAndReadAll(
-          `SELECT count(*) count FROM site_events e WHERE kind='pageview' AND occurred_at>=?::DATE AND occurred_at<?::DATE AND (SELECT count(DISTINCT a.key) FROM inventory_aliases a WHERE a.path=lower(rtrim(e.path,'/')))<>1 AND (route='/:inventory' OR route LIKE '/projects/%' OR path LIKE '/property/%')`,
-          [f.from, f.to],
+          `SELECT count(*) count FROM site_events e WHERE kind='pageview' AND occurred_at>=?::TIMESTAMP AND occurred_at<?::TIMESTAMP AND (SELECT count(DISTINCT a.key) FROM inventory_aliases a WHERE a.path=lower(rtrim(e.path,'/')))<>1 AND (route='/:inventory' OR route LIKE '/projects/%' OR path LIKE '/property/%')`,
+          [istDayStart(f.from), istDayStart(f.to)],
         );
         const valid = new Set(records.map((r) => r.key));
         return {
@@ -414,9 +415,9 @@ export class InventoryInsightsService
   private async enquiries(f: InventoryFilters) {
     // Site persistence is the count source. CRM forwarding copies are never added again.
     const rows = await this.db.query<Enquiry[]>(
-      `SELECT CASE WHEN project_id IS NOT NULL THEN CONCAT('project:',project_id) ELSE CONCAT('property:',property_id) END \`key\`,DATE_FORMAT(created_at,'%Y-%m-%d') day,
+      `SELECT CASE WHEN project_id IS NOT NULL THEN CONCAT('project:',project_id) ELSE CONCAT('property:',property_id) END \`key\`,DATE_FORMAT(created_at + INTERVAL 330 MINUTE,'%Y-%m-%d') day,
       SUM(COALESCE(analytics_intent,'enquiry')='enquiry') enquiries,SUM(analytics_intent='site_visit') visits,COUNT(DISTINCT analytics_session_id) linkedEnquirySessions,SUM(analytics_session_id IS NOT NULL) linkedSubmissions FROM leads WHERE (project_id IS NOT NULL OR (property_id IS NOT NULL AND property_id<>999)) AND created_at>=? AND created_at<? GROUP BY 1,2`,
-      [f.from, f.to],
+      [istDayStart(f.from), istDayStart(f.to)],
     );
     return rows.map((r) => ({
       ...r,
@@ -474,15 +475,15 @@ export class InventoryInsightsService
           { key: string; session: string }[]
         >(
           `SELECT DISTINCT CASE WHEN project_id IS NOT NULL THEN CONCAT('project:',project_id) ELSE CONCAT('property:',property_id) END \`key\`,analytics_session_id session FROM leads WHERE analytics_session_id IS NOT NULL AND COALESCE(analytics_intent,'enquiry')='enquiry' AND created_at>=? AND created_at<?`,
-          [f.from, f.to],
+          [istDayStart(f.from), istDayStart(f.to)],
         );
         submittedSessions = sessions;
         await this.analytics
           .reporting(async (c) => {
             const result = await c.runAndReadAll(
               `WITH submitted AS (SELECT unnest(from_json(?, '[{"key":"VARCHAR","session":"VARCHAR"}]'),recursive:=true))
-          SELECT s.key,count(DISTINCT s.session) count FROM submitted s WHERE EXISTS(SELECT 1 FROM site_events p WHERE p.kind='pageview' AND p.session_id=s.session AND p.occurred_at>=?::DATE AND p.occurred_at<?::DATE AND EXISTS(SELECT 1 FROM inventory_aliases a WHERE a.key=s.key AND a.path=lower(rtrim(p.path,'/')) AND NOT EXISTS(SELECT 1 FROM inventory_aliases other WHERE other.path=a.path AND other.key<>a.key))) GROUP BY s.key`,
-              [JSON.stringify(sessions), f.from, f.to],
+          SELECT s.key,count(DISTINCT s.session) count FROM submitted s WHERE EXISTS(SELECT 1 FROM site_events p WHERE p.kind='pageview' AND p.session_id=s.session AND p.occurred_at>=?::TIMESTAMP AND p.occurred_at<?::TIMESTAMP AND EXISTS(SELECT 1 FROM inventory_aliases a WHERE a.key=s.key AND a.path=lower(rtrim(p.path,'/')) AND NOT EXISTS(SELECT 1 FROM inventory_aliases other WHERE other.path=a.path AND other.key<>a.key))) GROUP BY s.key`,
+              [JSON.stringify(sessions), istDayStart(f.from), istDayStart(f.to)],
             );
             for (const row of result.getRowObjectsJson()) {
               const target = totals.get(
@@ -498,7 +499,7 @@ export class InventoryInsightsService
         linkedAvailable = false;
       }
     }
-    const now = f.asOf ? Date.parse(f.asOf) + 86400000 : Date.now();
+    const now = f.asOf ? Date.parse(istDayStart(f.asOf) + 'Z') + 86400000 : Date.now();
     const index = issueIndex(
       records,
       now,
@@ -605,12 +606,12 @@ export class InventoryInsightsService
             await c.runAndReadAll(
               `WITH aliases AS(SELECT path,first(key) listing_key FROM inventory_aliases GROUP BY path HAVING count(DISTINCT key)=1),
           submitted AS(SELECT unnest(from_json(?, '[{"key":"VARCHAR","session":"VARCHAR"}]'),recursive:=true)),
-          pages AS(SELECT p.*,a.listing_key FROM site_page_views p JOIN aliases a ON a.path=lower(rtrim(p.path,'/')) WHERE p.occurred_at>=?::DATE AND p.occurred_at<?::DATE AND a.listing_key IN(SELECT unnest(from_json(?, '["VARCHAR"]'))))
-          SELECT CASE WHEN grouping(strftime(occurred_at,'%Y-%m-%d'))=1 THEN NULL ELSE strftime(occurred_at,'%Y-%m-%d') END AS "day",count(DISTINCT session_id) sessions,count(DISTINCT visitor_id||':'||strftime(occurred_at,'%Y-%m-%d')) visitors,count(DISTINCT session_id) FILTER(WHERE EXISTS(SELECT 1 FROM submitted s WHERE s.key=pages.listing_key AND s.session=pages.session_id)) converted FROM pages GROUP BY GROUPING SETS((),(strftime(occurred_at,'%Y-%m-%d')))`,
+          pages AS(SELECT p.*,a.listing_key FROM site_page_views p JOIN aliases a ON a.path=lower(rtrim(p.path,'/')) WHERE p.occurred_at>=?::TIMESTAMP AND p.occurred_at<?::TIMESTAMP AND a.listing_key IN(SELECT unnest(from_json(?, '["VARCHAR"]'))))
+          SELECT CASE WHEN grouping(${istDaySql('occurred_at')})=1 THEN NULL ELSE ${istDaySql('occurred_at')} END AS "day",count(DISTINCT session_id) sessions,count(DISTINCT visitor_id||':'||${istDaySql('occurred_at')}) visitors,count(DISTINCT session_id) FILTER(WHERE EXISTS(SELECT 1 FROM submitted s WHERE s.key=pages.listing_key AND s.session=pages.session_id)) converted FROM pages GROUP BY GROUPING SETS((),(${istDaySql('occurred_at')}))`,
               [
                 JSON.stringify(loaded.submittedSessions),
-                f.from,
-                f.to,
+                istDayStart(f.from),
+                istDayStart(f.to),
                 JSON.stringify([...selectedKeys]),
               ],
             )
@@ -683,7 +684,7 @@ export class InventoryInsightsService
       listingKeys: result.records.map((r) => r.key),
       version: 2,
       filters: f,
-      timezone: 'UTC',
+      timezone: ANALYTICS_TIMEZONE,
       snapshotAt: await this.snapshotTime(f),
       sources: {
         inventory: this.syncError ? 'stale' : 'available',

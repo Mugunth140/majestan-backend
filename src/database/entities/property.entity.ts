@@ -33,6 +33,8 @@ export enum PropertyType {
   INDUSTRIAL = 'industrial',
   OTHER = 'other',
   INDIVIDUAL_PORTION = 'individual_portion',
+  /** One floor or part of a house ("Individual Portion"); individual_portion is a whole independent house. */
+  PORTION = 'portion',
   INVESTMENT_PROPERTY = 'investment_property',
   PG_SERVICE_APARTMENT = 'pg_service_apartment',
   FARM_HOUSE = 'farm_house',

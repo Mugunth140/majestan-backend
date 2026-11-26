@@ -29,6 +29,7 @@ function normalizePropertyType(value: string): string {
     'commercial':        'commercial',
     'industrial':        'industrial',
     'individual_portion':'individual_portion',
+    'portion':           'portion',
     'farm_house': 'farm_house',
     'farm-house': 'farm_house',
     'farmhouse': 'farm_house',

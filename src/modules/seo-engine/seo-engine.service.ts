@@ -1319,6 +1319,7 @@ export class SeoEngineService {
       apartment: 'Apartment',
       villa: 'SingleFamilyResidence',
       individual_portion: 'House',
+      portion: 'House',
       plot: 'Landform',
       farmland: 'Landform',
       commercial: 'Place',
@@ -1725,7 +1726,7 @@ export class SeoEngineService {
       const placeType =
         target.property_type === 'apartment'
           ? 'Apartment'
-          : ['villa', 'individual_portion'].includes(target.property_type)
+          : ['villa', 'individual_portion', 'portion'].includes(target.property_type)
             ? 'SingleFamilyResidence'
             : ['plot', 'farmland'].includes(target.property_type)
               ? 'Landform'

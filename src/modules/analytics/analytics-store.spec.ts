@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { validateBatch } from './analytics-event';
 import { SiteAnalyticsStore } from './analytics-store.service';
+import { istDayOf } from './ist-day';
 
 describe('persistent website DuckDB', () => {
   let store: SiteAnalyticsStore;
@@ -20,8 +21,9 @@ describe('persistent website DuckDB', () => {
     country: 'IN',
   };
   const now = Date.now();
-  const from = new Date(now).toISOString().slice(0, 10),
-    to = new Date(now + 86400_000).toISOString().slice(0, 10);
+  // Report windows are India-time days.
+  const from = istDayOf(now),
+    to = istDayOf(now + 86400_000);
   const make = (extra: Record<string, unknown> = {}) =>
     validateBatch({
       version: 1,
@@ -54,6 +56,29 @@ describe('persistent website DuckDB', () => {
   afterEach(async () => {
     await store.onApplicationShutdown();
     rmSync(dir, { recursive: true, force: true });
+  });
+  it('counts an early-morning IST enquiry on its India-time day', async () => {
+    // 21:57 UTC is 03:27 IST the next morning; take the latest one inside the last day.
+    const d = new Date(now);
+    let at = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 21, 57);
+    if (at > now) at -= 86400_000;
+    await store.ingest(
+      [
+        make({ timestamp: at }),
+        make({ kind: 'conversion', name: 'enquiry_submitted', timestamp: at }),
+      ],
+      context,
+    );
+    const day = istDayOf(at);
+    const before = new Date(Date.parse(day) - 86400_000).toISOString().slice(0, 10);
+    const after = new Date(Date.parse(day) + 86400_000).toISOString().slice(0, 10);
+    const conversions = (r: { events: { kind: string; events: unknown }[] }) =>
+      r.events.filter((e) => e.kind === 'conversion').reduce((n, e) => n + Number(e.events), 0);
+    expect(day).not.toBe(new Date(at).toISOString().slice(0, 10));
+    const own = await store.report(day, after);
+    expect(conversions(own)).toBe(1);
+    expect(own.timeseries).toEqual([expect.objectContaining({ day })]);
+    expect(conversions(await store.report(before, day))).toBe(0);
   });
   it('commits, deduplicates retries, preserves data across reopen, and computes metrics', async () => {
     const page = make();
@@ -92,6 +117,10 @@ describe('persistent website DuckDB', () => {
     await store.onModuleInit();
     const report = await store.report(from, to);
     expect(report.overview.pageviews).toBe('1');
+    expect(report.timezone).toBe('Asia/Kolkata');
+    expect(report.timeseries).toEqual([
+      expect.objectContaining({ day: istDayOf(now) }),
+    ]);
     expect(Number(report.overview.engaged_ms)).toBe(15000);
     expect(report.performance[0]).toMatchObject({ name: 'LCP', p75: 2100 });
     expect(report.events.some((e) => e.name === 'enquiry_submitted')).toBe(
@@ -105,7 +134,7 @@ describe('persistent website DuckDB', () => {
   });
   it('rejects invalid report windows', async () => {
     await expect(store.report('2026-02-30', '2026-03-04')).rejects.toThrow(
-      'valid UTC dates',
+      'India time days',
     );
     await expect(store.report('2025-01-01', '2026-11-01')).rejects.toThrow();
   });

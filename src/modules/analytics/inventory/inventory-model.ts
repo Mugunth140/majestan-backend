@@ -111,7 +111,7 @@ export function validateInventoryFilters(
     Date.parse(out.to) - Date.parse(out.from) > 93 * 86400000
   )
     throw new BadRequestException(
-      'Choose valid UTC dates, at most 93 days; end is exclusive',
+      'Choose valid dates (India time days), at most 93 days; end is exclusive',
     );
   if (
     (out.asOf && !date(out.asOf)) ||
@@ -448,7 +448,7 @@ export function filterInventory(
         !r.configurations.some((c) => c.status === f.configurationStatus))
     )
       return false;
-    const at = f.asOf ? Date.parse(f.asOf) + 86400000 : Date.now();
+    const at = f.asOf ? Date.parse(f.asOf) + 86400000 - 330 * 60_000 : Date.now();
     if (
       (f.recordAge && ageBand(r.created, at) !== f.recordAge) ||
       (f.freshness && ageBand(r.updated, at) !== f.freshness)
@@ -462,6 +462,7 @@ export function filterInventory(
         'apartment',
         'villa',
         'individual_portion',
+        'portion',
         'farm_house',
         'investment_property',
       ].includes(r.type)
@@ -889,6 +890,7 @@ export function sectionReport(
         'apartment',
         'villa',
         'individual_portion',
+        'portion',
         'farm_house',
         'investment_property',
       ].includes(r.type),

@@ -7,6 +7,7 @@ import {
   ServiceUnavailableException,
   BadRequestException,
 } from '@nestjs/common';
+import { ANALYTICS_TIMEZONE, istDayOf, istDayStart, istDaySql } from './ist-day';
 import { DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { DuckDBInstance, type DuckDBConnection } from '@duckdb/node-api';
@@ -264,12 +265,13 @@ export class SiteAnalyticsStore implements OnModuleInit, OnApplicationShutdown {
       new Date(end).toISOString().slice(0, 10) !== to
     ) {
       throw new BadRequestException(
-        'Use valid UTC dates from < to, at most 366 days (to is exclusive)',
+        'Use valid dates from < to (India time days), at most 366 days (to is exclusive)',
       );
     }
   }
   async propertyInsights(from: string, to: string) {
     this.validateRange(from, to);
+    const [start, end] = [istDayStart(from), istDayStart(to)];
     if (!this.catalog || this.closing)
       throw new ServiceUnavailableException('Insights unavailable');
     type Alias = {
@@ -327,7 +329,7 @@ export class SiteAnalyticsStore implements OnModuleInit, OnApplicationShutdown {
         if (!row.created) continue;
         const date = new Date(row.created);
         if (!Number.isFinite(date.getTime())) continue;
-        const day = date.toISOString().slice(0, 10);
+        const day = istDayOf(date);
         if (day >= from && day < to)
           additions.set(day, (additions.get(day) || 0) + 1);
       }
@@ -352,15 +354,15 @@ export class SiteAnalyticsStore implements OnModuleInit, OnApplicationShutdown {
         WITH aliases AS (SELECT unnest(from_json(?, '[{"path":"VARCHAR","kind":"VARCHAR","id":"VARCHAR","title":"VARCHAR"}]'),recursive:=true)),
         catalog AS (SELECT lower(rtrim(path,'/')) path,first(kind) kind,first(id) id,first(title) title FROM aliases GROUP BY 1 HAVING count(DISTINCT kind||':'||id)=1),
         actions AS (SELECT page_id,count(*) FILTER(WHERE kind='conversion' AND name<>'registration_completed') conversions,count(*) FILTER(WHERE kind='interaction') interactions
-          FROM site_events WHERE kind IN ('conversion','interaction') AND occurred_at>=?::DATE AND occurred_at<?::DATE GROUP BY 1),
+          FROM site_events WHERE kind IN ('conversion','interaction') AND occurred_at>=?::TIMESTAMP AND occurred_at<?::TIMESTAMP GROUP BY 1),
         matched AS (SELECT c.kind,c.id,c.title,v.visitor_id,v.session_id,v.engaged_ms,v.max_scroll_percent,
-          strftime(v.occurred_at,'%Y-%m-%d') AS "day",coalesce(a.conversions,0) conversions,coalesce(a.interactions,0) interactions
+          ${istDaySql('v.occurred_at')} AS "day",coalesce(a.conversions,0) conversions,coalesce(a.interactions,0) interactions
           FROM site_page_views v JOIN catalog c ON c.path=lower(CASE WHEN regexp_full_match(v.path,'/projects/[^/]+/[^/]+/?') THEN '/projects/'||split_part(v.path,'/',4) ELSE rtrim(v.path,'/') END)
-          LEFT JOIN actions a USING(page_id) WHERE v.occurred_at>=?::DATE AND v.occurred_at<?::DATE)
+          LEFT JOIN actions a USING(page_id) WHERE v.occurred_at>=?::TIMESTAMP AND v.occurred_at<?::TIMESTAMP)
         SELECT kind,id,title,day,count(*) AS "views",count(DISTINCT visitor_id) visitors,count(DISTINCT session_id) sessions,
           avg(engaged_ms) engagement,avg(max_scroll_percent) AS "scroll",sum(conversions) conversions,sum(interactions) interactions
         FROM matched GROUP BY GROUPING SETS ((kind,id,title),(kind,day)) ORDER BY views DESC`,
-        [JSON.stringify(aliases), from, to, from, to],
+        [JSON.stringify(aliases), start, end, start, end],
       );
       return {
         rows: result.getRowObjectsJson(),
@@ -374,8 +376,9 @@ export class SiteAnalyticsStore implements OnModuleInit, OnApplicationShutdown {
   }
   async report(from: string, to: string) {
     this.validateRange(from, to);
+    const [start, end] = [istDayStart(from), istDayStart(to)];
     return this.enqueue(async (conn) => {
-      const query = async (sql: string, params: unknown[] = [from, to]) => {
+      const query = async (sql: string, params: unknown[] = [start, end]) => {
         const result = await conn.runAndReadAll(sql, params as never);
         return result.getRowObjectsJson();
       };
@@ -412,10 +415,10 @@ export class SiteAnalyticsStore implements OnModuleInit, OnApplicationShutdown {
       return {
         from,
         to,
-        timezone: 'UTC',
+        timezone: ANALYTICS_TIMEZONE,
         overview: { ...overview, ...sessionStats },
         timeseries: await query(
-          `SELECT strftime(occurred_at,'%Y-%m-%d') AS "day",count(*) pageviews,count(DISTINCT visitor_id) visitors,count(DISTINCT session_id) sessions FROM site_page_views WHERE ${when} GROUP BY 1 ORDER BY 1`,
+          `SELECT ${istDaySql('occurred_at')} AS "day",count(*) pageviews,count(DISTINCT visitor_id) visitors,count(DISTINCT session_id) sessions FROM site_page_views WHERE ${when} GROUP BY 1 ORDER BY 1`,
         ),
         dimensions,
         entries: await query(

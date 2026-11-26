@@ -36,7 +36,7 @@ CREATE OR REPLACE VIEW site_vitals AS
     arg_max(value,occurred_at) AS "value", arg_max(rating,occurred_at) rating, max(occurred_at) occurred_at
   FROM site_events WHERE kind='web_vital' GROUP BY page_id,name,metric_id;
 CREATE OR REPLACE VIEW site_daily AS
-  SELECT CAST(occurred_at AS DATE) AS "day", count(*) pageviews, count(DISTINCT visitor_id) visitors,
+  SELECT CAST(occurred_at + INTERVAL 330 MINUTE AS DATE) AS "day", count(*) pageviews, count(DISTINCT visitor_id) visitors,
     count(DISTINCT session_id) sessions, sum(engaged_ms) engaged_ms
   FROM site_page_views GROUP BY 1;
 INSERT INTO analytics_schema(version) VALUES (1) ON CONFLICT DO NOTHING;
